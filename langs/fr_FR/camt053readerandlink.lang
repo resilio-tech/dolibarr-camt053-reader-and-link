@@ -1,0 +1,39 @@
+# Copyright (C) ---Put here your own copyright and developer email---
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+#
+# Generic
+#
+
+# Français
+
+ModuleCamt053ReaderAndLinkName=CAMT.053 Rapprochement
+ModuleCamt053ReaderAndLinkDesc = Capacité à lire et lier les fichiers CAMT053 aux relevés bancaires
+ModuleCamt053ReaderAndLinkShortName = CAMT.053 Rapprochement
+Camt053ReaderAndLinkSetup = CAMT.053 Rapprochement configuration
+Settings = Configuration
+Camt053ReaderAndLinkSetupPage = CAMT.053 Rapprochement page de configuration
+About = À propos
+Camt053ReaderAndLinkAbout = À propos de CAMT.053 Reader And Link
+Camt053ReaderAndLinkAboutPage = Page à propos de CAMT.053 Reader And Link
+Camt053ReaderAndLinkArea = Lire et lier le fichier CAMT.053
+UploadCamt053File = Télécharger le fichier CAMT.053
+Camt053ReaderAndLinkFile = Télécharger le fichier CAMT.053
+WillBeConciliated = Sera rapproché
+WillNotBeConciliated = Ne sera pas rapproché
+MultipleConciliated = Plusieurs rapprochements
+Conciliated = Rapprochement
+ConcilationsConfirmed = Rapprochements confirmés
+CheckNewConciliations = Vérifier les nouveaux rapprochements

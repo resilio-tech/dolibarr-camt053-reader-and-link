@@ -52,7 +52,7 @@ class modCamt053ReaderAndLink extends DolibarrModules
 
 		// Family can be 'base' (core modules),'crm','financial','hr','projects','products','ecm','technic' (transverse modules),'interface' (link with external tools),'other','...'
 		// It is used to group modules by family in module setup page
-		$this->family = "other";
+		$this->family = 'financial';
 
 		// Module position in the family on 2 digits ('01', '10', '20', ...)
 		$this->module_position = '90';
@@ -107,11 +107,11 @@ class modCamt053ReaderAndLink extends DolibarrModules
 			'theme' => 0,
 			// Set this to relative path of css file if module has its own css file
 			'css' => array(
-				//    '/camt053readerandlink/css/camt053readerandlink.css.php',
+				'/camt053readerandlink/css/camt053readerandlink.css',
 			),
 			// Set this to relative path of js file if module must load a js on all pages
 			'js' => array(
-				//   '/camt053readerandlink/js/camt053readerandlink.js.php',
+				'/camt053readerandlink/js/camt053readerandlink.js.php',
 			),
 			// Set here all hooks context managed by module. To find available hook context, make a "grep -r '>initHooks(' *" on source code. You can also set hook context to 'all'
 			'hooks' => array(
@@ -301,19 +301,18 @@ class modCamt053ReaderAndLink extends DolibarrModules
 		// Add here entries to declare new menus
 		/* BEGIN MODULEBUILDER TOPMENU */
 		$this->menu[$r++] = array(
-			'fk_menu'=>'', // '' if this is a top menu. For left menu, use 'fk_mainmenu=xxx' or 'fk_mainmenu=xxx,fk_leftmenu=yyy' where xxx is mainmenucode and yyy is a leftmenucode
-			'type'=>'top', // This is a Top menu entry
-			'titre'=>'ModuleCamt053ReaderAndLinkName',
-			'prefix' => img_picto('', $this->picto, 'class="pictofixedwidth valignmiddle"'),
-			'mainmenu'=>'camt053readerandlink',
+			'fk_menu'=>'fk_mainmenu=bank,fk_leftmenu=bank', // '' if this is a top menu. For left menu, use 'fk_mainmenu=xxx' or 'fk_mainmenu=xxx,fk_leftmenu=yyy' where xxx is mainmenucode and yyy is a leftmenucode
+			'type'=>'left', // This is a Top menu entry
+			'titre'=>'ModuleCamt053ReaderAndLinkShortName',
+			'mainmenu'=>'bank',
 			'leftmenu'=>'',
-			'url'=>'/camt053readerandlink/camt053readerandlinkindex.php',
+			'url'=>'/camt053readerandlink/index.php',
 			'langs'=>'camt053readerandlink@camt053readerandlink', // Lang file to use (without .lang) by module. File must be in langs/code_CODE/ directory.
 			'position'=>1000 + $r,
-			'enabled'=>'isModEnabled("camt053readerandlink")', // Define condition to show or hide menu entry. Use 'isModEnabled("camt053readerandlink")' if entry must be visible if module is enabled.
-			'perms'=>'1', // Use 'perms'=>'$user->hasRight("camt053readerandlink", "myobject", "read")' if you want your menu with a permission rules
+			'enabled'=>'isModEnabled("camt053readerandlink") && isModenabled("banque")', // Define condition to show or hide menu entry. Use 'isModEnabled("camt053readerandlink")' if entry must be visible if module is enabled.
+			'perms'=>'$user->rights->banque->lire', // Use 'perms'=>'$user->hasRight("camt053readerandlink", "myobject", "read")' if you want your menu with a permission rules
 			'target'=>'',
-			'user'=>2, // 0=Menu for internal users, 1=external users, 2=both
+			'user'=>0, // 0=Menu for internal users, 1=external users, 2=both
 		);
 		/* END MODULEBUILDER TOPMENU */
 		/* BEGIN MODULEBUILDER LEFTMENU MYOBJECT */
@@ -324,7 +323,7 @@ class modCamt053ReaderAndLink extends DolibarrModules
 			'prefix' => img_picto('', $this->picto, 'class="pictofixedwidth valignmiddle paddingright"'),
 			'mainmenu'=>'camt053readerandlink',
 			'leftmenu'=>'myobject',
-			'url'=>'/camt053readerandlink/camt053readerandlinkindex.php',
+			'url'=>'/camt053readerandlink/index.php',
 			'langs'=>'camt053readerandlink@camt053readerandlink',	        // Lang file to use (without .lang) by module. File must be in langs/code_CODE/ directory.
 			'position'=>1000+$r,
 			'enabled'=>'isModEnabled("camt053readerandlink")', // Define condition to show or hide menu entry. Use 'isModEnabled("camt053readerandlink")' if entry must be visible if module is enabled.

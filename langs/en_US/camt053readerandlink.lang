@@ -17,38 +17,21 @@
 # Generic
 #
 
-# Module label 'ModuleCamt053ReaderAndLinkName'
-ModuleCamt053ReaderAndLinkName = Camt053ReaderAndLink
-# Module description 'ModuleCamt053ReaderAndLinkDesc'
+ModuleCamt053ReaderAndLinkName=CAMT.053 Reader And Link
 ModuleCamt053ReaderAndLinkDesc = Ability to read and link CAMT053 files to bank statements
-
-#
-# Admin page
-#
-Camt053ReaderAndLinkSetup = Camt053ReaderAndLink setup
+ModuleCamt053ReaderAndLinkShortName = CAMT.053 Link
+Camt053ReaderAndLinkSetup = CAMT.053 Reader And Link setup
 Settings = Settings
-Camt053ReaderAndLinkSetupPage = Camt053ReaderAndLink setup page
-CAMT053READERANDLINK_MYPARAM1 = My param 1
-CAMT053READERANDLINK_MYPARAM1Tooltip = My param 1 tooltip
-CAMT053READERANDLINK_MYPARAM2=My param 2
-CAMT053READERANDLINK_MYPARAM2Tooltip=My param 2 tooltip
-
-
-#
-# About page
-#
+Camt053ReaderAndLinkSetupPage = CAMT.053 Reader And Link setup page
 About = About
-Camt053ReaderAndLinkAbout = About Camt053ReaderAndLink
-Camt053ReaderAndLinkAboutPage = Camt053ReaderAndLink about page
-
-#
-# Sample page
-#
-Camt053ReaderAndLinkArea = Home Camt053ReaderAndLink
-MyPageName = My page name
-
-#
-# Sample widget
-#
-MyWidget = My widget
-MyWidgetDescription = My widget description
+Camt053ReaderAndLinkAbout = About CAMT.053 Reader And Link
+Camt053ReaderAndLinkAboutPage = CAMT.053 Reader And Link about page
+Camt053ReaderAndLinkArea = Read and link CAMT.053 file
+UploadCamt053File = Upload CAMT.053 file
+Camt053ReaderAndLinkFile = Upload CAMT.053 file
+WillBeConciliated = Will be conciliated
+WillNotBeConciliated = Will not be conciliated
+MultipleConciliated = Multiple conciliated
+Conciliated = Conciliation
+ConcilationsConfirmed = Conciliations confirmed
+CheckNewConciliations = Check new conciliations
