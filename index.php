@@ -109,6 +109,7 @@ print '<form id="form" name="form" action="/custom/camt053readerandlink/submit.p
 
 print '<br /><br />';
 
+print '<p>' . $langs->trans('BasedOnPreviousMonthIfNotFilled') . '</p>';
 print '<label for="date">' . $langs->trans("Date") . '</label>';
 print $form->selectDateToDate(-1, -1, 'date', '', '');
 

@@ -35,3 +35,4 @@ MultipleConciliated = Multiple conciliated
 Conciliated = Conciliation
 ConcilationsConfirmed = Conciliations confirmed
 CheckNewConciliations = Check new conciliations
+BasedOnPreviousMonthIfNotFilled = Based on the previous month of the file extraction date if not filled

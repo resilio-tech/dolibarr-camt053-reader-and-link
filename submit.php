@@ -137,6 +137,16 @@ if ($action == 'upload') {
 
 	if (!empty($file_json)) {
 		$structure = json_decode(urldecode($file_json), 1);
+
+		$iban = $structure['BkToCstmrStmt']['Stmt']['Acct']['Id']['IBAN'];
+		$iban_format =
+			substr($iban, 0, 4) . ' ' .
+			substr($iban, 4, 4) . ' ' .
+			substr($iban, 8, 4) . ' ' .
+			substr($iban, 12, 4) . ' ' .
+			substr($iban, 16, 4) . ' ' .
+			substr($iban, 20, 1);
+
 	} else {
 		$upload_file = $dir . '/' . $file['name'];
 
@@ -175,15 +185,6 @@ if ($action == 'upload') {
 		throw new Exception($error);
 	}
 
-	$iban = $structure['BkToCstmrStmt']['Stmt']['Acct']['Id']['IBAN'];
-	$iban_format =
-		substr($iban, 0, 4) . ' ' .
-		substr($iban, 4, 4) . ' ' .
-		substr($iban, 8, 4) . ' ' .
-		substr($iban, 12, 4) . ' ' .
-		substr($iban, 16, 4) . ' ' .
-		substr($iban, 20, 1);
-
 	foreach ($structure['BkToCstmrStmt']['Stmt']['Ntry'] as $ntry) {
 		$type = $ntry['CdtDbtInd'];
 		$amount = floatval($ntry['Amt']);
@@ -200,11 +201,15 @@ if ($action == 'upload') {
 	$statement_from_db = new StatementsCamt053();
 	$statement_from_db->setIsFile(false);
 
-	if (empty($date_start)) {
-		$error = 'Error while getting the date start';
-	}
-	if (empty($date_end)) {
-		$error = 'Error while getting the date end';
+	if (empty($date_start) or empty($date_end)) {
+		$d = $structure['BkToCstmrStmt']['GrpHdr']['CreDtTm'];
+		$d = new DateTime($d);
+		// base on previous month
+		$d->modify('first day of previous month');
+		// get first day of the previous month
+		$date_start = $d->format('01/m/Y');
+		// get last day of the previous month
+		$date_end = $d->format('t/m/Y');
 	}
 
 	if (!empty($error)) {
