@@ -363,6 +363,7 @@ if ($action == 'upload') {
 	print '<input type="hidden" name="token" value="'.$_SESSION['newtoken'].'" />';
 	print '<input type="hidden" name="action" value="confirm" />';
 	print '<input type="hidden" name="file_json" value="'.urlencode(json_encode($structure, 0)).'" />';
+	print '<input type="hidden" name="upload_file" value="'.$upload_file.'" />';
 	print '<input type="submit" value="'.$langs->trans('Confirm').'" />';
 	print '</form>';
 }

@@ -56,6 +56,7 @@ if (!$res) {
 	die("Include of main fails");
 }
 
+include_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/class/html.formfile.class.php';
 
 // Load translation files required by the page
@@ -122,6 +123,7 @@ $date_start = GETPOST('date_start', 'date');
 $date_end = GETPOST('date_end', 'date');
 $bank_account_id = GETPOST('bank_account_id', 'int');
 $file_json = json_decode(urldecode(GETPOST('file_json', 'alpha')), 1);
+$upload_file = GETPOST('upload_file', 'alpha');
 
 $date_end_obj = date_create_from_format('d/m/Y', $date_end);
 $date_concil = $date_end_obj->format('Ym');
@@ -186,6 +188,58 @@ foreach ($linked as $key => $link) {
 		}
 	);
 }
+
+if (!empty($upload_file)) {
+	$id = $bank_account_id;
+	$numref = $date_concil;
+	$modulepart = 'bank';
+	$permissiontoadd = $user->rights->banque->modifier;
+	$permtoedit = $user->rights->banque->modifier;
+	$param = '&id='.$id.'&num='.urlencode($numref);
+	$moreparam = '&num='.urlencode($numref);
+	$relativepathwithnofile = $id."/statement/".dol_sanitizeFileName($numref)."/";
+	$object = new Account($db);
+	$object->fetch($id);
+	// get all directories from $upload_file
+//	$dir = substr($upload_file, 0, strrpos($upload_file, '/'));
+	$file = substr($upload_file, strrpos($upload_file, '/') + 1);
+	$dir = 'bank/'.$id.'/statement/'.dol_sanitizeFileName($numref);
+	include_once DOL_DOCUMENT_ROOT.'/ecm/class/ecmfiles.class.php';
+	$ecmfile = new EcmFiles($db);
+	$ecmfile->filepath = $dir;
+	$ecmfile->filename = $file;
+	$ecmfile->label = md5_file(dol_osencode($upload_file)); // MD5 of file content
+	$ecmfile->fullpath_orig = $file;
+	$ecmfile->gen_or_uploaded = 'uploaded';
+	$ecmfile->description = '';
+	$ecmfile->keywords = '';
+	if (is_object($object) && $object->id > 0) {
+		$ecmfile->src_object_id = $object->id;
+		if (isset($object->table_element)) {
+			$ecmfile->src_object_type = $object->table_element;
+		} else {
+			dol_syslog('Error: object ' . get_class($object) . ' has no table_element attribute.');
+			return -1;
+		}
+		if (isset($object->src_object_description)) {
+			$ecmfile->description = $object->src_object_description;
+		}
+		if (isset($object->src_object_keywords)) {
+			$ecmfile->keywords = $object->src_object_keywords;
+		}
+	}
+	require_once DOL_DOCUMENT_ROOT.'/core/lib/security2.lib.php';
+	$ecmfile->share = getRandomPassword(true);
+	$result = $ecmfile->create($user);
+	if ($result < 0) {
+		dol_syslog($ecmfile->error);
+	}
+	if (!is_dir(DOL_DOCUMENT_ROOT.'/documents/'.$dir)) {
+		mkdir(DOL_DOCUMENT_ROOT . '/documents/' . $dir, 0777, true);
+	}
+	rename($upload_file, DOL_DOCUMENT_ROOT.'/documents/'.$dir.'/'.$file);
+}
+
 print '</table>';
 
 print '<form method="POST" action="/custom/camt053readerandlink/submit.php" enctype="multipart/form-data">';
