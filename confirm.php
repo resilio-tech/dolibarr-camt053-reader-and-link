@@ -110,7 +110,7 @@ $formfile = new FormFile($db);
 
 llxHeader("", $langs->trans("Camt053ReaderAndLinkArea"), '', '', 0, 0, '', '', '', 'mod-camt053readerandlink page-index');
 
-print '<div class="fichecenter">';
+print '<div class="fichecenter camt053readerandlink">';
 
 $linked = GETPOST('linked', 'array');
 foreach ($_POST as $key => $value) {

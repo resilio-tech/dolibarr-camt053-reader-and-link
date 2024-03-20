@@ -101,7 +101,7 @@ $formfile = new FormFile($db);
 
 llxHeader("", $langs->trans("Camt053ReaderAndLinkArea"), '', '', 0, 0, '', '', '', 'mod-camt053readerandlink page-index');
 
-print '<div class="fichecenter"><div class="fichethirdleft">';
+print '<div class="fichecenter camt053readerandlink"><div class="fichethirdleft">';
 print '<form id="form" name="form" action="/custom/camt053readerandlink/submit.php" method="post" enctype="multipart/form-data">';
 //
 //print '<label for="bank_account_id">' . $langs->trans("Account") . '</label>';

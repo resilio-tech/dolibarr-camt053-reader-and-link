@@ -126,7 +126,7 @@ $formfile = new FormFile($db);
 
 llxHeader("", $langs->trans("Camt053ReaderAndLinkArea"), '', '', 0, 0, '', '', '', 'mod-camt053readerandlink page-index');
 
-print '<div class="fichecenter">';
+print '<div class="fichecenter camt053readerandlink">';
 
 require_once './statements.php';
 require_once DOL_DOCUMENT_ROOT.'/compta/bank/class/account.class.php';

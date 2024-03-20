@@ -1,11 +1,11 @@
-div.mainmenu.camt053readerandlink::before {
+.camt053readerandlink div.mainmenu.camt053readerandlink::before {
 	content: "\f249";
 }
-div.mainmenu.camt053readerandlink {
+.camt053readerandlink div.mainmenu.camt053readerandlink {
 	background-image: none;
 }
 
-#file_input {
+.camt053readerandlink #file_input {
 	position: relative;
 	display: flex;
 	justify-content: center;
@@ -18,23 +18,23 @@ div.mainmenu.camt053readerandlink {
 	font-weight: bold;
 	cursor: pointer;
 }
-#file_input:hover {
+.camt053readerandlink #file_input:hover {
 	border-color: #999;
 	color: #999;
 }
-#file_input.dragover {
+.camt053readerandlink #file_input.dragover {
 	border-color: #666;
 	color: #666;
 }
-#file_input.uploaded {
+.camt053readerandlink #file_input.uploaded {
 	border-color: #0c0;
 	color: #0c0;
 }
-#file_input.error {
+.camt053readerandlink #file_input.error {
 	border-color: #c00;
 	color: #c00;
 }
-#file_input input {
+.camt053readerandlink #file_input input {
 	appearance: none;
 	position: absolute;
 	width: 100%;
@@ -43,7 +43,7 @@ div.mainmenu.camt053readerandlink {
 	cursor: pointer;
 }
 
-.statement_link_linked {
+.camt053readerandlink .statement_link_linked {
 	text-align: center;
 	padding: 2px 5px;
 	border: 2px solid #125200;
@@ -51,7 +51,7 @@ div.mainmenu.camt053readerandlink {
 	border-radius: 5px;
 }
 
-.statement_link_multiple {
+.camt053readerandlink .statement_link_multiple {
 	text-align: center;
 	padding: 2px 5px;
 	border: 2px solid #c46b00;
@@ -59,7 +59,7 @@ div.mainmenu.camt053readerandlink {
 	border-radius: 5px;
 }
 
-.statement_link_unlinked {
+.camt053readerandlink .statement_link_unlinked {
 	text-align: center;
 	padding: 2px 5px;
 	border: 2px solid #ff0000;
@@ -67,6 +67,6 @@ div.mainmenu.camt053readerandlink {
 	border-radius: 5px;
 }
 
-input[name=confirmmassaction] {
+.camt053readerandlink input[name=confirmmassaction] {
 	display: none !important;
 }
