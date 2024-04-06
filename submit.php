@@ -190,9 +190,35 @@ if ($action == 'upload') {
 		$amount = floatval($ntry['Amt']);
 		if ($type == 'DBIT') $amount = -$amount;
 		$value_date = new DateTime($ntry['ValDt']['Dt']);
-		$name = $ntry['NtryDtls']['TxDtls']['RltdPties']['Cdtr']['Nm'];
-		$info = $ntry['NtryDtls']['TxDtls']['RmtInf']['Strd']['AddtlRmtInf'];
 		$hash = $ntry['AcctSvcrRef'];
+		$name = $ntry['AddtlNtryInf'];
+		$info = '';
+		if (
+			array_key_exists('NtryDtls', $ntry)
+			&& array_key_exists('TxDtls', $ntry['NtryDtls'])
+		) {
+			if (
+				!array_key_exists('RmtInf', $ntry['NtryDtls']['TxDtls'])
+				|| !array_key_exists('Strd', $ntry['NtryDtls']['TxDtls']['RmtInf'])
+				|| !array_key_exists('AddtlRmtInf', $ntry['NtryDtls']['TxDtls']['RmtInf']['Strd'])
+			) {
+				$info = '';
+			} else {
+				$info = $ntry['NtryDtls']['TxDtls']['RmtInf']['Strd']['AddtlRmtInf'];
+				$info = (is_array($info) ? implode(", ", $info) : $info);
+			}
+			if (
+				array_key_exists('RltdPties', $ntry['NtryDtls']['TxDtls'])
+				&& (
+					array_key_exists('Dbtr', $ntry['NtryDtls']['TxDtls']['RltdPties'])
+					|| array_key_exists('Cdtr', $ntry['NtryDtls']['TxDtls']['RltdPties'])
+				)
+			) {
+				$name = $ntry['NtryDtls']['TxDtls']['RltdPties'][$type == 'DBIT' ? 'Cdtr' : 'Dbtr']['Nm'];
+			} else {
+				$name = $ntry['AddtlNtryInf'];
+			}
+		}
 
 		$n = $statement_from_file->addEntry($amount, $value_date->format('Y-m-d'), $name, $info);
 		$n->setHash($hash);
