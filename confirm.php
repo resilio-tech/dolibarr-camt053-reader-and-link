@@ -138,125 +138,130 @@ print '<td class="right">'.$langs->trans('Amount').'</td>';
 print '</tr>';
 
 $bank_account = new Account($db);
+try {
+	foreach ($linked as $key => $link) {
+		if (empty($link) || $link == 0) {
+			continue;
+		}
+		$obj = new AccountLine($db);
+		$obj->fetch($link);
+		$obj->num_releve = $date_concil;
+		$obj->update_conciliation($user, 0, 1);
 
-foreach ($linked as $key => $link) {
-	if (empty($link) || $link == 0) {
-		continue;
-	}
-	$obj = new AccountLine($db);
-	$obj->fetch($link);
-	$obj->num_releve = $date_concil;
-	$obj->update_conciliation($user, 0, 1);
+		$bank_links = $bank_account->get_url($obj->id);
 
-	$bank_links = $bank_account->get_url($obj->id);
-
-	$amount = $obj->amount;
-	$value_date = new DateTime();
-	date_timestamp_set($value_date, $obj->datev);
-	$value_date = $value_date->format('Y-m-d');
-	$name = $obj->label;
-	$reg = array();
-	preg_match('/\((.+)\)/i', $name, $reg);
-	if (!empty($reg[1]) && $langs->trans($reg[1]) != $reg[1]) {
-		$name = $langs->trans($reg[1]);
-		$type = 'salary';
-	} else {
-		if ($name == '(payment_salary)') {
-			$name = $langs->trans('SalaryPayment');
+		$amount = $obj->amount;
+		$value_date = new DateTime();
+		date_timestamp_set($value_date, intval($obj->datev));
+		$value_date = $value_date->format('Y-m-d');
+		$name = $obj->label;
+		$reg = array();
+		preg_match('/\((.+)\)/i', $name, $reg);
+		if (!empty($reg[1]) && $langs->trans($reg[1]) != $reg[1]) {
+			$name = $langs->trans($reg[1]);
 			$type = 'salary';
 		} else {
-			$name = dol_escape_htmltag($name);
+			if ($name == '(payment_salary)') {
+				$name = $langs->trans('SalaryPayment');
+				$type = 'salary';
+			} else {
+				$name = dol_escape_htmltag($name);
+			}
 		}
+
+		if (!empty($bank_links[1]['label'])) {
+			$name .= ' - ' . $bank_links[1]['label'];
+		}
+
+		$name = '<a href="' . DOL_URL_ROOT . '/compta/bank/line.php?rowid=' . ((int)$obj->id) . '&save_lastsearch_values=1" title="' . dol_escape_htmltag($name, 1) . '" class="classfortooltip" target="_blank">' . img_picto('', $obj->picto) . ' ' . $obj->id . ' ' . $name . '</a>';
+
+		print '<tr>';
+		print '<td>' . $name . '</td>';
+		print '<td>' . $value_date . '</td>';
+		print '<td class="right">' . number_format($amount, 2) . '</td>';
+		print '</tr>';
+
+		$file_json['BkToCstmrStmt']['Stmt']['Ntry'] = array_filter(
+			$file_json['BkToCstmrStmt']['Stmt']['Ntry'],
+			function ($ntry) use ($obj, $key) {
+				return $ntry['AcctSvcrRef'] != $key;
+			}
+		);
 	}
 
-	if (!empty($bank_links[1]['label'])) {
-		$name .= ' - '.$bank_links[1]['label'];
-	}
-
-	$name = '<a href="'.DOL_URL_ROOT.'/compta/bank/line.php?rowid='.((int) $obj->id).'&save_lastsearch_values=1" title="'.dol_escape_htmltag($name, 1).'" class="classfortooltip" target="_blank">'.img_picto('', $obj->picto).' '.$obj->id.' '.$name.'</a>';
-
-	print '<tr>';
-	print '<td>'.$name.'</td>';
-	print '<td>'.$value_date.'</td>';
-	print '<td class="right">'.number_format($amount,2).'</td>';
-	print '</tr>';
-
-	$file_json['BkToCstmrStmt']['Stmt']['Ntry'] = array_filter(
-		$file_json['BkToCstmrStmt']['Stmt']['Ntry'],
-		function($ntry) use ($obj, $key) {
-			return $ntry['AcctSvcrRef'] != $key;
-		}
-	);
-}
-
-if (!empty($upload_file)) {
-	$id = $bank_account_id;
-	$numref = $date_concil;
-	$modulepart = 'bank';
-	$permissiontoadd = $user->rights->banque->modifier;
-	$permtoedit = $user->rights->banque->modifier;
-	$param = '&id='.$id.'&num='.urlencode($numref);
-	$moreparam = '&num='.urlencode($numref);
-	$relativepathwithnofile = $id."/statement/".dol_sanitizeFileName($numref)."/";
-	$object = new Account($db);
-	$object->fetch($id);
-	// get all directories from $upload_file
+	if (!empty($upload_file)) {
+		$id = $bank_account_id;
+		$numref = $date_concil;
+		$modulepart = 'bank';
+		$permissiontoadd = $user->rights->banque->modifier;
+		$permtoedit = $user->rights->banque->modifier;
+		$param = '&id=' . $id . '&num=' . urlencode($numref);
+		$moreparam = '&num=' . urlencode($numref);
+		$relativepathwithnofile = $id . "/statement/" . dol_sanitizeFileName($numref) . "/";
+		$object = new Account($db);
+		$object->fetch($id);
+		// get all directories from $upload_file
 //	$dir = substr($upload_file, 0, strrpos($upload_file, '/'));
-	$file = substr($upload_file, strrpos($upload_file, '/') + 1);
-	$dir = 'bank/'.$id.'/statement/'.dol_sanitizeFileName($numref);
-	include_once DOL_DOCUMENT_ROOT.'/ecm/class/ecmfiles.class.php';
-	$ecmfile = new EcmFiles($db);
-	$ecmfile->filepath = $dir;
-	$ecmfile->filename = $file;
-	$ecmfile->label = md5_file(dol_osencode($upload_file)); // MD5 of file content
-	$ecmfile->fullpath_orig = $file;
-	$ecmfile->gen_or_uploaded = 'uploaded';
-	$ecmfile->description = '';
-	$ecmfile->keywords = '';
-	if (is_object($object) && $object->id > 0) {
-		$ecmfile->src_object_id = $object->id;
-		if (isset($object->table_element)) {
-			$ecmfile->src_object_type = $object->table_element;
-		} else {
-			dol_syslog('Error: object ' . get_class($object) . ' has no table_element attribute.');
-			return -1;
+		$file = substr($upload_file, strrpos($upload_file, '/') + 1);
+		$dir = 'bank/' . $id . '/statement/' . dol_sanitizeFileName($numref);
+		include_once DOL_DOCUMENT_ROOT . '/ecm/class/ecmfiles.class.php';
+		$ecmfile = new EcmFiles($db);
+		$ecmfile->filepath = $dir;
+		$ecmfile->filename = $file;
+		$ecmfile->label = md5_file(dol_osencode($upload_file)); // MD5 of file content
+		$ecmfile->fullpath_orig = $file;
+		$ecmfile->gen_or_uploaded = 'uploaded';
+		$ecmfile->description = '';
+		$ecmfile->keywords = '';
+		if (is_object($object) && $object->id > 0) {
+			$ecmfile->src_object_id = $object->id;
+			if (isset($object->table_element)) {
+				$ecmfile->src_object_type = $object->table_element;
+			} else {
+				dol_syslog('Error: object ' . get_class($object) . ' has no table_element attribute.');
+				return -1;
+			}
+			if (isset($object->src_object_description)) {
+				$ecmfile->description = $object->src_object_description;
+			}
+			if (isset($object->src_object_keywords)) {
+				$ecmfile->keywords = $object->src_object_keywords;
+			}
 		}
-		if (isset($object->src_object_description)) {
-			$ecmfile->description = $object->src_object_description;
+		require_once DOL_DOCUMENT_ROOT . '/core/lib/security2.lib.php';
+		$ecmfile->share = getRandomPassword(true);
+		$result = $ecmfile->create($user);
+		if ($result < 0) {
+			dol_syslog($ecmfile->error);
 		}
-		if (isset($object->src_object_keywords)) {
-			$ecmfile->keywords = $object->src_object_keywords;
+		if (!is_dir(DOL_DOCUMENT_ROOT . '/documents/' . $dir)) {
+			mkdir(DOL_DOCUMENT_ROOT . '/documents/' . $dir, 0777, true);
 		}
+		rename($upload_file, DOL_DOCUMENT_ROOT . '/documents/' . $dir . '/' . $file);
 	}
-	require_once DOL_DOCUMENT_ROOT.'/core/lib/security2.lib.php';
-	$ecmfile->share = getRandomPassword(true);
-	$result = $ecmfile->create($user);
-	if ($result < 0) {
-		dol_syslog($ecmfile->error);
-	}
-	if (!is_dir(DOL_DOCUMENT_ROOT.'/documents/'.$dir)) {
-		mkdir(DOL_DOCUMENT_ROOT . '/documents/' . $dir, 0777, true);
-	}
-	rename($upload_file, DOL_DOCUMENT_ROOT.'/documents/'.$dir.'/'.$file);
+
+	print '</table>';
+
+	print '<form method="POST" action="/custom/camt053readerandlink/submit.php" enctype="multipart/form-data">';
+	print '<input type="hidden" name="date_start" value="' . $date_start . '">';
+	print '<input type="hidden" name="date_end" value="' . $date_end . '">';
+	print '<input type="hidden" name="bank_account_id" value="' . $bank_account_id . '">';
+	print '<input type="hidden" name="file_json" value="' . urlencode(json_encode($file_json, 0)) . '">';
+	print '<input type="hidden" name="token" value="' . newToken() . '">';
+	print '<input type="hidden" name="action" value="upload">';
+	print '<input type="submit" value="' . $langs->trans('CheckNewConciliations') . '">';
+	print '</form>';
+
+
+	$NBMAX = getDolGlobalInt('MAIN_SIZE_SHORTLIST_LIMIT');
+	$max = getDolGlobalInt('MAIN_SIZE_SHORTLIST_LIMIT');
+
+	print '</div>';
+} catch (Exception $e) {
+	var_dump($e);
+	var_dump($e->getMessage());
+	print $e->getMessage();
 }
-
-print '</table>';
-
-print '<form method="POST" action="/custom/camt053readerandlink/submit.php" enctype="multipart/form-data">';
-print '<input type="hidden" name="date_start" value="'.$date_start.'">';
-print '<input type="hidden" name="date_end" value="'.$date_end.'">';
-print '<input type="hidden" name="bank_account_id" value="'.$bank_account_id.'">';
-print '<input type="hidden" name="file_json" value="'.urlencode(json_encode($file_json, 0)).'">';
-print '<input type="hidden" name="token" value="'.newToken().'">';
-print '<input type="hidden" name="action" value="upload">';
-print '<input type="submit" value="'.$langs->trans('CheckNewConciliations').'">';
-print '</form>';
-
-
-$NBMAX = getDolGlobalInt('MAIN_SIZE_SHORTLIST_LIMIT');
-$max = getDolGlobalInt('MAIN_SIZE_SHORTLIST_LIMIT');
-
-print '</div>';
 
 // End of page
 llxFooter();
