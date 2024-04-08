@@ -131,6 +131,23 @@ print '<div class="fichecenter camt053readerandlink">';
 require_once './statements.php';
 require_once DOL_DOCUMENT_ROOT.'/compta/bank/class/account.class.php';
 
+function getArrayKeys($array, $keys, $default = null)
+{
+	if (
+		is_array($array)
+		&& !empty($array)
+	) {
+		for ($i = 0; $i < count($keys); $i++) {
+			if (is_array($array) && array_key_exists($keys[$i], $array)) {
+				$array = $array[$keys[$i]];
+			} else {
+				return $default;
+			}
+		}
+	}
+	return $array;
+}
+
 if ($action == 'upload') {
 	try {
 		$statement_from_file = new StatementsCamt053();
@@ -181,58 +198,48 @@ if ($action == 'upload') {
 			}
 		}
 
+		$ntries = getArrayKeys($structure, ['BkToCstmrStmt', 'Stmt', 'Ntry']);
+
+		if (empty($ntries)) {
+			$error = 'Error while reading the file : No entries found';
+		}
+
 		if (!empty($error)) {
 			print $error;
 			throw new Exception($error);
 		}
 
-		foreach ($structure['BkToCstmrStmt']['Stmt']['Ntry'] as $ntry) {
+		foreach ($ntries as $ntry) {
 			try {
 				$type = $ntry['CdtDbtInd'];
 				$amount = floatval($ntry['Amt']);
 				if ($type == 'DBIT') $amount = -$amount;
 				$value_date = new DateTime($ntry['ValDt']['Dt']);
-				$hash = '';
-				if (array_key_exists('AcctSvcrRef', $ntry)) {
-					$hash = $ntry['AcctSvcrRef'];
-				}
+				$hash = getArrayKeys($ntry, ['AcctSvcrRef'], '');
 				$name = '';
-				if (array_key_exists('AddtlNtryInf', $ntry)) {
-					$name = $ntry['AddtlNtryInf'];
-				}
 				$info = '';
-				if (
-					array_key_exists('NtryDtls', $ntry)
-					&& array_key_exists('TxDtls', $ntry['NtryDtls'])
-				) {
-					if (
-						!array_key_exists('RmtInf', $ntry['NtryDtls']['TxDtls'])
-						|| !array_key_exists('Strd', $ntry['NtryDtls']['TxDtls']['RmtInf'])
-						|| !array_key_exists('AddtlRmtInf', $ntry['NtryDtls']['TxDtls']['RmtInf']['Strd'])
-					) {
-						$info = '';
-					} else {
-						$info = $ntry['NtryDtls']['TxDtls']['RmtInf']['Strd']['AddtlRmtInf'];
-						$info = (is_array($info) ? implode(", ", $info) : $info);
-					}
-					if (
-						array_key_exists('RltdPties', $ntry['NtryDtls']['TxDtls'])
-						&& (
-							array_key_exists('Dbtr', $ntry['NtryDtls']['TxDtls']['RltdPties'])
-							|| array_key_exists('Cdtr', $ntry['NtryDtls']['TxDtls']['RltdPties'])
-						)
-					) {
-						$name = $ntry['NtryDtls']['TxDtls']['RltdPties'][$type == 'DBIT' ? 'Cdtr' : 'Dbtr']['Nm'];
-					} else {
-						$name = $ntry['AddtlNtryInf'];
-					}
+
+				$type_nm = $type == 'DBIT' ? 'Dbtr' : 'Cdtr';
+
+				$name_1 = getArrayKeys($ntry, ['NtryDtls', 'TxDtls', 'RmtInf', 'Ustrd'], '');
+				if (is_array($name_1)) $name_1 = implode(' ', $name_1);
+				if (!empty($name_1)) $name .= $name_1;
+
+				$name_2 = getArrayKeys($ntry, ['NtryDtls', 'TxDtls', 'RltdPties', $type_nm, 'Nm'], '');
+				if (!empty($name_2)) $name .= '<br />'.$name_2;
+
+				$info = getArrayKeys($ntry, ['AddtlNtryInf'], '');
+				if (!empty($info)) {
+					// split string on COMMUNICATIONS and REFERENCES to add a line break
+					$info = str_replace('COMMUNICATIONS', '<br />COMMUNICATIONS', $info);
+					$info = str_replace('REFERENCES', '<br />REFERENCES', $info);
 				}
 
 				$n = $statement_from_file->addEntry($amount, $value_date->format('Y-m-d'), $name, $info);
 				$n->setHash($hash);
 			} catch (Exception $e) {
 				var_dump('Error while reading a line of the file');
-				var_dump($e->getMessage());
+				print $e->getMessage();
 				var_dump($ntry);
 			}
 		}
@@ -276,9 +283,8 @@ if ($action == 'upload') {
 				$obj->fetch($id);
 				$bank_links = $bank_account->get_url($obj->id);
 
-				$amount = $obj->amount;
-				$value_date = new DateTime();
-				date_timestamp_set($value_date, intval($obj->datev));
+				$amount = floatval($obj->amount);
+				$value_date = new DateTime($obj->datev);
 				$value_date = $value_date->format('Y-m-d');
 				$name = $obj->label;
 				$reg = array();
@@ -314,6 +320,47 @@ if ($action == 'upload') {
 
 		$results = StatementsCamt053::compare($statement_from_file, $statement_from_db);
 
+		function getRelationName($line_id) {
+			global $db;
+			$sql_client = 'SELECT f.rowid, f.ref, s.nom FROM ' . MAIN_DB_PREFIX . 'facture AS f ';
+			$sql_client .= 'INNER JOIN ' . MAIN_DB_PREFIX . 'societe AS s ON f.fk_soc = s.rowid ';
+			$sql_client .= 'LEFT JOIN ' . MAIN_DB_PREFIX . 'paiement_facture AS pf ON f.rowid = pf.fk_facture ';
+			$sql_client .= 'LEFT JOIN ' . MAIN_DB_PREFIX . 'paiement AS p ON pf.fk_paiement = p.rowid ';
+			$sql_client .= 'WHERE p.fk_bank = ' . $line_id;
+			$resql_client = $db->query($sql_client);
+			if ($resql_client) {
+				$obj = $db->fetch_object($resql_client);
+				if ($obj) {
+					$name = $obj->ref . '<br/>' . $obj->nom;
+					return '<a href="' . DOL_URL_ROOT . '/compta/facture/card.php?id=' . ((int)$obj->rowid) . '&save_lastsearch_values=1" title="' . dol_escape_htmltag($name, 1) . '" class="classfortooltip" target="_blank">' . img_picto('', 'bill') . ' ' . $obj->rowid . ' ' . $name . '</a>';
+				}
+			}
+
+			$sql_fourn = 'SELECT f.rowid, f.ref, s.nom FROM ' . MAIN_DB_PREFIX . 'facture_fourn AS f ';
+			$sql_fourn .= 'INNER JOIN ' . MAIN_DB_PREFIX . 'societe AS s ON f.fk_soc = s.rowid ';
+			$sql_fourn .= 'LEFT JOIN ' . MAIN_DB_PREFIX . 'paiementfourn_facturefourn AS pf ON f.rowid = pf.fk_facturefourn ';
+			$sql_fourn .= 'LEFT JOIN ' . MAIN_DB_PREFIX . 'paiementfourn AS p ON pf.fk_paiementfourn = p.rowid ';
+			$sql_fourn .= 'WHERE p.fk_bank = ' . $line_id;
+			$resql_fourn = $db->query($sql_fourn);
+			if ($resql_fourn) {
+				$obj = $db->fetch_object($resql_fourn);
+				if ($obj) {
+					$name = $obj->ref . '<br/>' . $obj->nom;
+					return '<a href="' . DOL_URL_ROOT . '/fourn/facture/card.php?id=' . ((int)$obj->rowid) . '&save_lastsearch_values=1" title="' . dol_escape_htmltag($name, 1) . '" class="classfortooltip" target="_blank">' . img_picto('', 'supplier_invoice') . ' ' . $obj->rowid . ' ' . $name . '</a>';
+				}
+			}
+
+			$sql = 'SELECT rowid, label FROM ' . MAIN_DB_PREFIX . 'bank WHERE rowid = ' . $line_id;
+			$resql = $db->query($sql);
+			if ($resql) {
+				$obj = $db->fetch_object($resql);
+				if ($obj) {
+					$name = $obj->label;
+					return '<a href="' . DOL_URL_ROOT . '/compta/bank/line.php?rowid=' . ((int)$obj->rowid) . '&save_lastsearch_values=1" title="' . dol_escape_htmltag($name, 1) . '" class="classfortooltip" target="_blank">' . img_picto('', 'bank') . ' ' . $obj->rowid . ' ' . $name . '</a>';
+				}
+			}
+		}
+
 		print '<form id="form" name="form" action="/custom/camt053readerandlink/confirm.php" method="post">';
 
 		print '<table class="noborder" style="width: 100%">';
@@ -343,13 +390,12 @@ if ($action == 'upload') {
 		foreach ($results['linkeds'] as $ntry_obj) {
 			$entry = $ntry_obj['file']->getData();
 			$o = $ntry_obj['db']->getBankObj();
-			$name = $o->label;
-			$name = '<a href="' . DOL_URL_ROOT . '/compta/bank/line.php?rowid=' . ((int)$o->id) . '&save_lastsearch_values=1" title="' . dol_escape_htmltag($name, 1) . '" class="classfortooltip" target="_blank">' . img_picto('', $o->picto) . ' ' . $o->id . ' ' . $name . '</a>';
+			$name = getRelationName($o->id);
 			print '<tr>';
 			print '<td>' . ($ntry_obj['file']->isFromFile() ? $from_file : $from_doli) . '</td>';
 			print '<td class="right">' . number_format($entry['amount'], 2) . '</td>';
 			print '<td>' . $entry['value_date'] . '</td>';
-			print '<td>' . $entry['name'] . '<br />' . $entry['info'] . '</td>';
+			print '<td>' . $entry['name'] . '<br /><span class="info">' . $entry['info'] . '</span></td>';
 			print '<td><div class="statement_link_linked">' . $langs->trans('WillBeConciliated') . '</div></td>';
 			print '<td>' . $name . '<input type="hidden" name="linked[' . $ntry_obj['file']->getHash() . ']" value="' . $o->id . '" /></td>';
 			print '</tr>';
@@ -361,7 +407,7 @@ if ($action == 'upload') {
 			print '<td>' . ($ntry_obj['file']->isFromFile() ? $from_file : $from_doli) . '</td>';
 			print '<td style="text-align: right">' . number_format($entry['amount'], 2) . '</td>';
 			print '<td>' . $entry['value_date'] . '</td>';
-			print '<td>' . $entry['name'] . '<br />' . $entry['info'] . '</td>';
+			print '<td>' . $entry['name'] . '<br /><span class="info">' . $entry['info'] . '</span></td>';
 			print '<td><div class="statement_link_multiple">' . $langs->trans('MultipleConciliated') . '</div></td>';
 			print '<td>';
 			// Select for the conciliated on a form selector custom
@@ -380,18 +426,40 @@ if ($action == 'upload') {
 		}
 		foreach ($results['unlinkeds'] as $ntry_obj) {
 			$entry = $ntry_obj->getData();
-			$name = $entry['name'] . '<br />' . $entry['info'];
+			$name = $entry['name'];
 			$o = $ntry_obj->getBankObj();
 			if (!$ntry_obj->isFromFile()) {
-				$name = '<a href="' . DOL_URL_ROOT . '/compta/bank/line.php?rowid=' . ((int)$o->id) . '&save_lastsearch_values=1" title="' . dol_escape_htmltag($name, 1) . '" class="classfortooltip" target="_blank">' . img_picto('', $o->picto) . ' ' . $o->id . ' ' . $name . '</a>';
+				$name = getRelationName($o->id);
+//				$name = '<a href="' . DOL_URL_ROOT . '/compta/bank/line.php?rowid=' . ((int)$o->id) . '&save_lastsearch_values=1" title="' . dol_escape_htmltag($name, 1) . '" class="classfortooltip" target="_blank">' . img_picto('', $o->picto) . ' ' . $o->id . ' ' . $name . '</a>';
 			}
 			print '<tr>';
 			print '<td>' . ($ntry_obj->isFromFile() ? $from_file : $from_doli) . '</td>';
 			print '<td style="text-align: right">' . number_format($entry['amount'], 2) . '</td>';
 			print '<td>' . $entry['value_date'] . '</td>';
-			print '<td>' . $name . '</td>';
+			print '<td>' . $name . '<br /><span class="info">' . $entry['info'] . '</span></td>';
 			print '<td><div class="statement_link_unlinked">' . $langs->trans('WillNotBeConciliated') . '</div></td>';
 			print '<td></td>';
+			print '</tr>';
+		}
+		foreach ($results['already_linked'] as $ntry_obj) {
+			$is_file = false;
+			$hash = '';
+			if (array_key_exists('file', $ntry_obj) && $ntry_obj['file'] instanceof EntryCamt053) {
+				$entry = $ntry_obj['file']->getData();
+				$is_file = $ntry_obj['file']->isFromFile();
+				$hash = $ntry_obj['file']->getHash();
+			}
+			$o = $ntry_obj['db']->getBankObj();
+			$name = getRelationName($o->id);
+//			$name = $o->label;
+//			$name = '<a href="' . DOL_URL_ROOT . '/compta/bank/line.php?rowid=' . ((int)$o->id) . '&save_lastsearch_values=1" title="' . dol_escape_htmltag($name, 1) . '" class="classfortooltip" target="_blank">' . img_picto('', $o->picto) . ' ' . $o->id . ' ' . $name . '</a>';
+			print '<tr>';
+			print '<td>' . ($is_file ? $from_file : $from_doli) . '</td>';
+			print '<td class="right">' . number_format($entry['amount'], 2) . '</td>';
+			print '<td>' . $entry['value_date'] . '</td>';
+			print '<td>' . $entry['name'] . '<br /><span class="info">' . $entry['info'] . '</span></td>';
+			print '<td><div class="statement_link_already_linked">' . $langs->trans('AlreadyBeConciliated') . '</div></td>';
+			print '<td>' . $name . '<input type="hidden" name="linked[' . $hash . ']" value="' . $o->id . '" /></td>';
 			print '</tr>';
 		}
 		print '</table>';

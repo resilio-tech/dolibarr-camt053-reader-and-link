@@ -43,11 +43,21 @@
 	cursor: pointer;
 }
 
+.camt053readerandlink span.info {
+	font-size: 0.8em;
+}
 .camt053readerandlink .statement_link_linked {
 	text-align: center;
 	padding: 2px 5px;
 	border: 2px solid #125200;
 	color: #1b5200;
+	border-radius: 5px;
+}
+.camt053readerandlink .statement_link_already_linked {
+	text-align: center;
+	padding: 2px 5px;
+	border: 2px solid #00968d;
+	color: #00968d;
 	border-radius: 5px;
 }
 

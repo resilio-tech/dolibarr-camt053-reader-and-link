@@ -126,6 +126,7 @@ class StatementsCamt053 {
 		$linkeds = array();
 		$multiples = array();
 		$unlinked = array();
+		$already_linked = array();
 
 		if ($a->isFile()) {
 			$file_datas = $a->getData();
@@ -146,10 +147,11 @@ class StatementsCamt053 {
 				$bd = $db_data->getData();
 				$bd_date = date_create_from_format('Y-m-d', $bd['value_date']);
 				if (
-					$ad['amount'] == $bd['amount'] && (
-						$ad_date->format('Y-m-d') == $bd_date->format('Y-m-d') ||
-						$ad_date->format('Y-m-d') == $bd_date->modify('+1 day')->format('Y-m-d') ||
-						$ad_date->modify('+1 day')->format('Y-m-d') == $bd_date->format('Y-m-d')
+					$ad['amount'] == $bd['amount']
+					&& (
+						$ad_date->format('Y-m-d') == $bd_date->format('Y-m-d')
+						|| $ad_date->format('Y-m-d') == $bd_date->modify('+1 day')->format('Y-m-d')
+						|| $ad_date->modify('+1 day')->format('Y-m-d') == $bd_date->format('Y-m-d')
 					)
 				){
 					$founds[] = $db_data;
@@ -160,6 +162,11 @@ class StatementsCamt053 {
 				$l = $founds[0];
 				if ($l->getBankObj()->rappro != 1) {
 					$linkeds[] = array(
+						'file' => $file_data,
+						'db' => $founds[0]
+					);
+				} else {
+					$already_linked[] = array(
 						'file' => $file_data,
 						'db' => $founds[0]
 					);
@@ -187,16 +194,24 @@ class StatementsCamt053 {
 
 		foreach ($db_datas as $db_data){
 			$m = flatten(array_column($multiples, 'db'));
-			$already_linked = $db_data->getBankObj()->rappro == 1;
-			if (!in_array($db_data, array_column($linkeds, 'db')) && !in_array($db_data, $m) && !$already_linked){
-				$unlinked[] = $db_data;
+			$al = $db_data->getBankObj()->rappro == 1;
+			if (!in_array($db_data, array_column($linkeds, 'db')) && !in_array($db_data, $m)){
+				if (!$al) {
+					$unlinked[] = $db_data;
+				} else {
+					$already_linked[] = array(
+						'file' => null,
+						'db' => $db_data
+					);
+				}
 			}
 		}
 
 		return array(
 			'linkeds' => $linkeds,
 			'multiples' => $multiples,
-			'unlinkeds' => $unlinked
+			'unlinkeds' => $unlinked,
+			'already_linked' => $already_linked
 		);
 	}
 

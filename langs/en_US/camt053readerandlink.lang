@@ -29,6 +29,7 @@ Camt053ReaderAndLinkAboutPage = CAMT.053 Reader And Link about page
 Camt053ReaderAndLinkArea = Read and link CAMT.053 file
 UploadCamt053File = Upload CAMT.053 file
 Camt053ReaderAndLinkFile = Upload CAMT.053 file
+AlreadyBeConciliated = Already be conciliated
 WillBeConciliated = Will be conciliated
 WillNotBeConciliated = Will not be conciliated
 MultipleConciliated = Multiple conciliated

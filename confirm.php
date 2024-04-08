@@ -151,8 +151,7 @@ try {
 		$bank_links = $bank_account->get_url($obj->id);
 
 		$amount = $obj->amount;
-		$value_date = new DateTime();
-		date_timestamp_set($value_date, intval($obj->datev));
+		$value_date = new DateTime($obj->datev);
 		$value_date = $value_date->format('Y-m-d');
 		$name = $obj->label;
 		$reg = array();

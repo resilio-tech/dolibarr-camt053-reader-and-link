@@ -31,6 +31,7 @@ Camt053ReaderAndLinkAboutPage = Page à propos de CAMT.053 Reader And Link
 Camt053ReaderAndLinkArea = Lire et lier le fichier CAMT.053
 UploadCamt053File = Télécharger le fichier CAMT.053
 Camt053ReaderAndLinkFile = Télécharger le fichier CAMT.053
+AlreadyBeConciliated = Déjà rapproché
 WillBeConciliated = Sera rapproché
 WillNotBeConciliated = Ne sera pas rapproché
 MultipleConciliated = Plusieurs rapprochements
