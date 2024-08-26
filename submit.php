@@ -281,6 +281,11 @@ if ($action == 'upload') {
 				$id = $obj->rowid;
 				$obj = new AccountLine($db);
 				$obj->fetch($id);
+
+				if (empty($obj->datev)) {
+					continue;
+				}
+
 				$bank_links = $bank_account->get_url($obj->id);
 
 				$amount = floatval($obj->amount);
