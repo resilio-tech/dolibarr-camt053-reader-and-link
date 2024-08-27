@@ -289,8 +289,14 @@ if ($action == 'upload') {
 				$bank_links = $bank_account->get_url($obj->id);
 
 				$amount = floatval($obj->amount);
-				$value_date = new DateTime($obj->datev);
-				$value_date = $value_date->format('Y-m-d');
+				if (is_numeric($obj->datev)){
+					$value_date = new DateTime();
+					$value_date->setTimestamp($obj->datev);
+					$value_date = $value_date->format('Y-m-d');
+				} else {
+					$value_date = new DateTime($obj->datev);
+					$value_date = $value_date->format('Y-m-d');
+				}
 				$name = $obj->label;
 				$reg = array();
 				preg_match('/\((.+)\)/i', $name, $reg);
@@ -479,7 +485,7 @@ if ($action == 'upload') {
 		print '<input type="submit" value="' . $langs->trans('Confirm') . '" />';
 		print '</form>';
 	} catch (Exception $e) {
-		var_dump('Error while uploading the file');
+		var_dump('Error while uploading and parse the file');
 		var_dump($e);
 		print $e->getMessage();
 	}
