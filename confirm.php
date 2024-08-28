@@ -148,11 +148,21 @@ try {
 		$obj->num_releve = $date_concil;
 		$obj->update_conciliation($user, 0, 1);
 
+		if (empty($obj->datev)) {
+			continue;
+		}
+
 		$bank_links = $bank_account->get_url($obj->id);
 
 		$amount = $obj->amount;
-		$value_date = new DateTime($obj->datev);
-		$value_date = $value_date->format('Y-m-d');
+		if (is_numeric($obj->datev)){
+			$value_date = new DateTime();
+			$value_date->setTimestamp($obj->datev);
+			$value_date = $value_date->format('Y-m-d');
+		} else {
+			$value_date = new DateTime($obj->datev);
+			$value_date = $value_date->format('Y-m-d');
+		}
 		$name = $obj->label;
 		$reg = array();
 		preg_match('/\((.+)\)/i', $name, $reg);
