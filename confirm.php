@@ -80,10 +80,6 @@ if ($user->socid > 0) $socid = $user->socid;
 if (!isModEnabled('camt053readerandlink')) {
 	accessforbidden('Module not enabled');
 }
-if (! $user->hasRight('salaryimport', 'myobject', 'read')) {
-	accessforbidden();
-}
-restrictedArea($user, 'salaryimport', 0, 'salaryimport_myobject', 'myobject', '', 'rowid');
 if (empty($user->admin)) {
 	accessforbidden('Must be admin');
 }
@@ -155,7 +151,7 @@ try {
 		$bank_links = $bank_account->get_url($obj->id);
 
 		$amount = $obj->amount;
-		if (is_numeric($obj->datev)){
+		if (is_numeric($obj->datev)) {
 			$value_date = new DateTime();
 			$value_date->setTimestamp($obj->datev);
 			$value_date = $value_date->format('Y-m-d');
