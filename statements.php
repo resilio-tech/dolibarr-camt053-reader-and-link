@@ -143,11 +143,13 @@ class StatementsCamt053 {
 
 			$ad = $file_data->getData();
 			$ad_date = date_create_from_format('Y-m-d', $ad['value_date']);
+			$ad_amount = price($ad['amount']);
 			foreach ($db_datas as $db_data){
 				$bd = $db_data->getData();
 				$bd_date = date_create_from_format('Y-m-d', $bd['value_date']);
+				$bd_amount = price($bd['amount']);
 				if (
-					$ad['amount'] == $bd['amount']
+					$ad_amount == $bd_amount
 					&& (
 						$ad_date->format('Y-m-d') == $bd_date->format('Y-m-d')
 						|| $ad_date->format('Y-m-d') == $bd_date->modify('+1 day')->format('Y-m-d')
