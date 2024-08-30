@@ -277,8 +277,8 @@ if ($action == 'upload') {
 		$bank_account->fetch($bank_account_id);
 
 		if ($resql) {
-			while ($obj = $db->fetch_object($resql)) {
-				$id = $obj->rowid;
+			while ($obj_b = $db->fetch_object($resql)) {
+				$id = $obj_b->rowid;
 				$obj = new AccountLine($db);
 				$obj->fetch($id);
 
@@ -398,24 +398,24 @@ if ($action == 'upload') {
 		print '<td>' . $langs->trans('Conciliated') . '</td>';
 		print '<td>' . $langs->trans('Conciliated') . '</td>';
 		print '</tr>';
-		foreach ($results['linkeds'] as $ntry_obj) {
-			$entry = $ntry_obj['file']->getData();
-			$o = $ntry_obj['db']->getBankObj();
+		foreach ($results['linkeds'] as $n_obj) {
+			$entry = $n_obj['file']->getData();
+			$o = $n_obj['db']->getBankObj();
 			$name = getRelationName($o->id);
 			print '<tr>';
-			print '<td>' . ($ntry_obj['file']->isFromFile() ? $from_file : $from_doli) . '</td>';
+			print '<td>' . ($n_obj['file']->isFromFile() ? $from_file : $from_doli) . '</td>';
 			print '<td class="right">' . number_format($entry['amount'], 2) . '</td>';
 			print '<td>' . $entry['value_date'] . '</td>';
 			print '<td>' . $entry['name'] . '<br /><span class="info">' . $entry['info'] . '</span></td>';
 			print '<td><div class="statement_link_linked">' . $langs->trans('WillBeConciliated') . '</div></td>';
-			print '<td>' . $name . '<input type="hidden" name="linked[' . $ntry_obj['file']->getHash() . ']" value="' . $o->id . '" /></td>';
+			print '<td>' . $name . '<input type="hidden" name="linked[' . $n_obj['file']->getHash() . ']" value="' . $o->id . '" /></td>';
 			print '</tr>';
 		}
-		foreach ($results['multiples'] as $ntry_obj) {
-			$entry = $ntry_obj['file']->getData();
-			$ntry_hash = $ntry_obj['file']->getHash();
+		foreach ($results['multiples'] as $n_obj) {
+			$entry = $n_obj['file']->getData();
+			$ntry_hash = $n_obj['file']->getHash();
 			print '<tr>';
-			print '<td>' . ($ntry_obj['file']->isFromFile() ? $from_file : $from_doli) . '</td>';
+			print '<td>' . ($n_obj['file']->isFromFile() ? $from_file : $from_doli) . '</td>';
 			print '<td style="text-align: right">' . number_format($entry['amount'], 2) . '</td>';
 			print '<td>' . $entry['value_date'] . '</td>';
 			print '<td>' . $entry['name'] . '<br /><span class="info">' . $entry['info'] . '</span></td>';
@@ -423,7 +423,7 @@ if ($action == 'upload') {
 			print '<td>';
 			// Select for the conciliated on a form selector custom
 			$array = array();
-			foreach ($ntry_obj['db'] as $ntry_db_obj) {
+			foreach ($n_obj['db'] as $ntry_db_obj) {
 				$entry = $ntry_db_obj->getData();
 				$id = $ntry_db_obj->getBankObj()->rowid;
 				$n = $entry['name'];
@@ -435,16 +435,16 @@ if ($action == 'upload') {
 			print '</td>';
 			print '</tr>';
 		}
-		foreach ($results['unlinkeds'] as $ntry_obj) {
-			$entry = $ntry_obj->getData();
+		foreach ($results['unlinkeds'] as $n_obj) {
+			$entry = $n_obj->getData();
 			$name = $entry['name'];
-			$o = $ntry_obj->getBankObj();
-			if (!$ntry_obj->isFromFile()) {
+			$o = $n_obj->getBankObj();
+			if (!$n_obj->isFromFile()) {
 				$name = getRelationName($o->id);
 //				$name = '<a href="' . DOL_URL_ROOT . '/compta/bank/line.php?rowid=' . ((int)$o->id) . '&save_lastsearch_values=1" title="' . dol_escape_htmltag($name, 1) . '" class="classfortooltip" target="_blank">' . img_picto('', $o->picto) . ' ' . $o->id . ' ' . $name . '</a>';
 			}
 			print '<tr>';
-			print '<td>' . ($ntry_obj->isFromFile() ? $from_file : $from_doli) . '</td>';
+			print '<td>' . ($n_obj->isFromFile() ? $from_file : $from_doli) . '</td>';
 			print '<td style="text-align: right">' . number_format($entry['amount'], 2) . '</td>';
 			print '<td>' . $entry['value_date'] . '</td>';
 			print '<td>' . $name . '<br /><span class="info">' . $entry['info'] . '</span></td>';
@@ -452,15 +452,15 @@ if ($action == 'upload') {
 			print '<td></td>';
 			print '</tr>';
 		}
-		foreach ($results['already_linked'] as $ntry_obj) {
+		foreach ($results['already_linked'] as $n_obj) {
 			$is_file = false;
 			$hash = '';
-			if (array_key_exists('file', $ntry_obj) && $ntry_obj['file'] instanceof EntryCamt053) {
-				$entry = $ntry_obj['file']->getData();
-				$is_file = $ntry_obj['file']->isFromFile();
-				$hash = $ntry_obj['file']->getHash();
+			if (array_key_exists('file', $n_obj) && $n_obj['file'] instanceof EntryCamt053) {
+				$entry = $n_obj['file']->getData();
+				$is_file = $n_obj['file']->isFromFile();
+				$hash = $n_obj['file']->getHash();
 			}
-			$o = $ntry_obj['db']->getBankObj();
+			$o = $n_obj['db']->getBankObj();
 			$name = getRelationName($o->id);
 //			$name = $o->label;
 //			$name = '<a href="' . DOL_URL_ROOT . '/compta/bank/line.php?rowid=' . ((int)$o->id) . '&save_lastsearch_values=1" title="' . dol_escape_htmltag($name, 1) . '" class="classfortooltip" target="_blank">' . img_picto('', $o->picto) . ' ' . $o->id . ' ' . $name . '</a>';
@@ -470,7 +470,7 @@ if ($action == 'upload') {
 			print '<td>' . $entry['value_date'] . '</td>';
 			print '<td>' . $entry['name'] . '<br /><span class="info">' . $entry['info'] . '</span></td>';
 			print '<td><div class="statement_link_already_linked">' . $langs->trans('AlreadyBeConciliated') . '</div></td>';
-			print '<td>' . $name . '<input type="hidden" name="linked[' . $hash . ']" value="' . $o->id . '" /></td>';
+			print '<td>' . $name . '</td>';
 			print '</tr>';
 		}
 		print '</table>';

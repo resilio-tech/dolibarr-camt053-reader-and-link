@@ -195,10 +195,11 @@ class StatementsCamt053 {
 		}
 
 		foreach ($db_datas as $db_data){
+			$al = array_column($already_linked, 'db');
 			$m = flatten(array_column($multiples, 'db'));
-			$al = $db_data->getBankObj()->rappro == 1;
-			if (!in_array($db_data, array_column($linkeds, 'db')) && !in_array($db_data, $m)){
-				if (!$al) {
+			$rap = $db_data->getBankObj()->rappro == 1;
+			if (!in_array($db_data, array_column($linkeds, 'db')) && !in_array($db_data, $m) && !in_array($db_data, $al)){
+				if (!$rap) {
 					$unlinked[] = $db_data;
 				} else {
 					$already_linked[] = array(
