@@ -115,9 +115,9 @@ foreach ($_POST as $key => $value) {
 		$linked[$hash] = $value;
 	}
 }
-$date_start = GETPOST('date_start', 'alpha');
-$date_end = GETPOST('date_end', 'alpha');
-$bank_account_id = GETPOST('bank_account_id', 'int');
+$date_start = GETPOST('date_start', 'alphanohtml');
+$date_end = GETPOST('date_end', 'alphanohtml');
+$bank_account_id = GETPOSTINT('bank_account_id');
 $file_json = json_decode(urldecode(GETPOST('file_json', 'alpha')), 1);
 $upload_file = GETPOST('upload_file', 'alpha');
 
