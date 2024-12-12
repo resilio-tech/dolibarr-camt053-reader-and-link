@@ -119,7 +119,8 @@ print '</style>';
  * Actions
  */
 
-// None
+$getter_iban = ['BkToCstmrStmt', 'Stmt', 'Acct', 'Id', 'IBAN'];
+$getter_ntries = ['BkToCstmrStmt', 'Stmt', 'Ntry'];
 
 $form = new Form($db);
 $formfile = new FormFile($db);
@@ -156,7 +157,7 @@ if ($action == 'upload') {
 		if (!empty($file_json)) {
 			$structure = json_decode(urldecode($file_json), 1);
 
-			$iban = $structure['BkToCstmrStmt']['Stmt']['Acct']['Id']['IBAN'];
+			$iban = getArrayKeys($structure, $getter_iban);
 			$iban_format =
 				substr($iban, 0, 4) . ' ' .
 				substr($iban, 4, 4) . ' ' .
@@ -175,7 +176,7 @@ if ($action == 'upload') {
 				$structure = json_decode(json_encode($xml), true);
 
 				// Get Bank Account
-				$iban = $structure['BkToCstmrStmt']['Stmt']['Acct']['Id']['IBAN'];
+				$iban = getArrayKeys($structure, $getter_iban);
 				$iban_format =
 					substr($iban, 0, 4) . ' ' .
 					substr($iban, 4, 4) . ' ' .
@@ -198,7 +199,7 @@ if ($action == 'upload') {
 			}
 		}
 
-		$ntries = getArrayKeys($structure, ['BkToCstmrStmt', 'Stmt', 'Ntry']);
+		$ntries = getArrayKeys($structure, $getter_ntries);
 
 		if (empty($ntries)) {
 			$error = 'Error while reading the file : No entries found';
