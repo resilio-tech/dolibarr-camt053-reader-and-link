@@ -115,8 +115,8 @@ foreach ($_POST as $key => $value) {
 		$linked[$hash] = $value;
 	}
 }
-$date_start = GETPOST('date_start', 'date');
-$date_end = GETPOST('date_end', 'date');
+$date_start = GETPOST('date_start', 'alpha');
+$date_end = GETPOST('date_end', 'alpha');
 $bank_account_id = GETPOST('bank_account_id', 'int');
 $file_json = json_decode(urldecode(GETPOST('file_json', 'alpha')), 1);
 $upload_file = GETPOST('upload_file', 'alpha');
@@ -185,13 +185,6 @@ try {
 		print '<td>' . $value_date . '</td>';
 		print '<td class="right">' . number_format($amount, 2) . '</td>';
 		print '</tr>';
-
-		$file_json['BkToCstmrStmt']['Stmt']['Ntry'] = array_filter(
-			$file_json['BkToCstmrStmt']['Stmt']['Ntry'],
-			function ($ntry) use ($obj, $key) {
-				return $ntry['AcctSvcrRef'] != $key;
-			}
-		);
 	}
 
 	if (!empty($upload_file)) {

@@ -460,6 +460,10 @@ if ($action == 'upload') {
 				$entry = $n_obj['file']->getData();
 				$is_file = $n_obj['file']->isFromFile();
 				$hash = $n_obj['file']->getHash();
+			} else {
+				$entry = $n_obj['db']->getData();
+				$is_file = $n_obj['db']->isFromFile();
+				$hash = $n_obj['db']->getHash();
 			}
 			$o = $n_obj['db']->getBankObj();
 			$name = getRelationName($o->id);

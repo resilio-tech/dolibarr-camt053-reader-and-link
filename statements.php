@@ -194,17 +194,19 @@ class StatementsCamt053 {
 			}
 		}
 
-		foreach ($db_datas as $db_data){
+		foreach ($db_datas as $db_data_n){
 			$al = array_column($already_linked, 'db');
 			$m = flatten(array_column($multiples, 'db'));
-			$rap = $db_data->getBankObj()->rappro == 1;
-			if (!in_array($db_data, array_column($linkeds, 'db')) && !in_array($db_data, $m) && !in_array($db_data, $al)){
+			$rap = $db_data_n->getBankObj()->rappro == 1;
+
+
+			if (!in_array($db_data_n, array_column($linkeds, 'db')) && !in_array($db_data_n, $m) && !in_array($db_data_n, $al)){
 				if (!$rap) {
-					$unlinked[] = $db_data;
+					$unlinked[] = $db_data_n;
 				} else {
 					$already_linked[] = array(
 						'file' => null,
-						'db' => $db_data
+						'db' => $db_data_n
 					);
 				}
 			}
