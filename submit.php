@@ -132,15 +132,15 @@ print '<div class="fichecenter camt053readerandlink">';
 require_once './statements.php';
 require_once DOL_DOCUMENT_ROOT.'/compta/bank/class/account.class.php';
 
-function getArrayKeys($array, $keys, $default = null)
+function getArrayKeys($array, $search_keys, $default = null)
 {
 	if (
 		is_array($array)
 		&& !empty($array)
 	) {
-		for ($i = 0; $i < count($keys); $i++) {
-			if (is_array($array) && array_key_exists($keys[$i], $array)) {
-				$array = $array[$keys[$i]];
+		for ($i = 0; $i < count($search_keys); $i++) {
+			if (is_array($array) && array_key_exists($search_keys[$i], $array)) {
+				$array = $array[$search_keys[$i]];
 			} else {
 				return $default;
 			}
@@ -199,7 +199,73 @@ if ($action == 'upload') {
 			}
 		}
 
-		$ntries = getArrayKeys($structure, $getter_ntries);
+		$ntries = array();
+		// Get all the entries, the structure is not the same for all the files
+		// should be rework based on nexts lines
+		// $structure['BkToCstmrStmt']['Stmt']['Ntry']
+		// $structure['BkToCstmrStmt']['Stmt']['Ntry'][0]
+		// $structure['BkToCstmrStmt']['Stmt'][0]['Ntry']
+		// $structure['BkToCstmrStmt']['Stmt'][0]['Ntry'][0]
+
+		foreach ($structure as $key => $struct){
+			if ($key == $getter_ntries[0]) {
+				foreach ($struct as $s_key => $s) {
+					if (!is_numeric($s_key) && $s_key == $getter_ntries[1]) {
+						foreach ($s as $stmt_key => $stmt_elem) {
+							if (!is_numeric($stmt_key) && $stmt_key == $getter_ntries[2]) {
+								if (is_array($stmt_elem)) {
+									foreach ($stmt_elem as $stmt_elem_key => $stmt_elem_elem) {
+										$ntries[] = $stmt_elem_elem;
+									}
+								} else {
+									$ntries[] = $stmt_elem;
+								}
+							} else {
+								foreach ($stmt_elem as $stmt_key_2 => $stmt_elem_2) {
+									if (!is_numeric($stmt_key_2) && $stmt_key_2 == $getter_ntries[2]) {
+										if (is_array($stmt_elem_2)) {
+											foreach ($stmt_elem_2 as $stmt_elem_key_2 => $stmt_elem_elem_2) {
+												$ntries[] = $stmt_elem_elem_2;
+											}
+										} else {
+											$ntries[] = $stmt_elem_2;
+										}
+									}
+								}
+							}
+						}
+					} else {
+						foreach ($s as $s_key_2 => $s_2) {
+							if (!is_numeric($s_key_2) && $s_key_2 == $getter_ntries[1]) {
+								foreach ($s_2 as $stmt_key_2 => $stmt_elem_2) {
+									if (!is_numeric($stmt_key_2) && $stmt_key_2 == $getter_ntries[2]) {
+										if (is_array($stmt_elem_2)) {
+											foreach ($stmt_elem_2 as $stmt_elem_key_2 => $stmt_elem_elem_2) {
+												$ntries[] = $stmt_elem_elem_2;
+											}
+										} else {
+											$ntries[] = $stmt_elem_2;
+										}
+									} else {
+										foreach ($stmt_elem_2 as $stmt_key_3 => $stmt_elem_3) {
+											if (!is_numeric($stmt_key_3) && $stmt_key_3 == $getter_ntries[2]) {
+												if (is_array($stmt_elem_3)) {
+													foreach ($stmt_elem_3 as $stmt_elem_key_3 => $stmt_elem_elem_3) {
+														$ntries[] = $stmt_elem_elem_3;
+													}
+												} else {
+													$ntries[] = $stmt_elem_3;
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
 
 		if (empty($ntries)) {
 			$error = 'Error while reading the file : No entries found';
