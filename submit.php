@@ -132,40 +132,14 @@ print '<div class="fichecenter camt053readerandlink">';
 require_once './statements.php';
 require_once DOL_DOCUMENT_ROOT.'/compta/bank/class/account.class.php';
 
-function getArrayKeys($array, $search_keys, $default = null)
-{
-	if (
-		is_array($array)
-		&& !empty($array)
-	) {
-		for ($i = 0; $i < count($search_keys); $i++) {
-			if (is_array($array) && array_key_exists($search_keys[$i], $array)) {
-				$array = $array[$search_keys[$i]];
-			} else {
-				return $default;
-			}
-		}
-	}
-	return $array;
-}
-
 if ($action == 'upload') {
 	try {
-		$statement_from_file = new StatementsCamt053();
+		$statement_from_file = new StatementsCamt053($db);
 		$statement_from_file->setIsFile(true);
 
 		if (!empty($file_json)) {
 			$structure = json_decode(urldecode($file_json), 1);
-
-			$iban = getArrayKeys($structure, $getter_iban);
-			$iban_format =
-				substr($iban, 0, 4) . ' ' .
-				substr($iban, 4, 4) . ' ' .
-				substr($iban, 8, 4) . ' ' .
-				substr($iban, 12, 4) . ' ' .
-				substr($iban, 16, 4) . ' ' .
-				substr($iban, 20, 1);
-
+			$statement_from_file->setStructure($structure);
 		} else {
 			$upload_file = $dir . '/' . $file['name'];
 
@@ -174,144 +148,13 @@ if ($action == 'upload') {
 				$xml = simplexml_load_file($upload_file);
 				// get structure of the XML file
 				$structure = json_decode(json_encode($xml), true);
-
-				// Get Bank Account
-				$iban = getArrayKeys($structure, $getter_iban);
-				$iban_format =
-					substr($iban, 0, 4) . ' ' .
-					substr($iban, 4, 4) . ' ' .
-					substr($iban, 8, 4) . ' ' .
-					substr($iban, 12, 4) . ' ' .
-					substr($iban, 16, 4) . ' ' .
-					substr($iban, 20, 1);
-				$sql = "SELECT rowid FROM " . MAIN_DB_PREFIX . "bank_account ";
-				$sql .= "WHERE iban_prefix = '" . $iban_format . "' ";
-				$sql .= "OR iban_prefix = '" . $iban . "'";
-				$resql = $db->query($sql);
-				if ($resql) {
-					$obj = $db->fetch_object($resql);
-					$bank_account_id = $obj->rowid;
-				} else {
-					$error = 'Error while getting the bank account';
-				}
+				$statement_from_file->setStructure($structure);
 			} else {
-				$error = 'Error while uploading the file';
+				throw new Exception('Error while uploading the file');
 			}
 		}
 
-		$ntries = array();
-		// Get all the entries, the structure is not the same for all the files
-		// should be rework based on nexts lines
-		// $structure['BkToCstmrStmt']['Stmt']['Ntry']
-		// $structure['BkToCstmrStmt']['Stmt']['Ntry'][0]
-		// $structure['BkToCstmrStmt']['Stmt'][0]['Ntry']
-		// $structure['BkToCstmrStmt']['Stmt'][0]['Ntry'][0]
-
-		foreach ($structure as $key => $struct){
-			if ($key == $getter_ntries[0]) {
-				foreach ($struct as $s_key => $s) {
-					if (!is_numeric($s_key) && $s_key == $getter_ntries[1]) {
-						foreach ($s as $stmt_key => $stmt_elem) {
-							if (!is_numeric($stmt_key) && $stmt_key == $getter_ntries[2]) {
-								if (is_array($stmt_elem)) {
-									foreach ($stmt_elem as $stmt_elem_key => $stmt_elem_elem) {
-										$ntries[] = $stmt_elem_elem;
-									}
-								} else {
-									$ntries[] = $stmt_elem;
-								}
-							} else {
-								foreach ($stmt_elem as $stmt_key_2 => $stmt_elem_2) {
-									if (!is_numeric($stmt_key_2) && $stmt_key_2 == $getter_ntries[2]) {
-										if (is_array($stmt_elem_2)) {
-											foreach ($stmt_elem_2 as $stmt_elem_key_2 => $stmt_elem_elem_2) {
-												$ntries[] = $stmt_elem_elem_2;
-											}
-										} else {
-											$ntries[] = $stmt_elem_2;
-										}
-									}
-								}
-							}
-						}
-					} else {
-						foreach ($s as $s_key_2 => $s_2) {
-							if (!is_numeric($s_key_2) && $s_key_2 == $getter_ntries[1]) {
-								foreach ($s_2 as $stmt_key_2 => $stmt_elem_2) {
-									if (!is_numeric($stmt_key_2) && $stmt_key_2 == $getter_ntries[2]) {
-										if (is_array($stmt_elem_2)) {
-											foreach ($stmt_elem_2 as $stmt_elem_key_2 => $stmt_elem_elem_2) {
-												$ntries[] = $stmt_elem_elem_2;
-											}
-										} else {
-											$ntries[] = $stmt_elem_2;
-										}
-									} else {
-										foreach ($stmt_elem_2 as $stmt_key_3 => $stmt_elem_3) {
-											if (!is_numeric($stmt_key_3) && $stmt_key_3 == $getter_ntries[2]) {
-												if (is_array($stmt_elem_3)) {
-													foreach ($stmt_elem_3 as $stmt_elem_key_3 => $stmt_elem_elem_3) {
-														$ntries[] = $stmt_elem_elem_3;
-													}
-												} else {
-													$ntries[] = $stmt_elem_3;
-												}
-											}
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-
-		if (empty($ntries)) {
-			$error = 'Error while reading the file : No entries found';
-		}
-
-		if (!empty($error)) {
-			print $error;
-			throw new Exception($error);
-		}
-
-		foreach ($ntries as $ntry) {
-			try {
-				$type = $ntry['CdtDbtInd'];
-				$amount = floatval($ntry['Amt']);
-				if ($type == 'DBIT') $amount = -$amount;
-				$value_date = new DateTime($ntry['ValDt']['Dt']);
-				$hash = getArrayKeys($ntry, ['AcctSvcrRef'], '');
-				$name = '';
-				$info = '';
-
-				$type_nm = $type == 'DBIT' ? 'Dbtr' : 'Cdtr';
-
-				$name_1 = getArrayKeys($ntry, ['NtryDtls', 'TxDtls', 'RmtInf', 'Ustrd'], '');
-				if (is_array($name_1)) $name_1 = implode(' ', $name_1);
-				if (!empty($name_1)) $name .= $name_1;
-
-				$name_2 = getArrayKeys($ntry, ['NtryDtls', 'TxDtls', 'RltdPties', $type_nm, 'Nm'], '');
-				if (!empty($name_2)) $name .= '<br />'.$name_2;
-
-				$info = getArrayKeys($ntry, ['AddtlNtryInf'], '');
-				if (!empty($info)) {
-					// split string on COMMUNICATIONS and REFERENCES to add a line break
-					$info = str_replace('COMMUNICATIONS', '<br />COMMUNICATIONS', $info);
-					$info = str_replace('REFERENCES', '<br />REFERENCES', $info);
-				}
-
-				$n = $statement_from_file->addEntry($amount, $value_date->format('Y-m-d'), $name, $info);
-				$n->setHash($hash);
-			} catch (Exception $e) {
-				var_dump('Error while reading a line of the file');
-				print $e->getMessage();
-				var_dump($ntry);
-			}
-		}
-
-		$statement_from_db = new StatementsCamt053();
+		$statement_from_db = new StatementsCamt053($db);
 		$statement_from_db->setIsFile(false);
 
 		if (empty($date_start) or empty($date_end)) {
@@ -325,25 +168,18 @@ if ($action == 'upload') {
 			$date_end = $d->format('t/m/Y');
 		}
 
-		if (!empty($error)) {
-			print $error;
-			throw new Exception($error);
-		}
-
-
 		$date_start_obj = date_create_from_format('d/m/Y', $date_start);
 		$date_end_obj = date_create_from_format('d/m/Y', $date_end);
 		// Get the data from the database
-		$sql = 'SELECT rowid FROM ' . MAIN_DB_PREFIX . 'bank ';
+		$sql = 'SELECT rowid, fk_account FROM ' . MAIN_DB_PREFIX . 'bank ';
 		$sql .= "WHERE datev >= DATE('" . $date_start_obj->format('Y-m-d') . "') AND datev <= DATE('" . $date_end_obj->format('Y-m-d') . "') ";
-		$sql .= 'AND fk_account = ' . $bank_account_id . ' ';
 
 		$resql = $db->query($sql);
 
 		$bank_account = new Account($db);
-		$bank_account->fetch($bank_account_id);
 
 		if ($resql) {
+			$data = array();
 			while ($obj_b = $db->fetch_object($resql)) {
 				$id = $obj_b->rowid;
 				$obj = new AccountLine($db);
@@ -383,20 +219,22 @@ if ($action == 'upload') {
 					$name .= ' - ' . $bank_links[1]['label'];
 				}
 
-				$ntry_obj = $statement_from_db->addEntry($amount, $value_date, $name);
-				$ntry_obj->setBankObj($obj);
+				$data[] = array(
+					'amount' => $amount,
+					'value_date' => $value_date,
+					'name' => $name,
+					'bank_obj' => $obj,
+				);
 			}
+
+			$statement_from_db->setData($data);
 		} else {
 			$error = 'Error while getting the data from the database ';
 			$error .= $db->lasterror();
-		}
-
-		if (!empty($error)) {
-			print $error;
 			throw new Exception($error);
 		}
 
-		$results = StatementsCamt053::compare($statement_from_file, $statement_from_db);
+		$banks = StatementsCamt053::compare($statement_from_file, $statement_from_db);
 
 		function getRelationName($line_id) {
 			global $db;
@@ -441,110 +279,119 @@ if ($action == 'upload') {
 
 		print '<form id="form" name="form" action="/custom/camt053readerandlink/confirm.php" method="post">';
 
-		print '<table class="noborder" style="width: 100%">';
-		print '<tr class="liste_titre">';
-		print '<td>' . $langs->trans('DateStart') . '</td>';
-		print '<td>' . $langs->trans('DateEnd') . '</td>';
-		print '<td>' . $langs->trans('IBAN') . '</td>';
-		print '<td>' . $langs->trans('BankAccount') . '</td>';
-		print '</tr>';
-		print '<tr>';
-		print '<td>' . $date_start . '</td>';
-		print '<td>' . $date_end . '</td>';
-		print '<td>' . $iban_format . '</td>';
-		print '<td>' . $bank_account->getNomUrl(1) . '</td>';
-		print '</tr>';
-		print '</table>';
+		foreach ($banks as $bank) {
+			$results = $bank['results'];
+			$bank_account = new Account($db);
+			$bank_account->fetch($bank['account']->rowid);
+			$iban_format = $bank['account']->iban_prefix;
 
-		print '<table class="noborder" style="width: 100%">';
-		print '<tr class="liste_titre">';
-		print '<td>' . $langs->trans('Location') . '</td>';
-		print '<td class="right">' . $langs->trans('Amount') . '</td>';
-		print '<td>' . $langs->trans('Date') . '</td>';
-		print '<td>' . $langs->trans('Name') . '</td>';
-		print '<td>' . $langs->trans('Conciliated') . '</td>';
-		print '<td>' . $langs->trans('Conciliated') . '</td>';
-		print '</tr>';
-		foreach ($results['linkeds'] as $n_obj) {
-			$entry = $n_obj['file']->getData();
-			$o = $n_obj['db']->getBankObj();
-			$name = getRelationName($o->id);
-			print '<tr>';
-			print '<td>' . ($n_obj['file']->isFromFile() ? $from_file : $from_doli) . '</td>';
-			print '<td class="right">' . number_format($entry['amount'], 2) . '</td>';
-			print '<td>' . $entry['value_date'] . '</td>';
-			print '<td>' . $entry['name'] . '<br /><span class="info">' . $entry['info'] . '</span></td>';
-			print '<td><div class="statement_link_linked">' . $langs->trans('WillBeConciliated') . '</div></td>';
-			print '<td>' . $name . '<input type="hidden" name="linked[' . $n_obj['file']->getHash() . ']" value="' . $o->id . '" /></td>';
+			print '<table class="noborder" style="width: 100%">';
+			print '<tr class="liste_titre">';
+			print '<td>' . $langs->trans('DateStart') . '</td>';
+			print '<td>' . $langs->trans('DateEnd') . '</td>';
+			print '<td>' . $langs->trans('IBAN') . '</td>';
+			print '<td>' . $langs->trans('BankAccount') . '</td>';
 			print '</tr>';
-		}
-		foreach ($results['multiples'] as $n_obj) {
-			$entry = $n_obj['file']->getData();
-			$ntry_hash = $n_obj['file']->getHash();
 			print '<tr>';
-			print '<td>' . ($n_obj['file']->isFromFile() ? $from_file : $from_doli) . '</td>';
-			print '<td style="text-align: right">' . number_format($entry['amount'], 2) . '</td>';
-			print '<td>' . $entry['value_date'] . '</td>';
-			print '<td>' . $entry['name'] . '<br /><span class="info">' . $entry['info'] . '</span></td>';
-			print '<td><div class="statement_link_multiple">' . $langs->trans('MultipleConciliated') . '</div></td>';
-			print '<td>';
-			// Select for the conciliated on a form selector custom
-			$array = array();
-			foreach ($n_obj['db'] as $ntry_db_obj) {
-				$entry = $ntry_db_obj->getData();
-				$id = $ntry_db_obj->getBankObj()->rowid;
-				$n = $entry['name'];
-				$a = number_format($entry['amount'], 2);
-				$d = $entry['value_date'];
-				$array[$id] = '(' . $id . ') ' . $n . '<br />' . $a . '<br />' . $d;
-			}
-			print $form->selectMassAction('', $array, 1, 'linked_' . $ntry_hash);
-			print '</td>';
+			print '<td>' . $date_start . '</td>';
+			print '<td>' . $date_end . '</td>';
+			print '<td>' . $iban_format . '</td>';
+			print '<td>' . $bank_account->getNomUrl(1) . '</td>';
 			print '</tr>';
-		}
-		foreach ($results['unlinkeds'] as $n_obj) {
-			$entry = $n_obj->getData();
-			$name = $entry['name'];
-			$o = $n_obj->getBankObj();
-			if (!$n_obj->isFromFile()) {
-				$name = getRelationName($o->id);
-//				$name = '<a href="' . DOL_URL_ROOT . '/compta/bank/line.php?rowid=' . ((int)$o->id) . '&save_lastsearch_values=1" title="' . dol_escape_htmltag($name, 1) . '" class="classfortooltip" target="_blank">' . img_picto('', $o->picto) . ' ' . $o->id . ' ' . $name . '</a>';
-			}
-			print '<tr>';
-			print '<td>' . ($n_obj->isFromFile() ? $from_file : $from_doli) . '</td>';
-			print '<td style="text-align: right">' . number_format($entry['amount'], 2) . '</td>';
-			print '<td>' . $entry['value_date'] . '</td>';
-			print '<td>' . $name . '<br /><span class="info">' . $entry['info'] . '</span></td>';
-			print '<td><div class="statement_link_unlinked">' . $langs->trans('WillNotBeConciliated') . '</div></td>';
-			print '<td></td>';
+			print '</table>';
+
+			print '<table class="noborder" style="width: 100%">';
+			print '<tr class="liste_titre">';
+			print '<td>' . $langs->trans('Location') . '</td>';
+			print '<td class="right">' . $langs->trans('Amount') . '</td>';
+			print '<td>' . $langs->trans('Date') . '</td>';
+			print '<td>' . $langs->trans('Name') . '</td>';
+			print '<td>' . $langs->trans('Conciliated') . '</td>';
+			print '<td>' . $langs->trans('Conciliated') . '</td>';
+			print '<td>hash</td>';
 			print '</tr>';
-		}
-		foreach ($results['already_linked'] as $n_obj) {
-			$is_file = false;
-			$hash = '';
-			if (array_key_exists('file', $n_obj) && $n_obj['file'] instanceof EntryCamt053) {
+			foreach ($results['linkeds'] as $n_obj) {
 				$entry = $n_obj['file']->getData();
-				$is_file = $n_obj['file']->isFromFile();
-				$hash = $n_obj['file']->getHash();
-			} else {
-				$entry = $n_obj['db']->getData();
-				$is_file = $n_obj['db']->isFromFile();
-				$hash = $n_obj['db']->getHash();
+				$o = $n_obj['db']->getBankObj();
+				$name = getRelationName($o->id);
+				print '<tr>';
+				print '<td>' . ($n_obj['file']->isFromFile() ? $from_file : $from_doli) . '</td>';
+				print '<td class="right">' . number_format($entry['amount'], 2) . '</td>';
+				print '<td>' . $entry['value_date'] . '</td>';
+				print '<td>' . $entry['name'] . '<br /><span class="info">' . $entry['info'] . '</span></td>';
+				print '<td><div class="statement_link_linked">' . $langs->trans('WillBeConciliated') . '</div></td>';
+				print '<td>' . $name . '<input type="hidden" name="linked[' . $n_obj['file']->getHash() . ']" value="' . $o->id . '" /></td>';
+				print '</tr>';
 			}
-			$o = $n_obj['db']->getBankObj();
-			$name = getRelationName($o->id);
-//			$name = $o->label;
-//			$name = '<a href="' . DOL_URL_ROOT . '/compta/bank/line.php?rowid=' . ((int)$o->id) . '&save_lastsearch_values=1" title="' . dol_escape_htmltag($name, 1) . '" class="classfortooltip" target="_blank">' . img_picto('', $o->picto) . ' ' . $o->id . ' ' . $name . '</a>';
-			print '<tr>';
-			print '<td>' . ($is_file ? $from_file : $from_doli) . '</td>';
-			print '<td class="right">' . number_format($entry['amount'], 2) . '</td>';
-			print '<td>' . $entry['value_date'] . '</td>';
-			print '<td>' . $entry['name'] . '<br /><span class="info">' . $entry['info'] . '</span></td>';
-			print '<td><div class="statement_link_already_linked">' . $langs->trans('AlreadyBeConciliated') . '</div></td>';
-			print '<td>' . $name . '</td>';
-			print '</tr>';
-		}
-		print '</table>';
+			foreach ($results['multiples'] as $n_obj) {
+				$entry = $n_obj['file']->getData();
+				$ntry_hash = $n_obj['file']->getHash();
+				print '<tr>';
+				print '<td>' . ($n_obj['file']->isFromFile() ? $from_file : $from_doli) . '</td>';
+				print '<td style="text-align: right">' . number_format($entry['amount'], 2) . '</td>';
+				print '<td>' . $entry['value_date'] . '</td>';
+				print '<td>' . $entry['name'] . '<br /><span class="info">' . $entry['info'] . '</span></td>';
+				print '<td><div class="statement_link_multiple">' . $langs->trans('MultipleConciliated') . '</div></td>';
+				print '<td>'. $entry['hash'] .'</td>';
+				print '<td>';
+				// Select for the conciliated on a form selector custom
+				$array = array();
+				foreach ($n_obj['db'] as $ntry_db_obj) {
+					$entry = $ntry_db_obj->getData();
+					$id = $ntry_db_obj->getBankObj()->rowid;
+					$n = $entry['name'];
+					$a = number_format($entry['amount'], 2);
+					$d = $entry['value_date'];
+					$array[$id] = '(' . $id . ') ' . $n . '<br />' . $a . '<br />' . $d;
+				}
+				print $form->selectMassAction('', $array, 1, 'linked_' . $ntry_hash);
+				print '</td>';
+				print '</tr>';
+			}
+			foreach ($results['unlinkeds'] as $n_obj) {
+				$entry = $n_obj->getData();
+				$name = $entry['name'];
+				$o = $n_obj->getBankObj();
+				if (!$n_obj->isFromFile()) {
+					$name = getRelationName($o->id);
+	//				$name = '<a href="' . DOL_URL_ROOT . '/compta/bank/line.php?rowid=' . ((int)$o->id) . '&save_lastsearch_values=1" title="' . dol_escape_htmltag($name, 1) . '" class="classfortooltip" target="_blank">' . img_picto('', $o->picto) . ' ' . $o->id . ' ' . $name . '</a>';
+				}
+				print '<tr>';
+				print '<td>' . ($n_obj->isFromFile() ? $from_file : $from_doli) . '</td>';
+				print '<td style="text-align: right">' . number_format($entry['amount'], 2) . '</td>';
+				print '<td>' . $entry['value_date'] . '</td>';
+				print '<td>' . $name . '<br /><span class="info">' . $entry['info'] . '</span></td>';
+				print '<td><div class="statement_link_unlinked">' . $langs->trans('WillNotBeConciliated') . '</div></td>';
+				print '<td></td>';
+				print '</tr>';
+			}
+			foreach ($results['already_linked'] as $n_obj) {
+				$is_file = false;
+				$hash = '';
+				if (array_key_exists('file', $n_obj) && $n_obj['file'] instanceof EntryCamt053) {
+					$entry = $n_obj['file']->getData();
+					$is_file = $n_obj['file']->isFromFile();
+					$hash = $n_obj['file']->getHash();
+				} else {
+					$entry = $n_obj['db']->getData();
+					$is_file = $n_obj['db']->isFromFile();
+					$hash = $n_obj['db']->getHash();
+				}
+				$o = $n_obj['db']->getBankObj();
+				$name = getRelationName($o->id);
+	//			$name = $o->label;
+	//			$name = '<a href="' . DOL_URL_ROOT . '/compta/bank/line.php?rowid=' . ((int)$o->id) . '&save_lastsearch_values=1" title="' . dol_escape_htmltag($name, 1) . '" class="classfortooltip" target="_blank">' . img_picto('', $o->picto) . ' ' . $o->id . ' ' . $name . '</a>';
+				print '<tr>';
+				print '<td>' . ($is_file ? $from_file : $from_doli) . '</td>';
+				print '<td class="right">' . number_format($entry['amount'], 2) . '</td>';
+				print '<td>' . $entry['value_date'] . '</td>';
+				print '<td>' . $entry['name'] . '<br /><span class="info">' . $entry['info'] . '</span></td>';
+				print '<td><div class="statement_link_already_linked">' . $langs->trans('AlreadyBeConciliated') . '</div></td>';
+				print '<td>' . $name . '</td>';
+				print '</tr>';
+			}
+			print '</table>';
+			}
 
 		print '<input type="hidden" name="date_start" value="' . $date_start . '" />';
 		print '<input type="hidden" name="date_end" value="' . $date_end . '" />';
@@ -554,10 +401,10 @@ if ($action == 'upload') {
 		print '<input type="hidden" name="file_json" value="' . urlencode(json_encode($structure, 0)) . '" />';
 		print '<input type="hidden" name="upload_file" value="' . $upload_file . '" />';
 		print '<input type="submit" value="' . $langs->trans('Confirm') . '" />';
+
 		print '</form>';
 	} catch (Exception $e) {
 		var_dump('Error while uploading and parse the file');
-		var_dump($e);
 		print $e->getMessage();
 	}
 }
