@@ -171,7 +171,7 @@ if ($action == 'upload') {
 		$date_start_obj = date_create_from_format('d/m/Y', $date_start);
 		$date_end_obj = date_create_from_format('d/m/Y', $date_end);
 		// Get the data from the database
-		$sql = 'SELECT rowid, fk_account FROM ' . MAIN_DB_PREFIX . 'bank ';
+		$sql = 'SELECT rowid FROM ' . MAIN_DB_PREFIX . 'bank ';
 		$sql .= "WHERE datev >= DATE('" . $date_start_obj->format('Y-m-d') . "') AND datev <= DATE('" . $date_end_obj->format('Y-m-d') . "') ";
 
 		$resql = $db->query($sql);
@@ -313,14 +313,14 @@ if ($action == 'upload') {
 			foreach ($results['linkeds'] as $n_obj) {
 				$entry = $n_obj['file']->getData();
 				$o = $n_obj['db']->getBankObj();
-				$name = getRelationName($o->id);
+				$name = getRelationName($o->rowid);
 				print '<tr>';
 				print '<td>' . ($n_obj['file']->isFromFile() ? $from_file : $from_doli) . '</td>';
 				print '<td class="right">' . number_format($entry['amount'], 2) . '</td>';
 				print '<td>' . $entry['value_date'] . '</td>';
 				print '<td>' . $entry['name'] . '<br /><span class="info">' . $entry['info'] . '</span></td>';
 				print '<td><div class="statement_link_linked">' . $langs->trans('WillBeConciliated') . '</div></td>';
-				print '<td>' . $name . '<input type="hidden" name="linked[' . $n_obj['file']->getHash() . ']" value="' . $o->id . '" /></td>';
+				print '<td>' . $name . '<input type="hidden" name="linked[' . $n_obj['file']->getHash() . ']" value="' . $o->rowid . '" /></td>';
 				print '</tr>';
 			}
 			foreach ($results['multiples'] as $n_obj) {

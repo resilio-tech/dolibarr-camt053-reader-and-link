@@ -109,6 +109,10 @@ llxHeader("", $langs->trans("Camt053ReaderAndLinkArea"), '', '', 0, 0, '', '', '
 print '<div class="fichecenter camt053readerandlink">';
 
 $linked = GETPOST('linked', 'array');
+print '<pre>';
+print_r($linked);
+print '</pre>';
+print '<hr />';
 foreach ($_POST as $key => $value) {
 	if (preg_match('/^linked_(.+)$/', $key, $matches)) {
 		$hash = $matches[1];

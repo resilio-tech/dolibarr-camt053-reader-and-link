@@ -16,7 +16,7 @@ class EntryCamt053 {
 		$amount,
 		$value_date,
 		$name,
-		$info,
+		$info = '',
 		$hash = null
 	){
 		if (!empty($hash)) {
@@ -150,13 +150,13 @@ class StatementsCamt053 {
 			$entries = array();
 
 			foreach ($data as $value){
-				if ($value['bank_account_id'] == $bankId){
+				if ($value['bank_obj']->fk_account == $bankId){
 					$n = $this->addEntry(
 						$value['amount'],
 						$value['value_date'],
 						$value['name']
 					);
-					$n->setBankObj($bank);
+					$n->setBankObj($value['bank_obj']);
 					$entries[] = $n;
 				}
 			}
@@ -264,12 +264,12 @@ class StatementsCamt053 {
 					if ($l->getBankObj()->rappro != 1) {
 						$linkeds[] = array(
 							'file' => $aEntry,
-							'db' => $founds[0]
+							'db' => $l
 						);
 					} else {
 						$already_linked[] = array(
 							'file' => $aEntry,
-							'db' => $founds[0]
+							'db' => $l
 						);
 					}
 				} else if (count($founds) > 1){
