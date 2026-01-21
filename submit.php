@@ -222,6 +222,30 @@ if ($action == 'upload') {
 		// Compare statements
 		$banks = $matcher->compareMultiple($fileStatements, $dbStatements, $dbLoader);
 
+		// Check if there are any entries to reconcile
+		$hasEntriesToReconcile = false;
+		$firstAccountId = null;
+		foreach ($banks as $accountId => $bank) {
+			if ($firstAccountId === null) {
+				$firstAccountId = $accountId;
+			}
+			$results = $bank['results'];
+			if (!empty($results['linkeds']) || !empty($results['multiples'])) {
+				$hasEntriesToReconcile = true;
+				break;
+			}
+		}
+
+		// If nothing to reconcile, redirect to bank statement page
+		if (!$hasEntriesToReconcile && $firstAccountId !== null) {
+			$date_end_obj = DateTime::createFromFormat('d/m/Y', $date_end);
+			$date_concil = $date_end_obj ? $date_end_obj->format('Ym') : '';
+			$statementUrl = DOL_URL_ROOT . '/compta/bank/releve.php?account=' . ((int) $firstAccountId) . '&num=' . urlencode($date_concil);
+			setEventMessages($langs->trans('AllEntriesReconciled'), null, 'mesgs');
+			header('Location: ' . $statementUrl);
+			exit;
+		}
+
 		// Display results
 		print '<form id="form" name="form" action="/custom/camt053readerandlink/confirm.php" method="post">';
 

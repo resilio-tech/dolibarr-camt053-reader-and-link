@@ -36,4 +36,6 @@ MultipleConciliated = Multiple conciliated
 Conciliated = Conciliation
 ConcilationsConfirmed = Conciliations confirmed
 CheckNewConciliations = Check new conciliations
+ViewBankStatement = View bank statement
+AllEntriesReconciled = All entries are already reconciled
 BasedOnPreviousMonthIfNotFilled = Based on the previous month of the file extraction date if not filled

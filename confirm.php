@@ -283,17 +283,26 @@ try {
 
 	print '</table>';
 
+	print '<div class="tabsAction">';
+
+	// Button to view bank statement
+	if (!empty($bank_account_id) && !empty($date_concil)) {
+		$statementUrl = DOL_URL_ROOT . '/compta/bank/releve.php?account=' . ((int) $bank_account_id) . '&num=' . urlencode($date_concil);
+		print '<a class="butAction" href="' . $statementUrl . '">' . $langs->trans('ViewBankStatement') . '</a>';
+	}
+
 	// Form to check for new reconciliations
-	print '<form method="POST" action="/custom/camt053readerandlink/submit.php" enctype="multipart/form-data">';
+	print '<form method="POST" action="/custom/camt053readerandlink/submit.php" enctype="multipart/form-data" style="display: inline;">';
 	print '<input type="hidden" name="date_start" value="' . dol_escape_htmltag($date_start) . '">';
 	print '<input type="hidden" name="date_end" value="' . dol_escape_htmltag($date_end) . '">';
 	print '<input type="hidden" name="bank_account_id" value="' . ((int) $bank_account_id) . '">';
 	print '<input type="hidden" name="file_json" value="' . dol_escape_htmltag(urlencode(json_encode($file_json, 0))) . '">';
 	print '<input type="hidden" name="token" value="' . newToken() . '">';
 	print '<input type="hidden" name="action" value="upload">';
-	print '<input type="submit" value="' . $langs->trans('CheckNewConciliations') . '">';
+	print '<input type="submit" class="butAction" value="' . $langs->trans('CheckNewConciliations') . '">';
 	print '</form>';
 
+	print '</div>';
 
 	$NBMAX = getDolGlobalInt('MAIN_SIZE_SHORTLIST_LIMIT');
 	$max = getDolGlobalInt('MAIN_SIZE_SHORTLIST_LIMIT');

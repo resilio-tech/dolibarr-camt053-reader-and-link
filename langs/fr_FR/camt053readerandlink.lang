@@ -38,4 +38,6 @@ MultipleConciliated = Plusieurs rapprochements
 Conciliated = Rapprochement
 ConcilationsConfirmed = Rapprochements confirmés
 CheckNewConciliations = Vérifier les nouveaux rapprochements
+ViewBankStatement = Voir le relevé bancaire
+AllEntriesReconciled = Toutes les écritures sont déjà rapprochées
 BasedOnPreviousMonthIfNotFilled = Basé sur le mois précédent de la date d'extraction du fichier si non rempli
