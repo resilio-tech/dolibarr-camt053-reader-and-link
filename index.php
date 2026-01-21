@@ -120,7 +120,7 @@ print '<label for="file">' . $langs->trans("Camt053ReaderAndLinkFile") . '</labe
 print '<input type="file" name="file" id="file" accept=".xml" required />';
 print '</div>';
 
-print '<input type="hidden" name="token" value="' . $_SESSION['newtoken'] . '" />';
+print '<input type="hidden" name="token" value="' . newToken() . '" />';
 print '<input type="hidden" name="action" value="upload" />';
 
 print '</form>';

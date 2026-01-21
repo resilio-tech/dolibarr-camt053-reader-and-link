@@ -3,6 +3,7 @@
  * Copyright (C) 2004-2015 Laurent Destailleur  <eldy@users.sourceforge.net>
  * Copyright (C) 2005-2012 Regis Houssin        <regis.houssin@inodbox.com>
  * Copyright (C) 2015      Jean-François Ferry	<jfefe@aternatik.fr>
+ * Copyright (C) 2024      Slordef
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,9 +20,9 @@
  */
 
 /**
- *	\file       camt053readerandlink/index.php
+ *	\file       camt053readerandlink/submit.php
  *	\ingroup    camt053readerandlink
- *	\brief      Home page of camt053readerandlink top menu
+ *	\brief      Process uploaded CAMT.053 file and compare with database
  */
 
 // Load Dolibarr environment
@@ -57,6 +58,15 @@ if (!$res) {
 }
 
 require_once DOL_DOCUMENT_ROOT.'/core/class/html.formfile.class.php';
+require_once DOL_DOCUMENT_ROOT.'/compta/bank/class/account.class.php';
+require_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
+
+// Load module classes
+require_once __DIR__ . '/statements.php';
+require_once __DIR__ . '/class/Camt053FileProcessor.class.php';
+require_once __DIR__ . '/class/DatabaseBankStatementLoader.class.php';
+require_once __DIR__ . '/class/BankStatementMatcher.class.php';
+require_once __DIR__ . '/class/BankRelationshipLookup.class.php';
 
 // Load translation files required by the page
 $langs->loadLangs(array(
@@ -93,22 +103,27 @@ if ($user->socid > 0) $socid = $user->socid;
 if (!isModEnabled('camt053readerandlink')) {
 	accessforbidden('Module not enabled');
 }
-if ($action != 'upload' or (empty($_FILES['file']) and empty(GETPOST('file_json')))) {
+
+// Redirect if no upload action
+if ($action != 'upload' || (empty($_FILES['file']) && empty(GETPOST('file_json')))) {
 	header('Location: ' . DOL_URL_ROOT . '/custom/camt053readerandlink/index.php');
+	exit;
 }
 
 $yes = $langs->trans('Yes');
 $no = $langs->trans('No');
 $from_file = 'Fichier CAMT.053';
 $from_doli = 'Dolibarr';
-$bank_account_id = GETPOST('bank_account_id', 'int');
+$bank_account_id = GETPOSTINT('bank_account_id');
 $file_json = GETPOST('file_json', 'alpha');
 $date_start = GETPOST('date_start', 'alpha');
 $date_end = GETPOST('date_end', 'alpha');
 $file = !empty($_FILES['file']) ? $_FILES['file'] : null;
+
+// Secure directory creation using Dolibarr function
 $dir = DOL_DATA_ROOT . '/camt053readerandlink';
 if (!file_exists($dir)) {
-	mkdir($dir, 0777, true);
+	dol_mkdir($dir);
 }
 
 print '<style content="text/css" media="screen">';
@@ -119,9 +134,6 @@ print '</style>';
  * Actions
  */
 
-$getter_iban = ['BkToCstmrStmt', 'Stmt', 'Acct', 'Id', 'IBAN'];
-$getter_ntries = ['BkToCstmrStmt', 'Stmt', 'Ntry'];
-
 $form = new Form($db);
 $formfile = new FormFile($db);
 
@@ -129,161 +141,95 @@ llxHeader("", $langs->trans("Camt053ReaderAndLinkArea"), '', '', 0, 0, '', '', '
 
 print '<div class="fichecenter camt053readerandlink">';
 
-require_once './statements.php';
-require_once DOL_DOCUMENT_ROOT.'/compta/bank/class/account.class.php';
-
 if ($action == 'upload') {
 	try {
-		$statement_from_file = new StatementsCamt053($db);
-		$statement_from_file->setIsFile(true);
+		$fileProcessor = new Camt053FileProcessor($db);
+		$dbLoader = new DatabaseBankStatementLoader($db, $langs);
+		$matcher = new BankStatementMatcher(1); // 1 day tolerance
+		$relationLookup = new BankRelationshipLookup($db);
+
+		$structure = null;
+		$upload_file = '';
 
 		if (!empty($file_json)) {
-			$structure = json_decode(urldecode($file_json), 1);
-			$statement_from_file->setStructure($structure);
+			// Parse from previously uploaded JSON
+			$structure = json_decode(urldecode($file_json), true);
+			if (!$fileProcessor->parseStructure($structure)) {
+				throw new Exception($fileProcessor->getError() ?? 'Error parsing JSON structure');
+			}
 		} else {
-			$upload_file = $dir . '/' . $file['name'];
+			// Validate uploaded file
+			if (empty($file['name']) || $file['error'] !== UPLOAD_ERR_OK) {
+				throw new Exception('Error uploading file');
+			}
 
-			if (move_uploaded_file($file['tmp_name'], $upload_file)) {
-				// Camt053 file is a XML file
-				$xml = simplexml_load_file($upload_file);
-				// get structure of the XML file
-				$structure = json_decode(json_encode($xml), true);
-				$statement_from_file->setStructure($structure);
-			} else {
+			// Validate file extension
+			$extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+			if ($extension !== 'xml') {
+				throw new Exception('Only XML files are allowed');
+			}
+
+			// Validate MIME type
+			$mimeType = mime_content_type($file['tmp_name']);
+			if (!in_array($mimeType, array('application/xml', 'text/xml', 'text/plain'))) {
+				throw new Exception('Invalid file type. Only XML files are allowed.');
+			}
+
+			// Sanitize filename
+			$safeFilename = dol_sanitizeFileName($file['name']);
+			$upload_file = $dir . '/' . $safeFilename;
+
+			if (!move_uploaded_file($file['tmp_name'], $upload_file)) {
 				throw new Exception('Error while uploading the file');
 			}
+
+			// Parse XML file with XXE protection
+			if (!$fileProcessor->parseFile($upload_file)) {
+				throw new Exception($fileProcessor->getError() ?? 'Error parsing XML file');
+			}
+
+			$structure = $fileProcessor->getStructure();
 		}
 
-		$statement_from_db = new StatementsCamt053($db);
-		$statement_from_db->setIsFile(false);
-
-		if (empty($date_start) or empty($date_end)) {
-			$d = $structure['BkToCstmrStmt']['GrpHdr']['CreDtTm'];
-			$d = new DateTime($d);
-			// base on previous month
+		// Get date range
+		if (empty($date_start) || empty($date_end)) {
+			$creationDate = $fileProcessor->getCreationDate();
+			if ($creationDate) {
+				$d = new DateTime($creationDate);
+			} else {
+				$d = new DateTime();
+			}
+			// Base on previous month
 			$d->modify('first day of previous month');
-			// get first day of the previous month
 			$date_start = $d->format('01/m/Y');
-			// get last day of the previous month
 			$date_end = $d->format('t/m/Y');
 		}
 
-		$date_start_obj = date_create_from_format('d/m/Y', $date_start);
-		$date_end_obj = date_create_from_format('d/m/Y', $date_end);
-		// Get the data from the database
-		$sql = 'SELECT rowid FROM ' . MAIN_DB_PREFIX . 'bank ';
-		$sql .= "WHERE datev >= DATE('" . $date_start_obj->format('Y-m-d') . "') AND datev <= DATE('" . $date_end_obj->format('Y-m-d') . "') ";
-
-		$resql = $db->query($sql);
-
-		$bank_account = new Account($db);
-
-		if ($resql) {
-			$data = array();
-			while ($obj_b = $db->fetch_object($resql)) {
-				$id = $obj_b->rowid;
-				$obj = new AccountLine($db);
-				$obj->fetch($id);
-
-				if (empty($obj->datev)) {
-					continue;
-				}
-
-				$bank_links = $bank_account->get_url($obj->id);
-
-				$amount = floatval($obj->amount);
-				if (is_numeric($obj->datev)){
-					$value_date = new DateTime();
-					$value_date->setTimestamp($obj->datev);
-					$value_date = $value_date->format('Y-m-d');
-				} else {
-					$value_date = new DateTime($obj->datev);
-					$value_date = $value_date->format('Y-m-d');
-				}
-				$name = $obj->label;
-				$reg = array();
-				preg_match('/\((.+)\)/i', $name, $reg);
-				if (!empty($reg[1]) && $langs->trans($reg[1]) != $reg[1]) {
-					$name = $langs->trans($reg[1]);
-					$type = 'salary';
-				} else {
-					if ($name == '(payment_salary)') {
-						$name = $langs->trans('SalaryPayment');
-						$type = 'salary';
-					} else {
-						$name = dol_escape_htmltag($name);
-					}
-				}
-
-				if (!empty($bank_links[1]['label'])) {
-					$name .= ' - ' . $bank_links[1]['label'];
-				}
-
-				$data[] = array(
-					'amount' => $amount,
-					'value_date' => $value_date,
-					'name' => $name,
-					'bank_obj' => $obj,
-				);
-			}
-
-			$statement_from_db->setData($data);
-		} else {
-			$error = 'Error while getting the data from the database ';
-			$error .= $db->lasterror();
-			throw new Exception($error);
+		// Validate date format
+		if (!$dbLoader->validateDateFormat($date_start) || !$dbLoader->validateDateFormat($date_end)) {
+			throw new Exception('Invalid date format. Use dd/mm/yyyy');
 		}
 
-		$banks = StatementsCamt053::compare($statement_from_file, $statement_from_db);
-
-		function getRelationName($line_id) {
-			global $db;
-			$sql_client = 'SELECT f.rowid, f.ref, s.nom FROM ' . MAIN_DB_PREFIX . 'facture AS f ';
-			$sql_client .= 'INNER JOIN ' . MAIN_DB_PREFIX . 'societe AS s ON f.fk_soc = s.rowid ';
-			$sql_client .= 'LEFT JOIN ' . MAIN_DB_PREFIX . 'paiement_facture AS pf ON f.rowid = pf.fk_facture ';
-			$sql_client .= 'LEFT JOIN ' . MAIN_DB_PREFIX . 'paiement AS p ON pf.fk_paiement = p.rowid ';
-			$sql_client .= 'WHERE p.fk_bank = ' . $line_id;
-			$resql_client = $db->query($sql_client);
-			if ($resql_client) {
-				$obj = $db->fetch_object($resql_client);
-				if ($obj) {
-					$name = $obj->ref . '<br/>' . $obj->nom;
-					return '<a href="' . DOL_URL_ROOT . '/compta/facture/card.php?id=' . ((int)$obj->rowid) . '&save_lastsearch_values=1" title="' . dol_escape_htmltag($name, 1) . '" class="classfortooltip" target="_blank">' . img_picto('', 'bill') . ' ' . $obj->rowid . ' ' . $name . '</a>';
-				}
-			}
-
-			$sql_fourn = 'SELECT f.rowid, f.ref, s.nom FROM ' . MAIN_DB_PREFIX . 'facture_fourn AS f ';
-			$sql_fourn .= 'INNER JOIN ' . MAIN_DB_PREFIX . 'societe AS s ON f.fk_soc = s.rowid ';
-			$sql_fourn .= 'LEFT JOIN ' . MAIN_DB_PREFIX . 'paiementfourn_facturefourn AS pf ON f.rowid = pf.fk_facturefourn ';
-			$sql_fourn .= 'LEFT JOIN ' . MAIN_DB_PREFIX . 'paiementfourn AS p ON pf.fk_paiementfourn = p.rowid ';
-			$sql_fourn .= 'WHERE p.fk_bank = ' . $line_id;
-			$resql_fourn = $db->query($sql_fourn);
-			if ($resql_fourn) {
-				$obj = $db->fetch_object($resql_fourn);
-				if ($obj) {
-					$name = $obj->ref . '<br/>' . $obj->nom;
-					return '<a href="' . DOL_URL_ROOT . '/fourn/facture/card.php?id=' . ((int)$obj->rowid) . '&save_lastsearch_values=1" title="' . dol_escape_htmltag($name, 1) . '" class="classfortooltip" target="_blank">' . img_picto('', 'supplier_invoice') . ' ' . $obj->rowid . ' ' . $name . '</a>';
-				}
-			}
-
-			$sql = 'SELECT rowid, label FROM ' . MAIN_DB_PREFIX . 'bank WHERE rowid = ' . $line_id;
-			$resql = $db->query($sql);
-			if ($resql) {
-				$obj = $db->fetch_object($resql);
-				if ($obj) {
-					$name = $obj->label;
-					return '<a href="' . DOL_URL_ROOT . '/compta/bank/line.php?rowid=' . ((int)$obj->rowid) . '&save_lastsearch_values=1" title="' . dol_escape_htmltag($name, 1) . '" class="classfortooltip" target="_blank">' . img_picto('', 'bank') . ' ' . $obj->rowid . ' ' . $name . '</a>';
-				}
-			}
+		// Load database statements
+		$dbStatements = $dbLoader->loadStatements($date_start, $date_end);
+		if ($dbLoader->getError()) {
+			throw new Exception($dbLoader->getError());
 		}
 
+		// Get file statements indexed by account ID
+		$fileStatements = $fileProcessor->getStatementsByAccountId();
+
+		// Compare statements
+		$banks = $matcher->compareMultiple($fileStatements, $dbStatements, $dbLoader);
+
+		// Display results
 		print '<form id="form" name="form" action="/custom/camt053readerandlink/confirm.php" method="post">';
 
-		foreach ($banks as $bank) {
+		foreach ($banks as $accountId => $bank) {
 			$results = $bank['results'];
 			$bank_account = new Account($db);
-			$bank_account->fetch($bank['account']->rowid);
-			$iban_format = $bank['account']->iban_prefix;
+			$bank_account->fetch($accountId);
+			$iban_format = isset($bank['account']) ? $bank['account']->iban_prefix : '';
 
 			print '<table class="noborder" style="width: 100%">';
 			print '<tr class="liste_titre">';
@@ -293,9 +239,9 @@ if ($action == 'upload') {
 			print '<td>' . $langs->trans('BankAccount') . '</td>';
 			print '</tr>';
 			print '<tr>';
-			print '<td>' . $date_start . '</td>';
-			print '<td>' . $date_end . '</td>';
-			print '<td>' . $iban_format . '</td>';
+			print '<td>' . dol_escape_htmltag($date_start) . '</td>';
+			print '<td>' . dol_escape_htmltag($date_end) . '</td>';
+			print '<td>' . dol_escape_htmltag($iban_format) . '</td>';
 			print '<td>' . $bank_account->getNomUrl(1) . '</td>';
 			print '</tr>';
 			print '</table>';
@@ -310,65 +256,72 @@ if ($action == 'upload') {
 			print '<td>' . $langs->trans('Conciliated') . '</td>';
 			print '<td>hash</td>';
 			print '</tr>';
+
+			// Linked entries
 			foreach ($results['linkeds'] as $n_obj) {
 				$entry = $n_obj['file']->getData();
-				$o = $n_obj['db']->getBankObj();
-				$name = getRelationName($o->rowid);
+				$o = $n_obj['db']->getBankLine();
+				$name = $relationLookup->getRelationHtml($o->rowid);
 				print '<tr>';
 				print '<td>' . ($n_obj['file']->isFromFile() ? $from_file : $from_doli) . '</td>';
 				print '<td class="right">' . number_format($entry['amount'], 2) . '</td>';
-				print '<td>' . $entry['value_date'] . '</td>';
-				print '<td>' . $entry['name'] . '<br /><span class="info">' . $entry['info'] . '</span></td>';
+				print '<td>' . dol_escape_htmltag($entry['value_date']) . '</td>';
+				print '<td>' . dol_escape_htmltag($entry['name']) . '<br /><span class="info">' . dol_escape_htmltag($entry['info']) . '</span></td>';
 				print '<td><div class="statement_link_linked">' . $langs->trans('WillBeConciliated') . '</div></td>';
-				print '<td>' . $name . '<input type="hidden" name="linked[' . $n_obj['file']->getHash() . ']" value="' . $o->rowid . '" /></td>';
+				print '<td>' . $name . '<input type="hidden" name="linked[' . dol_escape_htmltag($n_obj['file']->getHash()) . ']" value="' . ((int) $o->rowid) . '" /></td>';
 				print '</tr>';
 			}
+
+			// Multiple matches
 			foreach ($results['multiples'] as $n_obj) {
 				$entry = $n_obj['file']->getData();
 				$ntry_hash = $n_obj['file']->getHash();
 				print '<tr>';
 				print '<td>' . ($n_obj['file']->isFromFile() ? $from_file : $from_doli) . '</td>';
 				print '<td style="text-align: right">' . number_format($entry['amount'], 2) . '</td>';
-				print '<td>' . $entry['value_date'] . '</td>';
-				print '<td>' . $entry['name'] . '<br /><span class="info">' . $entry['info'] . '</span></td>';
+				print '<td>' . dol_escape_htmltag($entry['value_date']) . '</td>';
+				print '<td>' . dol_escape_htmltag($entry['name']) . '<br /><span class="info">' . dol_escape_htmltag($entry['info']) . '</span></td>';
 				print '<td><div class="statement_link_multiple">' . $langs->trans('MultipleConciliated') . '</div></td>';
-				print '<td>'. $entry['hash'] .'</td>';
+				print '<td>' . dol_escape_htmltag($entry['hash']) . '</td>';
 				print '<td>';
-				// Select for the conciliated on a form selector custom
+				// Select for multiple matches
 				$array = array();
 				foreach ($n_obj['db'] as $ntry_db_obj) {
-					$entry = $ntry_db_obj->getData();
-					$id = $ntry_db_obj->getBankObj()->rowid;
-					$n = $entry['name'];
-					$a = number_format($entry['amount'], 2);
-					$d = $entry['value_date'];
+					$dbEntry = $ntry_db_obj->getData();
+					$id = $ntry_db_obj->getBankLine()->rowid;
+					$n = dol_escape_htmltag($dbEntry['name']);
+					$a = number_format($dbEntry['amount'], 2);
+					$d = dol_escape_htmltag($dbEntry['value_date']);
 					$array[$id] = '(' . $id . ') ' . $n . '<br />' . $a . '<br />' . $d;
 				}
-				print $form->selectMassAction('', $array, 1, 'linked_' . $ntry_hash);
+				print $form->selectMassAction('', $array, 1, 'linked_' . dol_escape_htmltag($ntry_hash));
 				print '</td>';
 				print '</tr>';
 			}
+
+			// Unlinked entries
 			foreach ($results['unlinkeds'] as $n_obj) {
 				$entry = $n_obj->getData();
-				$name = $entry['name'];
-				$o = $n_obj->getBankObj();
-				if (!$n_obj->isFromFile()) {
-					$name = getRelationName($o->id);
-	//				$name = '<a href="' . DOL_URL_ROOT . '/compta/bank/line.php?rowid=' . ((int)$o->id) . '&save_lastsearch_values=1" title="' . dol_escape_htmltag($name, 1) . '" class="classfortooltip" target="_blank">' . img_picto('', $o->picto) . ' ' . $o->id . ' ' . $name . '</a>';
+				$name = dol_escape_htmltag($entry['name']);
+				$o = $n_obj->getBankLine();
+				if (!$n_obj->isFromFile() && $o) {
+					$name = $relationLookup->getRelationHtml($o->id);
 				}
 				print '<tr>';
 				print '<td>' . ($n_obj->isFromFile() ? $from_file : $from_doli) . '</td>';
 				print '<td style="text-align: right">' . number_format($entry['amount'], 2) . '</td>';
-				print '<td>' . $entry['value_date'] . '</td>';
-				print '<td>' . $name . '<br /><span class="info">' . $entry['info'] . '</span></td>';
+				print '<td>' . dol_escape_htmltag($entry['value_date']) . '</td>';
+				print '<td>' . $name . '<br /><span class="info">' . dol_escape_htmltag($entry['info']) . '</span></td>';
 				print '<td><div class="statement_link_unlinked">' . $langs->trans('WillNotBeConciliated') . '</div></td>';
 				print '<td></td>';
 				print '</tr>';
 			}
+
+			// Already linked entries
 			foreach ($results['already_linked'] as $n_obj) {
 				$is_file = false;
 				$hash = '';
-				if (array_key_exists('file', $n_obj) && $n_obj['file'] instanceof EntryCamt053) {
+				if (isset($n_obj['file']) && $n_obj['file'] instanceof Camt053Entry) {
 					$entry = $n_obj['file']->getData();
 					$is_file = $n_obj['file']->isFromFile();
 					$hash = $n_obj['file']->getHash();
@@ -377,35 +330,33 @@ if ($action == 'upload') {
 					$is_file = $n_obj['db']->isFromFile();
 					$hash = $n_obj['db']->getHash();
 				}
-				$o = $n_obj['db']->getBankObj();
-				$name = getRelationName($o->id);
-	//			$name = $o->label;
-	//			$name = '<a href="' . DOL_URL_ROOT . '/compta/bank/line.php?rowid=' . ((int)$o->id) . '&save_lastsearch_values=1" title="' . dol_escape_htmltag($name, 1) . '" class="classfortooltip" target="_blank">' . img_picto('', $o->picto) . ' ' . $o->id . ' ' . $name . '</a>';
+				$o = $n_obj['db']->getBankLine();
+				$name = $relationLookup->getRelationHtml($o->id);
 				print '<tr>';
 				print '<td>' . ($is_file ? $from_file : $from_doli) . '</td>';
 				print '<td class="right">' . number_format($entry['amount'], 2) . '</td>';
-				print '<td>' . $entry['value_date'] . '</td>';
-				print '<td>' . $entry['name'] . '<br /><span class="info">' . $entry['info'] . '</span></td>';
+				print '<td>' . dol_escape_htmltag($entry['value_date']) . '</td>';
+				print '<td>' . dol_escape_htmltag($entry['name']) . '<br /><span class="info">' . dol_escape_htmltag($entry['info']) . '</span></td>';
 				print '<td><div class="statement_link_already_linked">' . $langs->trans('AlreadyBeConciliated') . '</div></td>';
 				print '<td>' . $name . '</td>';
 				print '</tr>';
 			}
 			print '</table>';
-			}
+		}
 
-		print '<input type="hidden" name="date_start" value="' . $date_start . '" />';
-		print '<input type="hidden" name="date_end" value="' . $date_end . '" />';
-		print '<input type="hidden" name="bank_account_id" value="' . $bank_account_id . '" />';
-		print '<input type="hidden" name="token" value="' . $_SESSION['newtoken'] . '" />';
+		print '<input type="hidden" name="date_start" value="' . dol_escape_htmltag($date_start) . '" />';
+		print '<input type="hidden" name="date_end" value="' . dol_escape_htmltag($date_end) . '" />';
+		print '<input type="hidden" name="bank_account_id" value="' . ((int) $bank_account_id) . '" />';
+		print '<input type="hidden" name="token" value="' . newToken() . '" />';
 		print '<input type="hidden" name="action" value="confirm" />';
-		print '<input type="hidden" name="file_json" value="' . urlencode(json_encode($structure, 0)) . '" />';
-		print '<input type="hidden" name="upload_file" value="' . $upload_file . '" />';
+		print '<input type="hidden" name="file_json" value="' . dol_escape_htmltag(urlencode(json_encode($structure, 0))) . '" />';
+		print '<input type="hidden" name="upload_file" value="' . dol_escape_htmltag($upload_file) . '" />';
 		print '<input type="submit" value="' . $langs->trans('Confirm') . '" />';
 
 		print '</form>';
 	} catch (Exception $e) {
-		var_dump('Error while uploading and parse the file');
-		print $e->getMessage();
+		dol_syslog('CAMT053: Error processing file - ' . $e->getMessage(), LOG_ERR);
+		setEventMessages($e->getMessage(), null, 'errors');
 	}
 }
 

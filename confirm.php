@@ -3,6 +3,7 @@
  * Copyright (C) 2004-2015 Laurent Destailleur  <eldy@users.sourceforge.net>
  * Copyright (C) 2005-2012 Regis Houssin        <regis.houssin@inodbox.com>
  * Copyright (C) 2015      Jean-François Ferry	<jfefe@aternatik.fr>
+ * Copyright (C) 2024      Slordef
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,9 +20,9 @@
  */
 
 /**
- *	\file       camt053readerandlink/index.php
+ *	\file       camt053readerandlink/confirm.php
  *	\ingroup    camt053readerandlink
- *	\brief      Home page of camt053readerandlink top menu
+ *	\brief      Confirm and finalize bank reconciliations
  */
 
 // Load Dolibarr environment
@@ -58,6 +59,10 @@ if (!$res) {
 
 include_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/class/html.formfile.class.php';
+require_once DOL_DOCUMENT_ROOT.'/compta/bank/class/account.class.php';
+
+// Load module classes
+require_once __DIR__ . '/class/BankEntryReconciler.class.php';
 
 // Load translation files required by the page
 $langs->loadLangs(array("camt053readerandlink@camt053readerandlink"));
@@ -95,7 +100,6 @@ if (empty($user->admin)) {
 /*
  * View
  */
-require_once DOL_DOCUMENT_ROOT.'/compta/bank/class/account.class.php';
 
 print '<style content="text/css" media="screen">';
 print '@import url("/custom/camt053readerandlink/css/camt053readerandlink.css");';
@@ -108,6 +112,7 @@ llxHeader("", $langs->trans("Camt053ReaderAndLinkArea"), '', '', 0, 0, '', '', '
 
 print '<div class="fichecenter camt053readerandlink">';
 
+// Get linked entries from form
 $linked = GETPOST('linked', 'array');
 foreach ($_POST as $key => $value) {
 	if (preg_match('/^linked_(.+)$/', $key, $matches)) {
@@ -118,11 +123,27 @@ foreach ($_POST as $key => $value) {
 $date_start = GETPOST('date_start', 'alphanohtml');
 $date_end = GETPOST('date_end', 'alphanohtml');
 $bank_account_id = GETPOSTINT('bank_account_id');
-$file_json = json_decode(urldecode(GETPOST('file_json', 'alpha')), 1);
+$file_json = json_decode(urldecode(GETPOST('file_json', 'alpha')), true);
 $upload_file = GETPOST('upload_file', 'alpha');
 
-$date_end_obj = date_create_from_format('d/m/Y', $date_end);
-$date_concil = $date_end_obj->format('Ym');
+// Validate upload_file path to prevent path traversal
+if (!empty($upload_file)) {
+	$realUploadFile = realpath($upload_file);
+	$allowedDir = realpath(DOL_DATA_ROOT . '/camt053readerandlink');
+	if ($realUploadFile === false || strpos($realUploadFile, $allowedDir) !== 0) {
+		dol_syslog('CAMT053: Path traversal attempt detected: ' . $upload_file, LOG_WARNING);
+		$upload_file = '';
+	}
+}
+
+// Calculate statement reference from end date
+$date_concil = '';
+if (!empty($date_end)) {
+	$date_end_obj = DateTime::createFromFormat('d/m/Y', $date_end);
+	if ($date_end_obj !== false) {
+		$date_concil = $date_end_obj->format('Ym');
+	}
+}
 
 print load_fiche_titre($langs->trans("ConcilationsConfirmed"), '', '');
 
@@ -134,13 +155,24 @@ print '<td class="right">'.$langs->trans('Amount').'</td>';
 print '</tr>';
 
 $bank_account = new Account($db);
+$reconciler = new BankEntryReconciler($db, $user);
+
 try {
+	// Process each linked entry
 	foreach ($linked as $key => $link) {
 		if (empty($link) || $link == 0) {
 			continue;
 		}
+
+		$bankLineId = (int) $link;
 		$obj = new AccountLine($db);
-		$obj->fetch($link);
+		$result = $obj->fetch($bankLineId);
+
+		if ($result <= 0) {
+			continue;
+		}
+
+		// Reconcile the entry
 		$obj->num_releve = $date_concil;
 		$obj->update_conciliation($user, 0, 1);
 
@@ -153,7 +185,7 @@ try {
 		$amount = $obj->amount;
 		if (is_numeric($obj->datev)) {
 			$value_date = new DateTime();
-			$value_date->setTimestamp($obj->datev);
+			$value_date->setTimestamp((int) $obj->datev);
 			$value_date = $value_date->format('Y-m-d');
 		} else {
 			$value_date = new DateTime($obj->datev);
@@ -175,19 +207,20 @@ try {
 		}
 
 		if (!empty($bank_links[1]['label'])) {
-			$name .= ' - ' . $bank_links[1]['label'];
+			$name .= ' - ' . dol_escape_htmltag($bank_links[1]['label']);
 		}
 
 		$name = '<a href="' . DOL_URL_ROOT . '/compta/bank/line.php?rowid=' . ((int)$obj->id) . '&save_lastsearch_values=1" title="' . dol_escape_htmltag($name, 1) . '" class="classfortooltip" target="_blank">' . img_picto('', $obj->picto) . ' ' . $obj->id . ' ' . $name . '</a>';
 
 		print '<tr>';
 		print '<td>' . $name . '</td>';
-		print '<td>' . $value_date . '</td>';
+		print '<td>' . dol_escape_htmltag($value_date) . '</td>';
 		print '<td class="right">' . number_format($amount, 2) . '</td>';
 		print '</tr>';
 	}
 
-	if (!empty($upload_file)) {
+	// Move uploaded file to document storage
+	if (!empty($upload_file) && file_exists($upload_file)) {
 		$id = $bank_account_id;
 		$numref = $date_concil;
 		$modulepart = 'bank';
@@ -198,26 +231,27 @@ try {
 		$relativepathwithnofile = $id . "/statement/" . dol_sanitizeFileName($numref) . "/";
 		$object = new Account($db);
 		$object->fetch($id);
-		// get all directories from $upload_file
-//	$dir = substr($upload_file, 0, strrpos($upload_file, '/'));
-		$file = substr($upload_file, strrpos($upload_file, '/') + 1);
-		$dir = 'bank/' . $id . '/statement/' . dol_sanitizeFileName($numref);
+
+		// Get filename from upload path
+		$file = basename($upload_file);
+		$dir = 'bank/' . ((int) $id) . '/statement/' . dol_sanitizeFileName($numref);
+
 		include_once DOL_DOCUMENT_ROOT . '/ecm/class/ecmfiles.class.php';
 		$ecmfile = new EcmFiles($db);
 		$ecmfile->filepath = $dir;
-		$ecmfile->filename = $file;
+		$ecmfile->filename = dol_sanitizeFileName($file);
 		$ecmfile->label = md5_file(dol_osencode($upload_file)); // MD5 of file content
 		$ecmfile->fullpath_orig = $file;
 		$ecmfile->gen_or_uploaded = 'uploaded';
 		$ecmfile->description = '';
 		$ecmfile->keywords = '';
+
 		if (is_object($object) && $object->id > 0) {
 			$ecmfile->src_object_id = $object->id;
 			if (isset($object->table_element)) {
 				$ecmfile->src_object_type = $object->table_element;
 			} else {
 				dol_syslog('Error: object ' . get_class($object) . ' has no table_element attribute.');
-				return -1;
 			}
 			if (isset($object->src_object_description)) {
 				$ecmfile->description = $object->src_object_description;
@@ -226,25 +260,35 @@ try {
 				$ecmfile->keywords = $object->src_object_keywords;
 			}
 		}
+
 		require_once DOL_DOCUMENT_ROOT . '/core/lib/security2.lib.php';
 		$ecmfile->share = getRandomPassword(true);
 		$result = $ecmfile->create($user);
 		if ($result < 0) {
-			dol_syslog($ecmfile->error);
+			dol_syslog('CAMT053: Error creating ECM file entry - ' . $ecmfile->error, LOG_ERR);
 		}
-		if (!is_dir(DOL_DOCUMENT_ROOT . '/documents/' . $dir)) {
-			mkdir(DOL_DOCUMENT_ROOT . '/documents/' . $dir, 0777, true);
+
+		// Create target directory using Dolibarr function (secure permissions)
+		$targetDir = DOL_DATA_ROOT . '/' . $dir;
+		if (!is_dir($targetDir)) {
+			dol_mkdir($targetDir);
 		}
-		rename($upload_file, DOL_DOCUMENT_ROOT . '/documents/' . $dir . '/' . $file);
+
+		// Move file to target directory
+		$targetFile = $targetDir . '/' . dol_sanitizeFileName($file);
+		if (!rename($upload_file, $targetFile)) {
+			dol_syslog('CAMT053: Error moving file to ' . $targetFile, LOG_ERR);
+		}
 	}
 
 	print '</table>';
 
+	// Form to check for new reconciliations
 	print '<form method="POST" action="/custom/camt053readerandlink/submit.php" enctype="multipart/form-data">';
-	print '<input type="hidden" name="date_start" value="' . $date_start . '">';
-	print '<input type="hidden" name="date_end" value="' . $date_end . '">';
-	print '<input type="hidden" name="bank_account_id" value="' . $bank_account_id . '">';
-	print '<input type="hidden" name="file_json" value="' . urlencode(json_encode($file_json, 0)) . '">';
+	print '<input type="hidden" name="date_start" value="' . dol_escape_htmltag($date_start) . '">';
+	print '<input type="hidden" name="date_end" value="' . dol_escape_htmltag($date_end) . '">';
+	print '<input type="hidden" name="bank_account_id" value="' . ((int) $bank_account_id) . '">';
+	print '<input type="hidden" name="file_json" value="' . dol_escape_htmltag(urlencode(json_encode($file_json, 0))) . '">';
 	print '<input type="hidden" name="token" value="' . newToken() . '">';
 	print '<input type="hidden" name="action" value="upload">';
 	print '<input type="submit" value="' . $langs->trans('CheckNewConciliations') . '">';
@@ -256,9 +300,8 @@ try {
 
 	print '</div>';
 } catch (Exception $e) {
-	var_dump($e);
-	var_dump($e->getMessage());
-	print $e->getMessage();
+	dol_syslog('CAMT053: Error during confirmation - ' . $e->getMessage(), LOG_ERR);
+	setEventMessages($langs->trans('ErrorProcessingFile') . ': ' . $e->getMessage(), null, 'errors');
 }
 
 // End of page

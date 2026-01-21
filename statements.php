@@ -122,7 +122,7 @@ class StatementsCamt053 {
 
 	public function getDbBank($bankId){
 		$sql = "SELECT rowid, iban_prefix FROM " . MAIN_DB_PREFIX . "bank_account ";
-		$sql .= "WHERE rowid = '" . $bankId . "'";
+		$sql .= "WHERE rowid = " . ((int) $bankId);
 		$resql = $this->db->query($sql);
 		if (!$resql) {
 			throw new Exception('Error while getting the bank account for ID ' . $bankId);
@@ -341,8 +341,8 @@ class StatementsCamt053 {
 	private function matchBank($iban){
 		$ibanNoSpace = str_replace(' ', '', $iban);
 		$sql = "SELECT rowid FROM " . MAIN_DB_PREFIX . "bank_account ";
-		$sql .= "WHERE iban_prefix = '" . $iban . "' ";
-		$sql .= "OR iban_prefix = '" . $ibanNoSpace . "'";
+		$sql .= "WHERE iban_prefix = '" . $this->db->escape($iban) . "' ";
+		$sql .= "OR iban_prefix = '" . $this->db->escape($ibanNoSpace) . "'";
 		$resql = $this->db->query($sql);
 		if (!$resql) {
 			throw new Exception('Error while getting the bank account for IBAN ' . $iban);
@@ -435,3 +435,12 @@ class StatementsCamt053 {
 		return $banks;
 	}
 }
+
+// Include new class files
+require_once __DIR__ . '/class/Camt053Entry.class.php';
+require_once __DIR__ . '/class/Camt053Statement.class.php';
+require_once __DIR__ . '/class/Camt053FileProcessor.class.php';
+require_once __DIR__ . '/class/BankStatementMatcher.class.php';
+require_once __DIR__ . '/class/DatabaseBankStatementLoader.class.php';
+require_once __DIR__ . '/class/BankEntryReconciler.class.php';
+require_once __DIR__ . '/class/BankRelationshipLookup.class.php';

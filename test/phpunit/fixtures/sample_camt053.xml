@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.02">
+	<BkToCstmrStmt>
+		<GrpHdr>
+			<MsgId>STMT202401001</MsgId>
+			<CreDtTm>2024-01-31T12:00:00</CreDtTm>
+		</GrpHdr>
+		<Stmt>
+			<Id>STMT001</Id>
+			<ElctrncSeqNb>1</ElctrncSeqNb>
+			<CreDtTm>2024-01-31T12:00:00</CreDtTm>
+			<Acct>
+				<Id>
+					<IBAN>BE71096123456769</IBAN>
+				</Id>
+				<Ccy>EUR</Ccy>
+			</Acct>
+			<Bal>
+				<Tp>
+					<CdOrPrtry>
+						<Cd>OPBD</Cd>
+					</CdOrPrtry>
+				</Tp>
+				<Amt Ccy="EUR">5000.00</Amt>
+				<CdtDbtInd>CRDT</CdtDbtInd>
+				<Dt>
+					<Dt>2024-01-01</Dt>
+				</Dt>
+			</Bal>
+			<Bal>
+				<Tp>
+					<CdOrPrtry>
+						<Cd>CLBD</Cd>
+					</CdOrPrtry>
+				</Tp>
+				<Amt Ccy="EUR">6250.00</Amt>
+				<CdtDbtInd>CRDT</CdtDbtInd>
+				<Dt>
+					<Dt>2024-01-31</Dt>
+				</Dt>
+			</Bal>
+			<Ntry>
+				<Amt Ccy="EUR">1500.00</Amt>
+				<CdtDbtInd>CRDT</CdtDbtInd>
+				<Sts>BOOK</Sts>
+				<BookgDt>
+					<Dt>2024-01-15</Dt>
+				</BookgDt>
+				<ValDt>
+					<Dt>2024-01-15</Dt>
+				</ValDt>
+				<AcctSvcrRef>CREDIT001</AcctSvcrRef>
+				<BkTxCd>
+					<Domn>
+						<Cd>PMNT</Cd>
+						<Fmly>
+							<Cd>RCDT</Cd>
+							<SubFmlyCd>SALA</SubFmlyCd>
+						</Fmly>
+					</Domn>
+				</BkTxCd>
+				<NtryDtls>
+					<TxDtls>
+						<RmtInf>
+							<Ustrd>Invoice payment INV-2024-001</Ustrd>
+						</RmtInf>
+						<RltdPties>
+							<Cdtr>
+								<Nm>ACME Corporation</Nm>
+							</Cdtr>
+						</RltdPties>
+					</TxDtls>
+				</NtryDtls>
+				<AddtlNtryInf>Customer payment for services rendered</AddtlNtryInf>
+			</Ntry>
+			<Ntry>
+				<Amt Ccy="EUR">250.00</Amt>
+				<CdtDbtInd>DBIT</CdtDbtInd>
+				<Sts>BOOK</Sts>
+				<BookgDt>
+					<Dt>2024-01-20</Dt>
+				</BookgDt>
+				<ValDt>
+					<Dt>2024-01-20</Dt>
+				</ValDt>
+				<AcctSvcrRef>DEBIT001</AcctSvcrRef>
+				<BkTxCd>
+					<Domn>
+						<Cd>PMNT</Cd>
+						<Fmly>
+							<Cd>ICDT</Cd>
+							<SubFmlyCd>DMCT</SubFmlyCd>
+						</Fmly>
+					</Domn>
+				</BkTxCd>
+				<NtryDtls>
+					<TxDtls>
+						<RmtInf>
+							<Ustrd>Supplier payment SUP-2024-001</Ustrd>
+						</RmtInf>
+						<RltdPties>
+							<Dbtr>
+								<Nm>Office Supplies Ltd</Nm>
+							</Dbtr>
+						</RltdPties>
+					</TxDtls>
+				</NtryDtls>
+				<AddtlNtryInf>Payment for office supplies</AddtlNtryInf>
+			</Ntry>
+			<Ntry>
+				<Amt Ccy="EUR">1000.00</Amt>
+				<CdtDbtInd>CRDT</CdtDbtInd>
+				<Sts>BOOK</Sts>
+				<BookgDt>
+					<Dt>2024-01-25</Dt>
+				</BookgDt>
+				<ValDt>
+					<Dt>2024-01-25</Dt>
+				</ValDt>
+				<AcctSvcrRef>CREDIT002</AcctSvcrRef>
+				<BkTxCd>
+					<Domn>
+						<Cd>PMNT</Cd>
+						<Fmly>
+							<Cd>RCDT</Cd>
+							<SubFmlyCd>SALA</SubFmlyCd>
+						</Fmly>
+					</Domn>
+				</BkTxCd>
+				<NtryDtls>
+					<TxDtls>
+						<RmtInf>
+							<Ustrd>Wire transfer from client</Ustrd>
+						</RmtInf>
+						<RltdPties>
+							<Cdtr>
+								<Nm>Big Client Inc</Nm>
+							</Cdtr>
+						</RltdPties>
+					</TxDtls>
+				</NtryDtls>
+				<AddtlNtryInf>Monthly retainer payment</AddtlNtryInf>
+			</Ntry>
+		</Stmt>
+	</BkToCstmrStmt>
+</Document>
