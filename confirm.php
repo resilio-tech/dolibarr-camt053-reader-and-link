@@ -238,34 +238,45 @@ try {
 
 		include_once DOL_DOCUMENT_ROOT . '/ecm/class/ecmfiles.class.php';
 		$ecmfile = new EcmFiles($db);
-		$ecmfile->filepath = $dir;
-		$ecmfile->filename = dol_sanitizeFileName($file);
-		$ecmfile->label = md5_file(dol_osencode($upload_file)); // MD5 of file content
-		$ecmfile->fullpath_orig = $file;
-		$ecmfile->gen_or_uploaded = 'uploaded';
-		$ecmfile->description = '';
-		$ecmfile->keywords = '';
+		$sanitizedFilename = dol_sanitizeFileName($file);
+		$relativepath = $dir . '/' . $sanitizedFilename;
 
-		if (is_object($object) && $object->id > 0) {
-			$ecmfile->src_object_id = $object->id;
-			if (isset($object->table_element)) {
-				$ecmfile->src_object_type = $object->table_element;
-			} else {
-				dol_syslog('Error: object ' . get_class($object) . ' has no table_element attribute.');
-			}
-			if (isset($object->src_object_description)) {
-				$ecmfile->description = $object->src_object_description;
-			}
-			if (isset($object->src_object_keywords)) {
-				$ecmfile->keywords = $object->src_object_keywords;
-			}
-		}
+		// Check if ECM entry already exists for this file
+		$existingEcm = $ecmfile->fetch(0, '', $relativepath);
 
-		require_once DOL_DOCUMENT_ROOT . '/core/lib/security2.lib.php';
-		$ecmfile->share = getRandomPassword(true);
-		$result = $ecmfile->create($user);
-		if ($result < 0) {
-			dol_syslog('CAMT053: Error creating ECM file entry - ' . $ecmfile->error, LOG_ERR);
+		if ($existingEcm <= 0) {
+			// Entry does not exist, create it
+			$ecmfile->filepath = $dir;
+			$ecmfile->filename = $sanitizedFilename;
+			$ecmfile->label = md5_file(dol_osencode($upload_file)); // MD5 of file content
+			$ecmfile->fullpath_orig = $file;
+			$ecmfile->gen_or_uploaded = 'uploaded';
+			$ecmfile->description = '';
+			$ecmfile->keywords = '';
+
+			if (is_object($object) && $object->id > 0) {
+				$ecmfile->src_object_id = $object->id;
+				if (isset($object->table_element)) {
+					$ecmfile->src_object_type = $object->table_element;
+				} else {
+					dol_syslog('Error: object ' . get_class($object) . ' has no table_element attribute.');
+				}
+				if (isset($object->src_object_description)) {
+					$ecmfile->description = $object->src_object_description;
+				}
+				if (isset($object->src_object_keywords)) {
+					$ecmfile->keywords = $object->src_object_keywords;
+				}
+			}
+
+			require_once DOL_DOCUMENT_ROOT . '/core/lib/security2.lib.php';
+			$ecmfile->share = getRandomPassword(true);
+			$result = $ecmfile->create($user);
+			if ($result < 0) {
+				dol_syslog('CAMT053: Error creating ECM file entry - ' . $ecmfile->error, LOG_ERR);
+			}
+		} else {
+			dol_syslog('CAMT053: ECM file entry already exists for ' . $relativepath, LOG_DEBUG);
 		}
 
 		// Create target directory using Dolibarr function (secure permissions)
@@ -274,9 +285,13 @@ try {
 			dol_mkdir($targetDir);
 		}
 
-		// Move file to target directory
-		$targetFile = $targetDir . '/' . dol_sanitizeFileName($file);
-		if (!rename($upload_file, $targetFile)) {
+		// Move file to target directory (only if it doesn't already exist)
+		$targetFile = $targetDir . '/' . $sanitizedFilename;
+		if (file_exists($targetFile)) {
+			// File already exists, remove the uploaded temporary file
+			@unlink($upload_file);
+			dol_syslog('CAMT053: File already exists at ' . $targetFile . ', skipping move', LOG_DEBUG);
+		} elseif (!rename($upload_file, $targetFile)) {
 			dol_syslog('CAMT053: Error moving file to ' . $targetFile, LOG_ERR);
 		}
 	}
