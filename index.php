@@ -63,6 +63,9 @@ $langs->loadLangs(array("camt053readerandlink@camt053readerandlink"));
 if (!isModEnabled('camt053readerandlink')) {
 	accessforbidden('Module not enabled');
 }
+if (!$user->hasRight('banque', 'lire')) {
+	accessforbidden();
+}
 
 $form = new Form($db);
 

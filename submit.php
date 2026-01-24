@@ -84,6 +84,9 @@ $action = GETPOST('action', 'aZ09');
 if (!isModEnabled('camt053readerandlink')) {
 	accessforbidden('Module not enabled');
 }
+if (!$user->hasRight('banque', 'lire')) {
+	accessforbidden();
+}
 
 // Redirect if no upload action
 if ($action != 'upload' || (empty($_FILES['file']) && empty(GETPOST('file_json')))) {

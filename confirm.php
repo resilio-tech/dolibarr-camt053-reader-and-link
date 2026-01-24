@@ -70,8 +70,8 @@ $langs->loadLangs(array("camt053readerandlink@camt053readerandlink"));
 if (!isModEnabled('camt053readerandlink')) {
 	accessforbidden('Module not enabled');
 }
-if (empty($user->admin)) {
-	accessforbidden('Must be admin');
+if (!$user->hasRight('banque', 'modifier')) {
+	accessforbidden();
 }
 
 llxHeader("", $langs->trans("Camt053ReaderAndLinkArea"), '', '', 0, 0, '', '', '', 'mod-camt053readerandlink page-index');
@@ -190,8 +190,8 @@ try {
 		$id = $bank_account_id;
 		$numref = $date_concil;
 		$modulepart = 'bank';
-		$permissiontoadd = $user->rights->banque->modifier;
-		$permtoedit = $user->rights->banque->modifier;
+		$permissiontoadd = $user->hasRight('banque', 'modifier');
+		$permtoedit = $user->hasRight('banque', 'modifier');
 		$param = '&id=' . $id . '&num=' . urlencode($numref);
 		$moreparam = '&num=' . urlencode($numref);
 		$relativepathwithnofile = $id . "/statement/" . dol_sanitizeFileName($numref) . "/";

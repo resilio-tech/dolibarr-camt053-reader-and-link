@@ -1,5 +1,19 @@
 # CHANGELOG CAMT053READERANDLINK FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
+## 2.0.1 (2024)
+
+### Bug Fixes
+- Fixed file path sanitization
+- Fixed relative path error handling
+
+### Documentation
+- Added comprehensive README documentation
+- Updated code comments
+
+### Maintenance
+- Removed unused code
+- Added build workflow for automated releases
+
 ## 2.0.0 (2024)
 
 ### Security Fixes
@@ -13,6 +27,7 @@
 
 ### New Features
 - Complete refactoring with new class-based architecture
+- Redirect to bank statement when all entries are reconciled
 - Added PHPUnit test suite with comprehensive tests
 
 ### New Classes
@@ -36,10 +51,44 @@
 - Type hints and PHPDoc documentation
 - Backward compatibility with existing code
 
-## 1.15
+## 1.15.0 (2024)
 
-Previous release (various fixes)
+### Maintenance
+- Removed debug print_r calls
 
-## 1.0
+## 1.14.0 (2024)
 
-Initial version
+### Bug Fixes
+- Fixed bank object handling
+- Fixed multiple bank account support
+- Fixed multiple statement merging
+- Fixed date input handling
+
+## 1.11.0 (2024)
+
+### Bug Fixes
+- Various error corrections
+- Fixed amount comparison
+- Removed salary import feature
+- Fixed numeric date parsing
+
+## 1.10.0 (2024)
+
+### Bug Fixes
+- Fixed entry date null handling
+- Fixed error handling
+- Added "already linked" status
+
+## 1.2.0 (2024)
+
+### Bug Fixes
+- Fixed missing CAMT.053 entries reading
+- Fixed date handling from database
+
+## 1.0.0 (2024)
+
+### Initial Release
+- CAMT.053 file upload and parsing
+- Bank statement matching by amount and date
+- Reconciliation workflow
+- Support for multiple bank accounts
