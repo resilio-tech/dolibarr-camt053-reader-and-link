@@ -73,40 +73,21 @@ $langs->loadLangs(array(
 	"camt053readerandlink@camt053readerandlink",
 	"banks",
 	"bills",
-	"categories",
 	"companies",
-	"margins",
 	"salaries",
-	"loan",
-	"donations",
-	"trips",
-	"members",
-	"compta",
-	"accountancy"
+	"compta"
 ));
 
 $action = GETPOST('action', 'aZ09');
 
-$max = 5;
-$now = dol_now();
-
-// Security check - Protection if external user
-$socid = GETPOST('socid', 'int');
-if (isset($user->socid) && $user->socid > 0) {
-	$action = '';
-	$socid = $user->socid;
-}
-
-// Security check (enable the most restrictive one)
-if ($user->socid > 0) accessforbidden();
-if ($user->socid > 0) $socid = $user->socid;
+// Security check
 if (!isModEnabled('camt053readerandlink')) {
 	accessforbidden('Module not enabled');
 }
 
 // Redirect if no upload action
 if ($action != 'upload' || (empty($_FILES['file']) && empty(GETPOST('file_json')))) {
-	header('Location: ' . DOL_URL_ROOT . '/custom/camt053readerandlink/index.php');
+	header('Location: ' . dol_buildpath('/custom/camt053readerandlink/index.php', 1));
 	exit;
 }
 
@@ -135,7 +116,6 @@ print '</style>';
  */
 
 $form = new Form($db);
-$formfile = new FormFile($db);
 
 llxHeader("", $langs->trans("Camt053ReaderAndLinkArea"), '', '', 0, 0, '', '', '', 'mod-camt053readerandlink page-index');
 
@@ -247,7 +227,7 @@ if ($action == 'upload') {
 		}
 
 		// Display results
-		print '<form id="form" name="form" action="/custom/camt053readerandlink/confirm.php" method="post">';
+		print '<form id="form" name="form" action="'.dol_buildpath('/custom/camt053readerandlink/confirm.php', 1).'" method="post">';
 
 		foreach ($banks as $accountId => $bank) {
 			$results = $bank['results'];
@@ -383,9 +363,6 @@ if ($action == 'upload') {
 		setEventMessages($e->getMessage(), null, 'errors');
 	}
 }
-
-$NBMAX = getDolGlobalInt('MAIN_SIZE_SHORTLIST_LIMIT');
-$max = getDolGlobalInt('MAIN_SIZE_SHORTLIST_LIMIT');
 
 print '</div>';
 

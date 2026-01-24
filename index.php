@@ -56,48 +56,15 @@ if (!$res) {
 	die("Include of main fails");
 }
 
-require_once DOL_DOCUMENT_ROOT.'/core/class/html.formfile.class.php';
-
 // Load translation files required by the page
 $langs->loadLangs(array("camt053readerandlink@camt053readerandlink"));
 
-$action = GETPOST('action', 'aZ09');
-
-$max = 5;
-$now = dol_now();
-
-// Security check - Protection if external user
-$socid = GETPOST('socid', 'int');
-if (isset($user->socid) && $user->socid > 0) {
-	$action = '';
-	$socid = $user->socid;
-}
-
-// Security check (enable the most restrictive one)
-if ($user->socid > 0) accessforbidden();
-if ($user->socid > 0) $socid = $user->socid;
+// Security check
 if (!isModEnabled('camt053readerandlink')) {
 	accessforbidden('Module not enabled');
 }
 
-
-/*
- * Actions
- */
-
-// None
-
-
-/*
- * View
- */
-
-print '<style content="text/css" media="screen">';
-print '@import url("/custom/camt053readerandlink/css/camt053readerandlink.css");';
-print '</style>';
-
 $form = new Form($db);
-$formfile = new FormFile($db);
 
 llxHeader("", $langs->trans("Camt053ReaderAndLinkArea"), '', '', 0, 0, '', '', '', 'mod-camt053readerandlink page-index');
 
@@ -124,12 +91,6 @@ print '<input type="hidden" name="token" value="' . newToken() . '" />';
 print '<input type="hidden" name="action" value="upload" />';
 
 print '</form>';
-print '</div><div class="fichetwothirdright">';
-
-
-$NBMAX = getDolGlobalInt('MAIN_SIZE_SHORTLIST_LIMIT');
-$max = getDolGlobalInt('MAIN_SIZE_SHORTLIST_LIMIT');
-
 print '</div></div>';
 
 // End of page

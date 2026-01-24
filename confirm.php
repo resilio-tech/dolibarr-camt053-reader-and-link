@@ -58,7 +58,6 @@ if (!$res) {
 }
 
 include_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
-require_once DOL_DOCUMENT_ROOT.'/core/class/html.formfile.class.php';
 require_once DOL_DOCUMENT_ROOT.'/compta/bank/class/account.class.php';
 
 // Load module classes
@@ -67,46 +66,13 @@ require_once __DIR__ . '/class/BankEntryReconciler.class.php';
 // Load translation files required by the page
 $langs->loadLangs(array("camt053readerandlink@camt053readerandlink"));
 
-$action = GETPOST('action', 'aZ09');
-
-$max = 5;
-$now = dol_now();
-
-// Security check - Protection if external user
-$socid = GETPOST('socid', 'int');
-if (isset($user->socid) && $user->socid > 0) {
-	$action = '';
-	$socid = $user->socid;
-}
-
-// Security check (enable the most restrictive one)
-if ($user->socid > 0) accessforbidden();
-if ($user->socid > 0) $socid = $user->socid;
+// Security check
 if (!isModEnabled('camt053readerandlink')) {
 	accessforbidden('Module not enabled');
 }
 if (empty($user->admin)) {
 	accessforbidden('Must be admin');
 }
-
-
-/*
- * Actions
- */
-
-// None
-
-
-/*
- * View
- */
-
-print '<style content="text/css" media="screen">';
-print '@import url("/custom/camt053readerandlink/css/camt053readerandlink.css");';
-print '</style>';
-
-$form = new Form($db);
-$formfile = new FormFile($db);
 
 llxHeader("", $langs->trans("Camt053ReaderAndLinkArea"), '', '', 0, 0, '', '', '', 'mod-camt053readerandlink page-index');
 
@@ -307,7 +273,7 @@ try {
 	}
 
 	// Form to check for new reconciliations
-	print '<form method="POST" action="/custom/camt053readerandlink/submit.php" enctype="multipart/form-data" style="display: inline;">';
+	print '<form method="POST" action="'.dol_buildpath('/custom/camt053readerandlink/submit.php', 1).'" enctype="multipart/form-data" style="display: inline;">';
 	print '<input type="hidden" name="date_start" value="' . dol_escape_htmltag($date_start) . '">';
 	print '<input type="hidden" name="date_end" value="' . dol_escape_htmltag($date_end) . '">';
 	print '<input type="hidden" name="bank_account_id" value="' . ((int) $bank_account_id) . '">';
@@ -318,10 +284,6 @@ try {
 	print '</form>';
 
 	print '</div>';
-
-	$NBMAX = getDolGlobalInt('MAIN_SIZE_SHORTLIST_LIMIT');
-	$max = getDolGlobalInt('MAIN_SIZE_SHORTLIST_LIMIT');
-
 	print '</div>';
 } catch (Exception $e) {
 	dol_syslog('CAMT053: Error during confirmation - ' . $e->getMessage(), LOG_ERR);
