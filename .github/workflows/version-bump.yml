@@ -1,0 +1,108 @@
+name: Version Bump
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_type:
+        description: 'Version bump type'
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      custom_version:
+        description: 'Custom version (overrides version_type if provided)'
+        required: false
+        type: string
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get current version
+        id: current
+        run: |
+          CURRENT_VERSION=$(grep -oP "\\\$this->version\s*=\s*'\K[^']+" core/modules/modCamt053ReaderAndLink.class.php)
+          echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "Current version: $CURRENT_VERSION"
+
+      - name: Calculate new version
+        id: new
+        run: |
+          CURRENT="${{ steps.current.outputs.version }}"
+
+          if [ -n "${{ github.event.inputs.custom_version }}" ]; then
+            NEW_VERSION="${{ github.event.inputs.custom_version }}"
+          else
+            IFS='.' read -ra PARTS <<< "$CURRENT"
+            MAJOR="${PARTS[0]}"
+            MINOR="${PARTS[1]}"
+            PATCH="${PARTS[2]:-0}"
+
+            case "${{ github.event.inputs.version_type }}" in
+              major)
+                MAJOR=$((MAJOR + 1))
+                MINOR=0
+                PATCH=0
+                ;;
+              minor)
+                MINOR=$((MINOR + 1))
+                PATCH=0
+                ;;
+              patch)
+                PATCH=$((PATCH + 1))
+                ;;
+            esac
+
+            NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          fi
+
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "New version: $NEW_VERSION"
+
+          # Check if version is already up to date
+          if [ "$CURRENT" = "$NEW_VERSION" ]; then
+            echo "already_updated=true" >> $GITHUB_OUTPUT
+            echo "Version is already $NEW_VERSION"
+          else
+            echo "already_updated=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check if already up to date
+        if: steps.new.outputs.already_updated == 'true'
+        run: |
+          echo "Version is already up to date at ${{ steps.current.outputs.version }}"
+          exit 0
+
+      - name: Update version in module descriptor
+        if: steps.new.outputs.already_updated == 'false'
+        run: |
+          sed -i "s/\$this->version = '[^']*'/\$this->version = '${{ steps.new.outputs.version }}'/" core/modules/modCamt053ReaderAndLink.class.php
+
+      - name: Create Pull Request
+        if: steps.new.outputs.already_updated == 'false'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: bump version to ${{ steps.new.outputs.version }}"
+          title: "chore: bump version to ${{ steps.new.outputs.version }}"
+          body: |
+            ## Version Bump
+
+            Bumps version from `${{ steps.current.outputs.version }}` to `${{ steps.new.outputs.version }}`
+
+            **Type:** ${{ github.event.inputs.version_type }}
+
+            ---
+            After merging this PR, create a tag `v${{ steps.new.outputs.version }}` to trigger the build workflow.
+          branch: version-bump-${{ steps.new.outputs.version }}
+          base: main
+          delete-branch: true

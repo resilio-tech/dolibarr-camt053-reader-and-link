@@ -73,40 +73,24 @@ $langs->loadLangs(array(
 	"camt053readerandlink@camt053readerandlink",
 	"banks",
 	"bills",
-	"categories",
 	"companies",
-	"margins",
 	"salaries",
-	"loan",
-	"donations",
-	"trips",
-	"members",
-	"compta",
-	"accountancy"
+	"compta"
 ));
 
 $action = GETPOST('action', 'aZ09');
 
-$max = 5;
-$now = dol_now();
-
-// Security check - Protection if external user
-$socid = GETPOST('socid', 'int');
-if (isset($user->socid) && $user->socid > 0) {
-	$action = '';
-	$socid = $user->socid;
-}
-
-// Security check (enable the most restrictive one)
-if ($user->socid > 0) accessforbidden();
-if ($user->socid > 0) $socid = $user->socid;
+// Security check
 if (!isModEnabled('camt053readerandlink')) {
 	accessforbidden('Module not enabled');
+}
+if (!$user->hasRight('banque', 'lire')) {
+	accessforbidden();
 }
 
 // Redirect if no upload action
 if ($action != 'upload' || (empty($_FILES['file']) && empty(GETPOST('file_json')))) {
-	header('Location: ' . DOL_URL_ROOT . '/custom/camt053readerandlink/index.php');
+	header('Location: ' . dol_buildpath('/custom/camt053readerandlink/index.php', 1));
 	exit;
 }
 
@@ -126,20 +110,16 @@ if (!file_exists($dir)) {
 	dol_mkdir($dir);
 }
 
-print '<style content="text/css" media="screen">';
-print '@import url("/custom/camt053readerandlink/css/camt053readerandlink.css");';
-print '</style>';
-
 /*
- * Actions
+ * Actions - Process before any output
  */
 
 $form = new Form($db);
-$formfile = new FormFile($db);
-
-llxHeader("", $langs->trans("Camt053ReaderAndLinkArea"), '', '', 0, 0, '', '', '', 'mod-camt053readerandlink page-index');
-
-print '<div class="fichecenter camt053readerandlink">';
+$banks = array();
+$processError = null;
+$redirectUrl = null;
+$structure = null;
+$upload_file = '';
 
 if ($action == 'upload') {
 	try {
@@ -147,9 +127,6 @@ if ($action == 'upload') {
 		$dbLoader = new DatabaseBankStatementLoader($db, $langs);
 		$matcher = new BankStatementMatcher(1); // 1 day tolerance
 		$relationLookup = new BankRelationshipLookup($db);
-
-		$structure = null;
-		$upload_file = '';
 
 		if (!empty($file_json)) {
 			// Parse from previously uploaded JSON
@@ -236,18 +213,51 @@ if ($action == 'upload') {
 			}
 		}
 
-		// If nothing to reconcile, redirect to bank statement page
+		// If nothing to reconcile, prepare redirect to bank statement page
 		if (!$hasEntriesToReconcile && $firstAccountId !== null) {
 			$date_end_obj = DateTime::createFromFormat('d/m/Y', $date_end);
 			$date_concil = $date_end_obj ? $date_end_obj->format('Ym') : '';
-			$statementUrl = DOL_URL_ROOT . '/compta/bank/releve.php?account=' . ((int) $firstAccountId) . '&num=' . urlencode($date_concil);
+			$redirectUrl = DOL_URL_ROOT . '/compta/bank/releve.php?account=' . ((int) $firstAccountId) . '&num=' . urlencode($date_concil);
 			setEventMessages($langs->trans('AllEntriesReconciled'), null, 'mesgs');
-			header('Location: ' . $statementUrl);
-			exit;
 		}
+	} catch (Exception $e) {
+		dol_syslog('CAMT053: Error processing file - ' . $e->getMessage(), LOG_ERR);
+		$processError = $e->getMessage();
+	}
+}
 
-		// Display results
-		print '<form id="form" name="form" action="/custom/camt053readerandlink/confirm.php" method="post">';
+// Do redirect before any output if needed
+if (!empty($redirectUrl)) {
+	header('Location: ' . $redirectUrl);
+	exit;
+}
+
+/*
+ * View
+ */
+
+$moreCss = '<style>
+.statement_link_linked { background-color: #d4edda; padding: 5px; }
+.statement_link_unlinked { background-color: #f8d7da; padding: 5px; }
+.statement_link_multiple { background-color: #fff3cd; padding: 5px; }
+.statement_link_already_linked { background-color: #cce5ff; padding: 5px; }
+.info { font-size: 0.85em; color: #666; }
+</style>';
+
+llxHeader("", $langs->trans("Camt053ReaderAndLinkResults"), '', '', 0, 0, '', '', '', 'mod-camt053readerandlink page-submit');
+
+print $moreCss;
+
+print '<div class="fichecenter camt053readerandlink">';
+
+// Show error if any
+if (!empty($processError)) {
+	setEventMessages($processError, null, 'errors');
+}
+
+// Display results if we have data
+if (!empty($banks)) {
+	print '<form id="form" name="form" action="'.dol_buildpath('/custom/camt053readerandlink/confirm.php', 1).'" method="post">';
 
 		foreach ($banks as $accountId => $bank) {
 			$results = $bank['results'];
@@ -377,15 +387,8 @@ if ($action == 'upload') {
 		print '<input type="hidden" name="upload_file" value="' . dol_escape_htmltag($upload_file) . '" />';
 		print '<input type="submit" value="' . $langs->trans('Confirm') . '" />';
 
-		print '</form>';
-	} catch (Exception $e) {
-		dol_syslog('CAMT053: Error processing file - ' . $e->getMessage(), LOG_ERR);
-		setEventMessages($e->getMessage(), null, 'errors');
-	}
+	print '</form>';
 }
-
-$NBMAX = getDolGlobalInt('MAIN_SIZE_SHORTLIST_LIMIT');
-$max = getDolGlobalInt('MAIN_SIZE_SHORTLIST_LIMIT');
 
 print '</div>';
 
