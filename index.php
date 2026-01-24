@@ -93,6 +93,9 @@ print '</div>';
 print '<input type="hidden" name="token" value="' . newToken() . '" />';
 print '<input type="hidden" name="action" value="upload" />';
 
+print '<br /><br />';
+print '<input type="submit" class="button" value="' . $langs->trans("Upload") . '" />';
+
 print '</form>';
 print '</div></div>';
 
