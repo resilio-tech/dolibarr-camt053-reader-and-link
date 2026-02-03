@@ -131,6 +131,9 @@ if ($action == 'upload') {
 		if (!empty($file_json)) {
 			// Parse from previously uploaded JSON
 			$structure = json_decode(urldecode($file_json), true);
+			if (!is_array($structure)) {
+				throw new Exception('Error decoding JSON structure');
+			}
 			if (!$fileProcessor->parseStructure($structure)) {
 				throw new Exception($fileProcessor->getError() ?? 'Error parsing JSON structure');
 			}
@@ -223,6 +226,9 @@ if ($action == 'upload') {
 	} catch (Exception $e) {
 		dol_syslog('CAMT053: Error processing file - ' . $e->getMessage(), LOG_ERR);
 		$processError = $e->getMessage();
+	} catch (TypeError $e) {
+		dol_syslog('CAMT053: Type error processing file - ' . $e->getMessage(), LOG_ERR);
+		$processError = $e->getMessage();
 	}
 }
 
@@ -256,6 +262,9 @@ if (!empty($processError)) {
 }
 
 // Display results if we have data
+if (empty($banks) && empty($processError)) {
+	print '<div class="opacitymedium">'.$langs->trans('NoEntriesToReconcile').'</div>';
+}
 if (!empty($banks)) {
 	print '<form id="form" name="form" action="'.dol_buildpath('/custom/camt053readerandlink/confirm.php', 1).'" method="post">';
 
