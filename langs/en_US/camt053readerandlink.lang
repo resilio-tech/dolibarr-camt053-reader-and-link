@@ -40,3 +40,5 @@ ViewBankStatement = View bank statement
 AllEntriesReconciled = All entries are already reconciled
 NoEntriesToReconcile = No entries found to reconcile
 BasedOnPreviousMonthIfNotFilled = Based on the previous month of the file extraction date if not filled
+ErrorProcessingFile = Error while processing the file
+ReconciliationFailed = Reconciliation failed for bank line

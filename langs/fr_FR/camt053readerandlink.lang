@@ -42,3 +42,5 @@ ViewBankStatement = Voir le relevé bancaire
 AllEntriesReconciled = Toutes les écritures sont déjà rapprochées
 NoEntriesToReconcile = Aucune écriture trouvée à rapprocher
 BasedOnPreviousMonthIfNotFilled = Basé sur le mois précédent de la date d'extraction du fichier si non rempli
+ErrorProcessingFile = Erreur lors du traitement du fichier
+ReconciliationFailed = Échec du rapprochement pour la ligne bancaire
