@@ -42,3 +42,4 @@ NoEntriesToReconcile = No entries found to reconcile
 BasedOnPreviousMonthIfNotFilled = Based on the previous month of the file extraction date if not filled
 ErrorProcessingFile = Error while processing the file
 ReconciliationFailed = Reconciliation failed for bank line
+StatementFileNotArchived = The statement file could not be archived because no bank account could be determined

@@ -126,9 +126,10 @@ $reconciler = new BankEntryReconciler($db, $user);
 // Counters and errors to give visible feedback instead of failing silently
 $reconcileSuccess = 0;
 $reconcileErrors = array();
-// Real bank account id(s) of the reconciled lines (the upload form has no account selector,
-// so bank_account_id is empty: we must derive the account from the reconciled lines)
-$reconciledAccountIds = array();
+// Real bank account id(s) of the submitted linked lines (the upload form has no account selector,
+// so bank_account_id is empty: we must derive the account from the linked lines). Captured right
+// after fetch() so it is known even if the reconciliation itself later fails.
+$linkedAccountIds = array();
 
 // An empty statement reference makes update_conciliation() fail when BANK_STATEMENT_REGEX_RULE is set
 if (empty($date_concil)) {
@@ -154,6 +155,12 @@ try {
 			continue;
 		}
 
+		// Remember the real bank account now, even if the reconciliation below fails, so the
+		// statement file is still archived under the correct account (never under account 0)
+		if (!empty($obj->fk_account)) {
+			$linkedAccountIds[(int) $obj->fk_account] = (int) $obj->fk_account;
+		}
+
 		// Reconcile the entry
 		$obj->num_releve = $date_concil;
 		$resconcil = $obj->update_conciliation($user, 0, 1);
@@ -166,9 +173,6 @@ try {
 		}
 
 		$reconcileSuccess++;
-		if (!empty($obj->fk_account)) {
-			$reconciledAccountIds[(int) $obj->fk_account] = (int) $obj->fk_account;
-		}
 		dol_syslog('CAMT053: Reconciled bank line rowid=' . $bankLineId . ' num_releve=' . $date_concil . ' fk_account=' . $obj->fk_account, LOG_DEBUG);
 
 		if (empty($obj->datev)) {
@@ -222,12 +226,12 @@ try {
 	}
 
 	// The upload form exposes no account selector, so bank_account_id is empty here.
-	// Derive the real account id from the reconciled lines so the statement file is archived
+	// Derive the real account id from the linked lines so the statement file is archived
 	// under bank/<id>/statement/<num>/ and shown in the bank statement of the correct account.
-	if (empty($bank_account_id) && !empty($reconciledAccountIds)) {
-		$bank_account_id = reset($reconciledAccountIds);
-		if (count($reconciledAccountIds) > 1) {
-			dol_syslog('CAMT053: Reconciled lines span multiple accounts (' . implode(',', $reconciledAccountIds) . '), statement file archived under account ' . $bank_account_id . ' only', LOG_WARNING);
+	if (empty($bank_account_id) && !empty($linkedAccountIds)) {
+		$bank_account_id = reset($linkedAccountIds);
+		if (count($linkedAccountIds) > 1) {
+			dol_syslog('CAMT053: Linked lines span multiple accounts (' . implode(',', $linkedAccountIds) . '), statement file archived under account ' . $bank_account_id . ' only', LOG_WARNING);
 		}
 	}
 
@@ -236,7 +240,12 @@ try {
 	// Indexing before the move (the previous behaviour) could leave an orphan ecm_files row pointing
 	// to a file that is not on disk: the statement page (which lists from the filesystem) shows nothing,
 	// yet Dolibarr reports the file "already exists" when trying to attach it manually.
-	if (!empty($upload_file) && file_exists($upload_file)) {
+	if (!empty($upload_file) && file_exists($upload_file) && (int) $bank_account_id <= 0) {
+		// No account could be determined (e.g. no linked entries submitted): do not archive under
+		// account 0. Keep the temporary upload and warn so the statement file is not lost silently.
+		dol_syslog('CAMT053: Statement file not archived, no bank account could be determined (upload_file=' . $upload_file . ')', LOG_ERR);
+		setEventMessages($langs->trans('StatementFileNotArchived'), null, 'warnings');
+	} elseif (!empty($upload_file) && file_exists($upload_file)) {
 		$id = (int) $bank_account_id;
 		$numref = $date_concil;
 
