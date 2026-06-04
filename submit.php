@@ -223,7 +223,7 @@ if ($action == 'upload') {
 			$redirectUrl = DOL_URL_ROOT . '/compta/bank/releve.php?account=' . ((int) $firstAccountId) . '&num=' . urlencode($date_concil);
 			setEventMessages($langs->trans('AllEntriesReconciled'), null, 'mesgs');
 		}
-	} catch (Exception $e) {
+	} catch (Throwable $e) {
 		dol_syslog('CAMT053: Error processing file - ' . $e->getMessage(), LOG_ERR);
 		$processError = $e->getMessage();
 	} catch (TypeError $e) {

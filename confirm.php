@@ -123,6 +123,21 @@ print '</tr>';
 $bank_account = new Account($db);
 $reconciler = new BankEntryReconciler($db, $user);
 
+// Counters and errors to give visible feedback instead of failing silently
+$reconcileSuccess = 0;
+$reconcileErrors = array();
+// Real bank account id(s) of the submitted linked lines (the upload form has no account selector,
+// so bank_account_id is empty: we must derive the account from the linked lines). Captured right
+// after fetch() so it is known even if the reconciliation itself later fails.
+$linkedAccountIds = array();
+
+// An empty statement reference makes update_conciliation() fail when BANK_STATEMENT_REGEX_RULE is set
+if (empty($date_concil)) {
+	dol_syslog('CAMT053: Empty statement reference (num_releve) computed from date_end=' . $date_end . ' - reconciliation may fail if BANK_STATEMENT_REGEX_RULE is set', LOG_WARNING);
+}
+
+dol_syslog('CAMT053: Starting reconciliation of ' . count($linked) . ' linked entry(ies), num_releve=' . $date_concil, LOG_DEBUG);
+
 try {
 	// Process each linked entry
 	foreach ($linked as $key => $link) {
@@ -135,12 +150,30 @@ try {
 		$result = $obj->fetch($bankLineId);
 
 		if ($result <= 0) {
+			dol_syslog('CAMT053: Bank line not found for reconciliation, rowid=' . $bankLineId, LOG_WARNING);
+			$reconcileErrors[] = $langs->trans('ReconciliationFailed') . ' #' . $bankLineId;
 			continue;
+		}
+
+		// Remember the real bank account now, even if the reconciliation below fails, so the
+		// statement file is still archived under the correct account (never under account 0)
+		if (!empty($obj->fk_account)) {
+			$linkedAccountIds[(int) $obj->fk_account] = (int) $obj->fk_account;
 		}
 
 		// Reconcile the entry
 		$obj->num_releve = $date_concil;
-		$obj->update_conciliation($user, 0, 1);
+		$resconcil = $obj->update_conciliation($user, 0, 1);
+
+		if ($resconcil <= 0) {
+			$errmsg = !empty($obj->error) ? $obj->error : (!empty($obj->errors) ? implode(', ', $obj->errors) : 'Unknown error');
+			dol_syslog('CAMT053: Failed to reconcile bank line rowid=' . $bankLineId . ' num_releve=' . $date_concil . ' - ' . $errmsg, LOG_ERR);
+			$reconcileErrors[] = $langs->trans('ReconciliationFailed') . ' #' . $bankLineId . ': ' . $errmsg;
+			continue;
+		}
+
+		$reconcileSuccess++;
+		dol_syslog('CAMT053: Reconciled bank line rowid=' . $bankLineId . ' num_releve=' . $date_concil . ' fk_account=' . $obj->fk_account, LOG_DEBUG);
 
 		if (empty($obj->datev)) {
 			continue;
@@ -185,80 +218,67 @@ try {
 		print '</tr>';
 	}
 
-	// Move uploaded file to document storage
-	if (!empty($upload_file) && file_exists($upload_file)) {
-		$id = $bank_account_id;
+	dol_syslog('CAMT053: Reconciliation done, success=' . $reconcileSuccess . ', errors=' . count($reconcileErrors), LOG_INFO);
+
+	// Surface reconciliation errors instead of failing silently
+	if (!empty($reconcileErrors)) {
+		setEventMessages(null, $reconcileErrors, 'errors');
+	}
+
+	// The upload form exposes no account selector, so bank_account_id is empty here.
+	// Derive the real account id from the linked lines so the statement file is archived
+	// under bank/<id>/statement/<num>/ and shown in the bank statement of the correct account.
+	if (empty($bank_account_id) && !empty($linkedAccountIds)) {
+		$bank_account_id = reset($linkedAccountIds);
+		if (count($linkedAccountIds) > 1) {
+			dol_syslog('CAMT053: Linked lines span multiple accounts (' . implode(',', $linkedAccountIds) . '), statement file archived under account ' . $bank_account_id . ' only', LOG_WARNING);
+		}
+	}
+
+	// Move the uploaded file to the bank statement document storage, then index it.
+	// IMPORTANT: move the physical file FIRST and index it in the database (ecm_files) ONLY afterwards.
+	// Indexing before the move (the previous behaviour) could leave an orphan ecm_files row pointing
+	// to a file that is not on disk: the statement page (which lists from the filesystem) shows nothing,
+	// yet Dolibarr reports the file "already exists" when trying to attach it manually.
+	if (!empty($upload_file) && file_exists($upload_file) && (int) $bank_account_id <= 0) {
+		// No account could be determined (e.g. no linked entries submitted): do not archive under
+		// account 0. Keep the temporary upload and warn so the statement file is not lost silently.
+		dol_syslog('CAMT053: Statement file not archived, no bank account could be determined (upload_file=' . $upload_file . ')', LOG_ERR);
+		setEventMessages($langs->trans('StatementFileNotArchived'), null, 'warnings');
+	} elseif (!empty($upload_file) && file_exists($upload_file)) {
+		$id = (int) $bank_account_id;
 		$numref = $date_concil;
-		$modulepart = 'bank';
-		$permissiontoadd = $user->hasRight('banque', 'modifier');
-		$permtoedit = $user->hasRight('banque', 'modifier');
-		$param = '&id=' . $id . '&num=' . urlencode($numref);
-		$moreparam = '&num=' . urlencode($numref);
-		$relativepathwithnofile = $id . "/statement/" . dol_sanitizeFileName($numref) . "/";
+
 		$object = new Account($db);
 		$object->fetch($id);
 
-		// Get filename from upload path
 		$file = basename($upload_file);
-		$dir = 'bank/' . ((int) $id) . '/statement/' . dol_sanitizeFileName($numref);
-
-		include_once DOL_DOCUMENT_ROOT . '/ecm/class/ecmfiles.class.php';
-		$ecmfile = new EcmFiles($db);
 		$sanitizedFilename = dol_sanitizeFileName($file);
-		$relativepath = $dir . '/' . $sanitizedFilename;
 
-		// Check if ECM entry already exists for this file
-		$existingEcm = $ecmfile->fetch(0, '', $relativepath);
+		// Same directory the bank statement page reads (see account_statement_prepare_head()
+		// in core/lib/bank.lib.php and compta/bank/account_statement_document.php)
+		$targetDir = $conf->bank->dir_output . '/' . $id . '/statement/' . dol_sanitizeFileName($numref);
+		$targetFile = $targetDir . '/' . $sanitizedFilename;
 
-		if ($existingEcm <= 0) {
-			// Entry does not exist, create it
-			$ecmfile->filepath = $dir;
-			$ecmfile->filename = $sanitizedFilename;
-			$ecmfile->label = md5_file(dol_osencode($upload_file)); // MD5 of file content
-			$ecmfile->fullpath_orig = $file;
-			$ecmfile->gen_or_uploaded = 'uploaded';
-			$ecmfile->description = '';
-			$ecmfile->keywords = '';
+		dol_syslog('CAMT053: Archiving statement file ' . $upload_file . ' to ' . $targetFile, LOG_DEBUG);
 
-			if (is_object($object) && $object->id > 0) {
-				$ecmfile->src_object_id = $object->id;
-				if (isset($object->table_element)) {
-					$ecmfile->src_object_type = $object->table_element;
-				} else {
-					dol_syslog('Error: object ' . get_class($object) . ' has no table_element attribute.');
-				}
-				if (isset($object->src_object_description)) {
-					$ecmfile->description = $object->src_object_description;
-				}
-				if (isset($object->src_object_keywords)) {
-					$ecmfile->keywords = $object->src_object_keywords;
-				}
-			}
-
-			require_once DOL_DOCUMENT_ROOT . '/core/lib/security2.lib.php';
-			$ecmfile->share = getRandomPassword(true);
-			$result = $ecmfile->create($user);
-			if ($result < 0) {
-				dol_syslog('CAMT053: Error creating ECM file entry - ' . $ecmfile->error, LOG_ERR);
-			}
-		} else {
-			dol_syslog('CAMT053: ECM file entry already exists for ' . $relativepath, LOG_DEBUG);
-		}
-
-		// Create target directory using Dolibarr function (secure permissions)
-		$targetDir = DOL_DATA_ROOT . '/' . $dir;
 		if (!is_dir($targetDir)) {
 			dol_mkdir($targetDir);
 		}
 
-		// Move file to target directory (only if it doesn't already exist)
-		$targetFile = $targetDir . '/' . $sanitizedFilename;
 		if (file_exists($targetFile)) {
-			// File already exists, remove the uploaded temporary file
+			// Physical file already in place: drop the temporary upload, keep the existing one
 			@unlink($upload_file);
-			dol_syslog('CAMT053: File already exists at ' . $targetFile . ', skipping move', LOG_DEBUG);
-		} elseif (!rename($upload_file, $targetFile)) {
-			dol_syslog('CAMT053: Error moving file to ' . $targetFile, LOG_ERR);
+			dol_syslog('CAMT053: Statement file already present at ' . $targetFile . ', skipping move', LOG_DEBUG);
+		} elseif (rename($upload_file, $targetFile)) {
+			dol_syslog('CAMT053: Statement file archived to ' . $targetFile, LOG_DEBUG);
+			// Index in database only once the file physically exists, keeping ecm_files in sync
+			$resindex = addFileIntoDatabaseIndex($targetDir, $sanitizedFilename, $file, 'uploaded', 1, $object);
+			if ($resindex < 0) {
+				dol_syslog('CAMT053: File archived but database indexing failed for ' . $targetFile, LOG_WARNING);
+			}
+		} else {
+			dol_syslog('CAMT053: Error moving statement file to ' . $targetFile, LOG_ERR);
 		}
 	}
 
@@ -285,8 +305,9 @@ try {
 
 	print '</div>';
 	print '</div>';
-} catch (Exception $e) {
-	dol_syslog('CAMT053: Error during confirmation - ' . $e->getMessage(), LOG_ERR);
+} catch (Throwable $e) {
+	// Catch both Exception and Error/TypeError (PHP 8) to avoid a blank page
+	dol_syslog('CAMT053: Error during confirmation - ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine(), LOG_ERR);
 	setEventMessages($langs->trans('ErrorProcessingFile') . ': ' . $e->getMessage(), null, 'errors');
 }
 
