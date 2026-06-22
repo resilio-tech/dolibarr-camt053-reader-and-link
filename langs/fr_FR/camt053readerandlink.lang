@@ -45,3 +45,50 @@ BasedOnPreviousMonthIfNotFilled = Basé sur le mois précédent de la date d'ext
 ErrorProcessingFile = Erreur lors du traitement du fichier
 ReconciliationFailed = Échec du rapprochement pour la ligne bancaire
 StatementFileNotArchived = Le fichier de relevé n'a pas pu être archivé car aucun compte bancaire n'a pu être déterminé
+
+#
+# Comptes SFTP (PostFinance MFTPF)
+#
+
+Camt053SftpAccounts = Comptes SFTP
+Camt053SftpAccountsHelp = Connexions SFTP utilisées pour récupérer automatiquement les fichiers CAMT.053 (ex. PostFinance MFTPF). Les identifiants sont stockés chiffrés.
+Camt053SftpAccountNew = Nouveau compte SFTP
+Camt053SftpAccountEdit = Modifier le compte SFTP
+Camt053SftpNoAccount = Aucun compte SFTP défini pour le moment
+Camt053SftpHost = Hôte
+Camt053SftpPort = Port
+Camt053SftpUsername = Identifiant
+Camt053SftpUsernameHelp = User ID MFTPF communiqué par PostFinance
+Camt053SftpAuthType = Authentification
+Camt053SftpAuthKey = Clé privée SSH
+Camt053SftpAuthPassword = Mot de passe
+Camt053SftpPrivateKey = Clé privée SSH
+Camt053SftpPrivateKeyHelp = Clé privée PEM (RSA &gt; 4096 bits pour PostFinance MFTPF). Stockée chiffrée. Laisser vide en modification pour conserver la clé actuelle.
+Camt053SftpPassphrase = Phrase secrète de la clé
+Camt053SftpKeepCurrentSecret = Laisser vide pour conserver la valeur actuelle
+Camt053SftpRemoteDir = Répertoire distant
+Camt053SftpRemoteDirHelp = PostFinance : yellow-net-reports (production) ou yellow-net-reports-t (test)
+Camt053SftpDailyPattern = Motif fichier journalier
+Camt053SftpPatternHelp = Expression régulière correspondant aux noms des fichiers CAMT.053 journaliers
+Camt053SftpMonthlyPattern = Motif fichier mensuel
+Camt053SftpMonthlyPatternHelp = Expression régulière correspondant au fichier CAMT.053 mensuel (déclenche le rapport Zulip)
+Camt053SftpPostAction = Après téléchargement
+Camt053SftpPostDelete = Supprimer le fichier sur le serveur
+Camt053SftpPostLeave = Laisser le fichier sur le serveur
+Camt053SftpDefaultAccount = Compte bancaire de repli
+Camt053SftpDefaultAccountHelp = Utilisé uniquement lorsque l'IBAN du fichier ne peut pas être associé à un compte bancaire
+Camt053SftpLastRun = Dernière exécution
+Camt053SftpDeleteTitle = Supprimer le compte SFTP
+Camt053SftpDeleteConfirm = Êtes-vous sûr de vouloir supprimer ce compte SFTP ?
+
+#
+# Rapport Zulip
+#
+
+Camt053ZulipSetup = Rapport Zulip
+Camt053ZulipSetupHelp = Le fichier CAMT.053 mensuel déclenche un rapport de rapprochement envoyé sur Zulip via un bot. La clé API est stockée chiffrée.
+Camt053ZulipSite = URL du site Zulip
+Camt053ZulipBotEmail = E-mail du bot
+Camt053ZulipApiKey = Clé API du bot
+Camt053ZulipStream = Flux (stream)
+Camt053ZulipTopic = Sujet (topic)

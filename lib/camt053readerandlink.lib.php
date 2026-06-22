@@ -40,6 +40,11 @@ function camt053readerandlinkAdminPrepareHead()
 	$head[$h][2] = 'settings';
 	$h++;
 
+	$head[$h][0] = dol_buildpath("/camt053readerandlink/admin/sftp_list.php", 1);
+	$head[$h][1] = $langs->trans("Camt053SftpAccounts");
+	$head[$h][2] = 'sftp';
+	$h++;
+
 	$head[$h][0] = dol_buildpath("/camt053readerandlink/admin/about.php", 1);
 	$head[$h][1] = $langs->trans("About");
 	$head[$h][2] = 'about';
