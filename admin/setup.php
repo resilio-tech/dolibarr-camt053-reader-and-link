@@ -82,7 +82,7 @@ if ($action == 'update_zulip') {
 		dolibarr_set_const($db, 'CAMT053_ZULIP_BOT_EMAIL', GETPOST('zulip_email', 'alphanohtml'), 'chaine', 0, '', $conf->entity);
 		dolibarr_set_const($db, 'CAMT053_ZULIP_STREAM', GETPOST('zulip_stream', 'alphanohtml'), 'chaine', 0, '', $conf->entity);
 		dolibarr_set_const($db, 'CAMT053_ZULIP_TOPIC', GETPOST('zulip_topic', 'alphanohtml'), 'chaine', 0, '', $conf->entity);
-		$apikey = (string) GETPOST('zulip_apikey', 'restricthtml');
+		$apikey = trim((string) GETPOST('zulip_apikey', 'none'));
 		if ($apikey !== '') {
 			dolibarr_set_const($db, 'CAMT053_ZULIP_BOT_APIKEY', dolEncrypt($apikey), 'chaine', 0, '', $conf->entity);
 		}

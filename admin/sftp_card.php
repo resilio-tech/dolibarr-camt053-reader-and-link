@@ -99,18 +99,22 @@ if (($action == 'add' || $action == 'update') && $user->admin) {
 		$object->username = GETPOST('username', 'alphanohtml');
 		$object->auth_type = (GETPOST('auth_type', 'alpha') == 'password') ? 'password' : 'key';
 
-		$postedKey = trim((string) GETPOST('private_key', 'restricthtml'));
+		// Secrets are read raw ('none'): any HTML-oriented filter (restricthtml,
+		// alphanohtml) would alter characters like & < " and corrupt the stored
+		// credential. They are escaped at the SQL boundary and never echoed raw.
+		$postedKey = trim((string) GETPOST('private_key', 'none'));
 		$object->private_key = ($postedKey !== '') ? $postedKey : $keepKey;
 
-		$postedPass = (string) GETPOST('private_key_passphrase', 'restricthtml');
+		$postedPass = (string) GETPOST('private_key_passphrase', 'none');
 		$object->private_key_passphrase = ($postedPass !== '') ? $postedPass : $keepPass;
 
-		$postedPwd = (string) GETPOST('password', 'restricthtml');
+		$postedPwd = (string) GETPOST('password', 'none');
 		$object->password = ($postedPwd !== '') ? $postedPwd : $keepPwd;
 
 		$object->remote_dir = GETPOST('remote_dir', 'alphanohtml') ? GETPOST('remote_dir', 'alphanohtml') : 'yellow-net-reports';
-		$object->daily_pattern = GETPOST('daily_pattern', 'alphanohtml');
-		$object->monthly_pattern = GETPOST('monthly_pattern', 'alphanohtml');
+		// Patterns are PCRE: keep regex metacharacters (alphanohtml would strip them).
+		$object->daily_pattern = GETPOST('daily_pattern', 'restricthtml');
+		$object->monthly_pattern = GETPOST('monthly_pattern', 'restricthtml');
 		$object->post_download_action = (GETPOST('post_download_action', 'alpha') == 'leave') ? 'leave' : 'delete';
 		$object->fk_default_bank_account = GETPOSTINT('fk_default_bank_account') ? GETPOSTINT('fk_default_bank_account') : null;
 

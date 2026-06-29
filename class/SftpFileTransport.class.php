@@ -178,27 +178,6 @@ class SftpFileTransport
 	}
 
 	/**
-	 * Download a remote file to a local path.
-	 *
-	 * @param string $name      Remote file name (relative to the configured directory)
-	 * @param string $localPath Local destination path
-	 * @return bool True on success, false otherwise
-	 */
-	public function download(string $name, string $localPath): bool
-	{
-		if (!$this->ensureConnected()) {
-			return false;
-		}
-
-		if (!$this->sftp->get($this->remotePath($name), $localPath)) {
-			$this->error = 'Unable to download remote file: ' . $name;
-			return false;
-		}
-
-		return true;
-	}
-
-	/**
 	 * Delete a remote file.
 	 *
 	 * @param string $name Remote file name (relative to the configured directory)

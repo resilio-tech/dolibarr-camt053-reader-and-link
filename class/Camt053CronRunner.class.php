@@ -150,6 +150,17 @@ class Camt053CronRunner
 			}
 
 			$summary = $this->processFileContent($service, $name, $content);
+
+			// Parsing/extraction failure: never mark as processed nor delete the
+			// remote file, otherwise the source would be lost for good. Count it
+			// as an error so it stays visible and gets retried on the next run.
+			if (!$summary['success']) {
+				$counters['errors']++;
+				$this->error .= '[' . $config->ref . '] ' . $name . ': ' . ($summary['error'] ?: 'parsing failed') . '; ';
+				dol_syslog('CAMT053 cron: ' . $name . ' not processed - ' . ($summary['error'] ?: 'parsing failed'), LOG_ERR);
+				continue;
+			}
+
 			$counters['files']++;
 			$counters['auto'] += $summary['totals']['auto'];
 			$counters['ambiguous'] += $summary['totals']['ambiguous'];
@@ -200,12 +211,23 @@ class Camt053CronRunner
 		);
 
 		if (empty($payloads)) {
+			$merged['success'] = false;
+			$merged['error'] = 'no XML payload found';
 			dol_syslog('CAMT053 cron: no XML payload found in ' . $name, LOG_WARNING);
 			return $merged;
 		}
 
 		foreach ($payloads as $xml) {
 			$summary = $service->processContent($xml);
+
+			// A payload that could not be parsed marks the whole file as failed so
+			// it is neither recorded nor deleted (reconciliation stays idempotent).
+			if (!$summary['success']) {
+				$merged['success'] = false;
+				$merged['error'] = $summary['error'] ?: 'unable to parse CAMT.053 content';
+				$merged['totals']['errors']++;
+				continue;
+			}
 
 			foreach ($summary['accounts'] as $accountId => $account) {
 				if (!isset($merged['accounts'][$accountId])) {
@@ -306,10 +328,31 @@ class Camt053CronRunner
 		$record->nb_ambiguous = (int) $summary['totals']['ambiguous'];
 		$record->nb_unmatched = (int) $summary['totals']['unmatched'];
 		$record->status = ($summary['totals']['errors'] > 0) ? 'error' : 'done';
+		$record->error_detail = $this->collectErrorDetail($summary);
 
 		if ($record->create() < 0) {
 			dol_syslog('CAMT053 cron: failed to record processed file ' . $name . ' - ' . $record->getError(), LOG_ERR);
 		}
+	}
+
+	/**
+	 * Aggregate per-line reconciliation error reasons into a short detail string.
+	 *
+	 * @param array $summary Merged summary
+	 * @return string|null Concatenated reasons, or null when there is none
+	 */
+	private function collectErrorDetail(array $summary): ?string
+	{
+		$reasons = array();
+		foreach ($summary['accounts'] as $account) {
+			foreach (($account['errors'] ?? array()) as $err) {
+				if (!empty($err['reason'])) {
+					$reasons[] = $err['reason'];
+				}
+			}
+		}
+
+		return empty($reasons) ? null : implode('; ', $reasons);
 	}
 
 	/**

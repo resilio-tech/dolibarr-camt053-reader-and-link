@@ -103,7 +103,11 @@ class Camt053ProcessedFile
 
 		$resql = $this->db->query($sql);
 		if (!$resql) {
+			// Can't determine the state: return false so the file is processed
+			// rather than silently skipped (reconciliation is idempotent and the
+			// unique index protects against a duplicate record).
 			$this->error = 'Database error: ' . $this->db->lasterror();
+			dol_syslog('CAMT053 cron: isProcessed query failed - ' . $this->error, LOG_ERR);
 			return false;
 		}
 
