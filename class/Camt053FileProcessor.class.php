@@ -52,6 +52,13 @@ class Camt053FileProcessor
 	private $error;
 
 	/**
+	 * @var array<string,string> Entry currency indexed by AcctSvcrRef.
+	 *      json_encode() drops XML attributes, so the per-entry Amt@Ccy is
+	 *      captured directly from SimpleXML and looked up here during extraction.
+	 */
+	private $entryCurrencyByRef = array();
+
+	/**
 	 * Constructor
 	 *
 	 * @param DoliDb $db Database connection
@@ -138,6 +145,9 @@ class Camt053FileProcessor
 			// Convert to array structure
 			$this->structure = json_decode(json_encode($xml), true);
 
+			// Capture per-entry currency from attributes (lost by json_encode)
+			$this->entryCurrencyByRef = $this->buildCurrencyMap($xml);
+
 			// Extract statements
 			$this->extractStatements();
 
@@ -162,6 +172,8 @@ class Camt053FileProcessor
 		$this->error = null;
 		$this->structure = $structure;
 		$this->statements = array();
+		// No SimpleXML here: entries fall back to the statement-level currency.
+		$this->entryCurrencyByRef = array();
 
 		try {
 			$this->extractStatements();
@@ -203,6 +215,39 @@ class Camt053FileProcessor
 	}
 
 	/**
+	 * Build a map of AcctSvcrRef => entry currency from the raw SimpleXML.
+	 *
+	 * The per-entry currency lives in the Amt@Ccy attribute, which is dropped by
+	 * json_encode(); we read it here so it can be looked up during extraction.
+	 *
+	 * @param SimpleXMLElement $xml Parsed CAMT.053 document
+	 * @return array<string,string> Currency indexed by AcctSvcrRef
+	 */
+	private function buildCurrencyMap($xml): array
+	{
+		$map = array();
+
+		if (!isset($xml->BkToCstmrStmt->Stmt)) {
+			return $map;
+		}
+
+		foreach ($xml->BkToCstmrStmt->Stmt as $stmt) {
+			if (!isset($stmt->Ntry)) {
+				continue;
+			}
+			foreach ($stmt->Ntry as $ntry) {
+				$ref = isset($ntry->AcctSvcrRef) ? (string) $ntry->AcctSvcrRef : '';
+				$ccy = isset($ntry->Amt) ? (string) $ntry->Amt['Ccy'] : '';
+				if ($ref !== '' && $ccy !== '') {
+					$map[$ref] = strtoupper($ccy);
+				}
+			}
+		}
+
+		return $map;
+	}
+
+	/**
 	 * Extract a single statement from XML structure
 	 *
 	 * @param array $stmt Statement structure
@@ -221,6 +266,9 @@ class Camt053FileProcessor
 
 		// Find matching Dolibarr bank account
 		$accountId = $this->findAccountByIban($iban);
+
+		// Statement currency (fallback when an entry has no captured Amt@Ccy)
+		$statementCcy = (string) $this->getArrayValue($stmt, array('Acct', 'Ccy'), '');
 
 		// Create statement
 		$statement = new Camt053Statement($formattedIban, $accountId);
@@ -241,7 +289,7 @@ class Camt053FileProcessor
 			}
 
 			foreach ($entries as $entry) {
-				$camt053Entry = $this->extractEntry($entry);
+				$camt053Entry = $this->extractEntry($entry, $statementCcy, $iban);
 				if ($camt053Entry !== null) {
 					$statement->addEntry($camt053Entry);
 				}
@@ -254,10 +302,12 @@ class Camt053FileProcessor
 	/**
 	 * Extract a single entry from XML structure
 	 *
-	 * @param array $entry Entry structure
+	 * @param array  $entry        Entry structure
+	 * @param string $statementCcy Statement-level currency (fallback)
+	 * @param string $ownIban      Statement account IBAN (to exclude from counterparty)
 	 * @return Camt053Entry|null
 	 */
-	private function extractEntry(array $entry): ?Camt053Entry
+	private function extractEntry(array $entry, string $statementCcy = '', string $ownIban = ''): ?Camt053Entry
 	{
 		// Get amount
 		$amount = isset($entry['Amt']) ? (float) $entry['Amt'] : 0.0;
@@ -325,7 +375,30 @@ class Camt053FileProcessor
 			$info .= (!empty($info) ? '<br />' : '') . $addtlTxInf;
 		}
 
-		return new Camt053Entry($amount, $valueDate, $name, $info, $hash);
+		$camt053Entry = new Camt053Entry($amount, $valueDate, $name, $info, $hash);
+
+		// Currency: per-entry Amt@Ccy captured from SimpleXML, else statement currency.
+		$ref = is_string($hash) ? $hash : '';
+		$currency = ($ref !== '' && isset($this->entryCurrencyByRef[$ref]))
+			? $this->entryCurrencyByRef[$ref]
+			: $statementCcy;
+		$camt053Entry->setCurrency((string) $currency);
+
+		// Counterparty IBAN (ISO: debit -> creditor account, credit -> debtor
+		// account), falling back to the other tag and never our own account.
+		$cdtrIban = (string) $this->getArrayValue($entry, array('NtryDtls', 'TxDtls', 'RltdPties', 'CdtrAcct', 'Id', 'IBAN'), '');
+		$dbtrIban = (string) $this->getArrayValue($entry, array('NtryDtls', 'TxDtls', 'RltdPties', 'DbtrAcct', 'Id', 'IBAN'), '');
+		$ownNoSpace = strtoupper(str_replace(' ', '', $ownIban));
+		$candidates = ($type === 'DBIT') ? array($cdtrIban, $dbtrIban) : array($dbtrIban, $cdtrIban);
+		foreach ($candidates as $cand) {
+			$candNoSpace = strtoupper(str_replace(' ', '', $cand));
+			if ($candNoSpace !== '' && $candNoSpace !== $ownNoSpace) {
+				$camt053Entry->setCounterpartyIban($cand);
+				break;
+			}
+		}
+
+		return $camt053Entry;
 	}
 
 	/**

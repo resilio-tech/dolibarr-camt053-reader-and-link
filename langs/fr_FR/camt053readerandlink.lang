@@ -92,3 +92,23 @@ Camt053ZulipBotEmail = E-mail du bot
 Camt053ZulipApiKey = Clé API du bot
 Camt053ZulipStream = Flux (stream)
 Camt053ZulipTopic = Sujet (topic)
+
+#
+# Suggestions de paiement pour les écritures non rapprochées
+#
+Camt053SuggestPayCustomerInvoice = Payer la facture client %s
+Camt053SuggestPaySupplierInvoice = Payer la facture fournisseur %s
+Camt053SuggestPayExpenseReport = Payer la note de frais %s
+Camt053SuggestPaySocialCharge = Payer la charge %s
+Camt053SuggestChoose = Choisir parmi %s documents impayés du même montant
+Camt053SuggestInternalTransfer = Virement interne vers %s
+
+#
+# Confirmation du virement interne
+#
+Camt053TransferConfirmTitle = Confirmer le virement interne
+Camt053TransferConfirmHelp = Cette écriture correspond à un virement entre deux de vos comptes. Vérifiez les valeurs préremplies et confirmez pour créer le virement interne.
+Camt053TransferLabel = Virement interne (CAMT.053)
+Camt053TransferCreate = Créer le virement
+Camt053TransferRateHint = Estimé d'après le taux de change actuel, ajustez si nécessaire.
+Camt053TransferInvalidAccounts = Comptes bancaires invalides ou manquants pour ce virement.

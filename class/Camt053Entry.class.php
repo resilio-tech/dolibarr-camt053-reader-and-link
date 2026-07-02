@@ -64,6 +64,17 @@ class Camt053Entry
 	private $bankLine = null;
 
 	/**
+	 * @var string Entry currency (ISO code, e.g. CHF). Empty if unknown.
+	 */
+	private $currency = '';
+
+	/**
+	 * @var string Counterparty IBAN (creditor account for a debit, debtor
+	 *             account for a credit). Empty if not provided by the file.
+	 */
+	private $counterpartyIban = '';
+
+	/**
 	 * Constructor
 	 *
 	 * @param float       $amount    Entry amount
@@ -95,7 +106,11 @@ class Camt053Entry
 		$info = $data['info'] ?? '';
 		$hash = $data['hash'] ?? null;
 
-		return new self($amount, $valueDate, $name, $info, $hash);
+		$entry = new self($amount, $valueDate, $name, $info, $hash);
+		$entry->setCurrency($data['currency'] ?? '');
+		$entry->setCounterpartyIban($data['counterparty_iban'] ?? '');
+
+		return $entry;
 	}
 
 	/**
@@ -110,7 +125,9 @@ class Camt053Entry
 			'value_date' => $this->valueDate,
 			'name' => $this->name,
 			'info' => $this->info,
-			'hash' => $this->hash
+			'hash' => $this->hash,
+			'currency' => $this->currency,
+			'counterparty_iban' => $this->counterpartyIban
 		);
 	}
 
@@ -269,6 +286,48 @@ class Camt053Entry
 	public function setBankLine(?object $bankLine): void
 	{
 		$this->bankLine = $bankLine;
+	}
+
+	/**
+	 * Get entry currency (ISO code).
+	 *
+	 * @return string
+	 */
+	public function getCurrency(): string
+	{
+		return $this->currency;
+	}
+
+	/**
+	 * Set entry currency (ISO code).
+	 *
+	 * @param string $currency
+	 * @return void
+	 */
+	public function setCurrency(string $currency): void
+	{
+		$this->currency = strtoupper(trim($currency));
+	}
+
+	/**
+	 * Get counterparty IBAN (no spaces).
+	 *
+	 * @return string
+	 */
+	public function getCounterpartyIban(): string
+	{
+		return $this->counterpartyIban;
+	}
+
+	/**
+	 * Set counterparty IBAN (spaces stripped, upper-cased).
+	 *
+	 * @param string $iban
+	 * @return void
+	 */
+	public function setCounterpartyIban(string $iban): void
+	{
+		$this->counterpartyIban = strtoupper(str_replace(' ', '', trim($iban)));
 	}
 
 	/**

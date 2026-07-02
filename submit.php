@@ -67,6 +67,73 @@ require_once __DIR__ . '/class/Camt053FileProcessor.class.php';
 require_once __DIR__ . '/class/DatabaseBankStatementLoader.class.php';
 require_once __DIR__ . '/class/BankStatementMatcher.class.php';
 require_once __DIR__ . '/class/BankRelationshipLookup.class.php';
+require_once __DIR__ . '/class/PaymentSuggestionFinder.class.php';
+require_once __DIR__ . '/class/InternalTransferDetector.class.php';
+
+/**
+ * Render the action links (prefilled payment or internal transfer) offered for
+ * a file entry that has no counterpart in Dolibarr.
+ *
+ * @param Camt053Entry             $entry     Unmatched file entry
+ * @param int                      $entity    Bank account entity
+ * @param int                      $accountId Bank account the statement belongs to
+ * @param PaymentSuggestionFinder  $finder    Payment suggestion finder
+ * @param InternalTransferDetector $detector  Internal transfer detector
+ * @param Translate                $langs     Language object
+ * @return string HTML (empty when nothing is suggested)
+ */
+function camt053_render_suggestions($entry, $entity, $accountId, $finder, $detector, $langs)
+{
+	$out = array();
+
+	// Internal transfer: the counterparty is one of the company's own accounts.
+	$transfer = $detector->detect($entry, (int) $accountId, (int) $entity);
+	if ($transfer !== null) {
+		$label = $langs->trans('Camt053SuggestInternalTransfer', dol_escape_htmltag($transfer['counterparty_ref']));
+		$out[] = '<a href="' . $detector->confirmUrl($transfer) . '">'
+			. img_picto('', 'bank_account', 'class="paddingright"') . $label . '</a>';
+	}
+
+	// Unpaid documents of the same amount and currency.
+	$labelKeys = array(
+		'customer_invoice' => 'Camt053SuggestPayCustomerInvoice',
+		'supplier_invoice' => 'Camt053SuggestPaySupplierInvoice',
+		'expense_report' => 'Camt053SuggestPayExpenseReport',
+		'social_charge' => 'Camt053SuggestPaySocialCharge',
+	);
+	$pictos = array(
+		'customer_invoice' => 'bill',
+		'supplier_invoice' => 'supplier_invoice',
+		'expense_report' => 'trip',
+		'social_charge' => 'payment',
+	);
+
+	$suggestions = $finder->findForEntry($entry, (int) $entity);
+	foreach ($suggestions['links'] as $link) {
+		if ($link['kind'] === 'pay') {
+			$label = $langs->trans($labelKeys[$link['type']], dol_escape_htmltag($link['ref']));
+			$out[] = '<a href="' . $link['url'] . '" target="_blank">'
+				. img_picto('', $pictos[$link['type']], 'class="paddingright"') . $label . '</a>';
+		} else {
+			// Several documents share this amount: let the user pick which one to pay.
+			$options = '<option value="">'
+				. dol_escape_htmltag($langs->trans('Camt053SuggestChoose', (int) $link['count']))
+				. '</option>';
+			foreach ($link['options'] as $o) {
+				$text = $o['ref'] . ' - ' . $o['label']
+					. ' (' . price($o['amount'], 0, $langs, 1, -1, -1, $o['currency']) . ')';
+				$options .= '<option value="' . dol_escape_htmltag($o['url']) . '">'
+					. dol_escape_htmltag($text) . '</option>';
+			}
+			$out[] = img_picto('', $pictos[$link['type']], 'class="paddingright"')
+				. '<select class="flat maxwidth200onsmartphone"'
+				. ' onchange="if(this.value){window.open(this.value,\'_blank\');this.selectedIndex=0;}">'
+				. $options . '</select>';
+		}
+	}
+
+	return implode('<br />', $out);
+}
 
 // Load translation files required by the page
 $langs->loadLangs(array(
@@ -214,6 +281,14 @@ if ($action == 'upload') {
 				$hasEntriesToReconcile = true;
 				break;
 			}
+			// File entries with no counterpart in Dolibarr carry payment/transfer
+			// suggestions, so the results page must still be shown for them.
+			foreach ($results['unlinkeds'] as $u) {
+				if (is_object($u) && method_exists($u, 'isFromFile') && $u->isFromFile()) {
+					$hasEntriesToReconcile = true;
+					break 2;
+				}
+			}
 		}
 
 		// If nothing to reconcile, prepare redirect to bank statement page
@@ -267,6 +342,9 @@ if (empty($banks) && empty($processError)) {
 }
 if (!empty($banks)) {
 	print '<form id="form" name="form" action="'.dol_buildpath('/custom/camt053readerandlink/confirm.php', 1).'" method="post">';
+
+		$suggestionFinder = new PaymentSuggestionFinder($db);
+		$transferDetector = new InternalTransferDetector($db);
 
 		foreach ($banks as $accountId => $bank) {
 			$results = $bank['results'];
@@ -356,7 +434,12 @@ if (!empty($banks)) {
 				print '<td>' . dol_escape_htmltag($entry['value_date']) . '</td>';
 				print '<td>' . $name . '<br /><span class="info">' . dol_escape_htmltag($entry['info']) . '</span></td>';
 				print '<td><div class="statement_link_unlinked">' . $langs->trans('WillNotBeConciliated') . '</div></td>';
-				print '<td></td>';
+				// Account::fetch does not load entity; the page runs in the current
+				// entity context, which is the one the bank account belongs to.
+				$suggestionHtml = $n_obj->isFromFile()
+					? camt053_render_suggestions($n_obj, (int) $conf->entity, (int) $accountId, $suggestionFinder, $transferDetector, $langs)
+					: '';
+				print '<td>' . $suggestionHtml . '</td>';
 				print '</tr>';
 			}
 

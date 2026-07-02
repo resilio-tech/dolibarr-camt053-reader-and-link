@@ -90,3 +90,23 @@ Camt053ZulipBotEmail = Bot email
 Camt053ZulipApiKey = Bot API key
 Camt053ZulipStream = Stream
 Camt053ZulipTopic = Topic
+
+#
+# Payment suggestions for unmatched entries
+#
+Camt053SuggestPayCustomerInvoice = Pay customer invoice %s
+Camt053SuggestPaySupplierInvoice = Pay supplier invoice %s
+Camt053SuggestPayExpenseReport = Pay expense report %s
+Camt053SuggestPaySocialCharge = Pay charge %s
+Camt053SuggestChoose = Choose among %s unpaid documents of the same amount
+Camt053SuggestInternalTransfer = Internal transfer to %s
+
+#
+# Internal transfer confirmation
+#
+Camt053TransferConfirmTitle = Confirm internal transfer
+Camt053TransferConfirmHelp = This bank entry matches a transfer between two of your own accounts. Review the prefilled values and confirm to create the internal transfer.
+Camt053TransferLabel = Internal transfer (CAMT.053)
+Camt053TransferCreate = Create the transfer
+Camt053TransferRateHint = Estimated from the current exchange rate, adjust if needed.
+Camt053TransferInvalidAccounts = Invalid or missing bank accounts for this transfer.
