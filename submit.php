@@ -263,6 +263,15 @@ if ($action == 'upload') {
 			throw new Exception($dbLoader->getError());
 		}
 
+		// Warn about statements whose IBAN matches no bank account in the current
+		// entity: their entries are dropped (getStatementsByAccountId keeps only
+		// resolved accounts), so reconciliation must not silently ignore them.
+		foreach ($fileProcessor->getStatements() as $stmt) {
+			if ($stmt->getAccountId() === null && $stmt->getEntryCount() > 0) {
+				setEventMessages($langs->trans('Camt053IbanNotInCurrentEntity', $stmt->getIban()), null, 'warnings');
+			}
+		}
+
 		// Get file statements indexed by account ID
 		$fileStatements = $fileProcessor->getStatementsByAccountId();
 
