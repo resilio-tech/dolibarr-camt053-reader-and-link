@@ -107,7 +107,7 @@ class PaymentSuggestionFinder
 					'label' => $c['label'],
 					'amount' => $c['remaining'],
 					'currency' => $currency,
-					'url' => $this->payUrl($type, $c['id'], $c['remaining'], $date),
+					'url' => $this->payUrl($type, $c['id'], $c['remaining'], $date, $currency),
 				);
 			} else {
 				$options = array();
@@ -118,7 +118,7 @@ class PaymentSuggestionFinder
 						'label' => $c['label'],
 						'amount' => $c['remaining'],
 						'currency' => $currency,
-						'url' => $this->payUrl($type, $c['id'], $c['remaining'], $date),
+						'url' => $this->payUrl($type, $c['id'], $c['remaining'], $date, $currency),
 					);
 				}
 				$links[] = array(
@@ -285,23 +285,31 @@ class PaymentSuggestionFinder
 	/**
 	 * Build a deep link to a prefilled payment-creation page.
 	 *
-	 * @param string $type   Document type
-	 * @param int    $id     Document id
-	 * @param float  $amount Amount to prefill
-	 * @param string $date   Value date (Y-m-d)
+	 * @param string $type     Document type
+	 * @param int    $id       Document id
+	 * @param float  $amount   Amount to prefill (in $currency)
+	 * @param string $date     Value date (Y-m-d)
+	 * @param string $currency Payable currency of the document
 	 * @return string URL
 	 */
-	private function payUrl(string $type, int $id, float $amount, string $date): string
+	private function payUrl(string $type, int $id, float $amount, string $date, string $currency = ''): string
 	{
 		$amt = number_format($amount, 2, '.', '');
 		list($y, $m, $d) = $this->dateParts($date);
 		$dateParams = '&remonth=' . $m . '&reday=' . $d . '&reyear=' . $y;
 
+		// Multicurrency invoices are paid in their own currency: Dolibarr expects
+		// the amount in the "multicurrency_amount_<id>" field, not "amount_<id>"
+		// (which is the company-currency field). Expense reports and social
+		// charges are company-currency only.
+		$isForeign = ($currency !== '' && strtoupper($currency) !== $this->companyCurrency);
+		$amountField = $isForeign ? 'multicurrency_amount_' : 'amount_';
+
 		switch ($type) {
 			case 'customer_invoice':
-				return DOL_URL_ROOT . '/compta/paiement.php?facid=' . $id . '&amount_' . $id . '=' . $amt . $dateParams;
+				return DOL_URL_ROOT . '/compta/paiement.php?facid=' . $id . '&' . $amountField . $id . '=' . $amt . $dateParams;
 			case 'supplier_invoice':
-				return DOL_URL_ROOT . '/fourn/facture/paiement.php?facid=' . $id . '&amount_' . $id . '=' . $amt . $dateParams;
+				return DOL_URL_ROOT . '/fourn/facture/paiement.php?facid=' . $id . '&' . $amountField . $id . '=' . $amt . $dateParams;
 			case 'expense_report':
 				return DOL_URL_ROOT . '/expensereport/payment/payment.php?id=' . $id . '&action=create&amount_' . $id . '=' . $amt . $dateParams;
 			case 'social_charge':
