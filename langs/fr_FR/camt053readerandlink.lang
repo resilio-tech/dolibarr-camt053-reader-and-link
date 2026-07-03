@@ -41,6 +41,7 @@ CheckNewConciliations = Vérifier les nouveaux rapprochements
 ViewBankStatement = Voir le relevé bancaire
 AllEntriesReconciled = Toutes les écritures sont déjà rapprochées
 NoEntriesToReconcile = Aucune écriture trouvée à rapprocher
+Camt053IbanNotInCurrentEntity = Le compte bancaire avec l'IBAN %s n'existe pas dans l'entité courante. Ses écritures ont été ignorées. Basculez vers l'entité propriétaire de ce compte avant d'importer.
 BasedOnPreviousMonthIfNotFilled = Basé sur le mois précédent de la date d'extraction du fichier si non rempli
 ErrorProcessingFile = Erreur lors du traitement du fichier
 ReconciliationFailed = Échec du rapprochement pour la ligne bancaire

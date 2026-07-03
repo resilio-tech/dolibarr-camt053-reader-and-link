@@ -39,6 +39,7 @@ CheckNewConciliations = Check new conciliations
 ViewBankStatement = View bank statement
 AllEntriesReconciled = All entries are already reconciled
 NoEntriesToReconcile = No entries found to reconcile
+Camt053IbanNotInCurrentEntity = The bank account with IBAN %s does not exist in the current entity. Its entries were ignored. Switch to the entity that owns this account before importing.
 BasedOnPreviousMonthIfNotFilled = Based on the previous month of the file extraction date if not filled
 ErrorProcessingFile = Error while processing the file
 ReconciliationFailed = Reconciliation failed for bank line

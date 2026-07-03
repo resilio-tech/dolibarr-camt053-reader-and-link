@@ -79,16 +79,19 @@ class DatabaseBankStatementLoader
 			return array();
 		}
 
-		// Build secure SQL query
-		$sql = "SELECT rowid FROM " . MAIN_DB_PREFIX . "bank ";
-		$sql .= "WHERE datev >= DATE('" . $this->db->escape($startDateStr) . "') ";
-		$sql .= "AND datev <= DATE('" . $this->db->escape($endDateStr) . "') ";
+		// Build secure SQL query. Join bank_account to keep entries scoped to the
+		// current entity: a bank line from another entity must never be matched.
+		$sql = "SELECT b.rowid FROM " . MAIN_DB_PREFIX . "bank AS b ";
+		$sql .= "INNER JOIN " . MAIN_DB_PREFIX . "bank_account AS ba ON ba.rowid = b.fk_account ";
+		$sql .= "WHERE b.datev >= DATE('" . $this->db->escape($startDateStr) . "') ";
+		$sql .= "AND b.datev <= DATE('" . $this->db->escape($endDateStr) . "') ";
+		$sql .= "AND ba.entity IN (" . getEntity('bank_account') . ") ";
 
 		if ($accountId !== null) {
-			$sql .= "AND fk_account = " . ((int) $accountId) . " ";
+			$sql .= "AND b.fk_account = " . ((int) $accountId) . " ";
 		}
 
-		$sql .= "ORDER BY datev ASC";
+		$sql .= "ORDER BY b.datev ASC";
 
 		$resql = $this->db->query($sql);
 		if (!$resql) {
@@ -213,6 +216,7 @@ class DatabaseBankStatementLoader
 	{
 		$sql = "SELECT rowid, iban_prefix FROM " . MAIN_DB_PREFIX . "bank_account ";
 		$sql .= "WHERE rowid = " . ((int) $bankId);
+		$sql .= " AND entity IN (" . getEntity('bank_account') . ")";
 
 		$resql = $this->db->query($sql);
 		if (!$resql) {
@@ -244,8 +248,9 @@ class DatabaseBankStatementLoader
 		$ibanWithSpace = $this->formatIban($iban);
 
 		$sql = "SELECT rowid FROM " . MAIN_DB_PREFIX . "bank_account ";
-		$sql .= "WHERE iban_prefix = '" . $this->db->escape($ibanWithSpace) . "' ";
-		$sql .= "OR iban_prefix = '" . $this->db->escape($ibanNoSpace) . "'";
+		$sql .= "WHERE (iban_prefix = '" . $this->db->escape($ibanWithSpace) . "' ";
+		$sql .= "OR iban_prefix = '" . $this->db->escape($ibanNoSpace) . "') ";
+		$sql .= "AND entity IN (" . getEntity('bank_account') . ")";
 
 		$resql = $this->db->query($sql);
 		if ($resql) {
