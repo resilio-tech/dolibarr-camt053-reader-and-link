@@ -1,6 +1,6 @@
 # CHANGELOG CAMT053READERANDLINK FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
-## 2.0.2 (2026)
+## 2.0.2-pre2 (2026)
 
 ### New Features
 - SFTP auto-fetch of CAMT.053 files (PostFinance MFTPF), headless reconciliation and Zulip report
