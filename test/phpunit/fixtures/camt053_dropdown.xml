@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Ad-hoc fixture to exercise the multi-match dropdown: a single credit entry of
+  777.00 CHF on POSTE_CH, absent from Dolibarr, matching two unpaid customer
+  invoices (IN2607-0003 and IN2607-0004, both 777.00 CHF).
+-->
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.02">
+	<BkToCstmrStmt>
+		<GrpHdr>
+			<MsgId>STMT-DROPDOWN-202607</MsgId>
+			<CreDtTm>2026-07-15T12:00:00</CreDtTm>
+		</GrpHdr>
+		<Stmt>
+			<Id>STMT-CHF-DROPDOWN</Id>
+			<ElctrncSeqNb>1</ElctrncSeqNb>
+			<CreDtTm>2026-07-15T12:00:00</CreDtTm>
+			<Acct>
+				<Id>
+					<IBAN>CH0509000000100123456</IBAN>
+				</Id>
+				<Ccy>CHF</Ccy>
+			</Acct>
+			<Bal>
+				<Tp><CdOrPrtry><Cd>OPBD</Cd></CdOrPrtry></Tp>
+				<Amt Ccy="CHF">10000.00</Amt>
+				<CdtDbtInd>CRDT</CdtDbtInd>
+				<Dt><Dt>2026-06-01</Dt></Dt>
+			</Bal>
+
+			<!-- Credit 777.00 CHF -> matches IN2607-0003 and IN2607-0004 -> dropdown -->
+			<Ntry>
+				<Amt Ccy="CHF">777.00</Amt>
+				<CdtDbtInd>CRDT</CdtDbtInd>
+				<Sts>BOOK</Sts>
+				<BookgDt><Dt>2026-06-25</Dt></BookgDt>
+				<ValDt><Dt>2026-06-25</Dt></ValDt>
+				<AcctSvcrRef>CHF-CRDT-DROP</AcctSvcrRef>
+				<NtryDtls>
+					<TxDtls>
+						<RmtInf><Ustrd>Ambiguous 777 payment</Ustrd></RmtInf>
+						<RltdPties>
+							<Dbtr><Nm>CAMT Test Partner SA</Nm></Dbtr>
+						</RltdPties>
+					</TxDtls>
+				</NtryDtls>
+				<AddtlNtryInf>Two candidate invoices</AddtlNtryInf>
+			</Ntry>
+		</Stmt>
+	</BkToCstmrStmt>
+</Document>
