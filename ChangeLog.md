@@ -1,5 +1,22 @@
 # CHANGELOG CAMT053READERANDLINK FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
+## 2.0.2 (2026)
+
+### New Features
+- SFTP auto-fetch of CAMT.053 files (PostFinance MFTPF), headless reconciliation and Zulip report
+- Payment and internal transfer suggestions for unmatched CAMT.053 entries
+
+### Bug Fixes
+- Scope the bank account IBAN lookup to the current entity so a file imported for the wrong entity can no longer reconcile foreign entries (#7)
+- Show the related invoice reference and third party in the multi-match reconciliation dropdown (#8)
+- Prefill foreign-currency invoice payments in the `multicurrency_amount` field instead of the company-currency field (#9)
+- Harden SFTP secret handling and cron parse-failure safety
+
+### Tests
+- `PaymentSuggestionFinderTest.php` - payment link building and currency handling
+- `EntityScopeSqlTest.php` - entity scoping of the IBAN and bank-line queries
+- `BankRelationshipLookupTest.php` - related document lookup for the reconciliation dropdown
+
 ## 2.0.1 (2024)
 
 ### Bug Fixes
