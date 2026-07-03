@@ -413,7 +413,14 @@ if (!empty($banks)) {
 					$n = dol_escape_htmltag($dbEntry['name']);
 					$a = number_format($dbEntry['amount'], 2);
 					$d = dol_escape_htmltag($dbEntry['value_date']);
-					$array[$id] = '(' . $id . ') ' . $n . '<br />' . $a . '<br />' . $d;
+					// Prepend the related document (invoice ref + third party) so
+					// same-amount candidates can be told apart in the dropdown.
+					$doc = '';
+					$relation = $relationLookup->getRelation((int) $id);
+					if ($relation !== null && !empty($relation['ref'])) {
+						$doc = dol_escape_htmltag(trim($relation['ref'] . ' - ' . $relation['label'])) . '<br />';
+					}
+					$array[$id] = '(' . $id . ') ' . $doc . $n . '<br />' . $a . '<br />' . $d;
 				}
 				print $form->selectMassAction('', $array, 1, 'linked_' . dol_escape_htmltag($ntry_hash));
 				print '</td>';
