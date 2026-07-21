@@ -390,6 +390,81 @@ class Camt053FileProcessorTest extends TestCase
 			$hashes[] = $entry->getHash();
 		}
 		$this->assertCount(3, array_unique($hashes), 'Merged entries keep distinct form keys');
+
+		// Merging must not mutate the parsed statements: a second call has to
+		// return the same thing, not twice as much.
+		$this->assertCount(3, $processor->getStatementsByAccountId()[7]->getEntries());
+		$this->assertCount(2, $processor->getStatements()[0]->getEntries());
+	}
+
+	/**
+	 * Overlapping blocks re-report the same movement under the same bank
+	 * reference. It must be kept once: a copy under a rewritten hash matches
+	 * nothing and shows up as an unmatched entry inviting a duplicate payment.
+	 *
+	 * @runInSeparateProcess
+	 * @preserveGlobalState disabled
+	 * @return void
+	 */
+	public function testAMovementRepeatedAcrossBlocksIsKeptOnce(): void
+	{
+		if (!defined('MAIN_DB_PREFIX')) {
+			define('MAIN_DB_PREFIX', 'llx_');
+		}
+		if (!function_exists('getEntity')) {
+			function getEntity($element = '', $shared = 1, $currentobject = null)
+			{
+				return '1';
+			}
+		}
+
+		$mockAccount = new stdClass();
+		$mockAccount->rowid = 7;
+		$this->mockDb->setQueryResult(true);
+		$this->mockDb->setFetchResult($mockAccount);
+
+		$entry = array(
+			'Amt' => '100.00',
+			'CdtDbtInd' => 'CRDT',
+			'ValDt' => array('Dt' => '2024-01-15'),
+			'AcctSvcrRef' => 'REF-DUP',
+		);
+		$block = array(
+			'Acct' => array('Id' => array('IBAN' => 'BE71096123456769')),
+			'Ntry' => array($entry),
+		);
+
+		$structure = array(
+			'BkToCstmrStmt' => array(
+				'GrpHdr' => array('MsgId' => 'TEST', 'CreDtTm' => '2024-01-31T12:00:00'),
+				'Stmt' => array($block, $block),
+			),
+		);
+
+		$processor = new Camt053FileProcessor($this->mockDb);
+		$this->assertTrue($processor->parseStructure($structure));
+
+		$entries = $processor->getStatementsByAccountId()[7]->getEntries();
+
+		$this->assertCount(1, $entries, 'The repeated movement is kept once');
+		$this->assertSame('REF-DUP', $entries[0]->getHash());
+	}
+
+	/**
+	 * An XML that is not a CAMT.053 document must be reported as a failure, not
+	 * thrown: an uncaught exception used to kill the whole cron run, skipping
+	 * every remaining config and leaving the SFTP session open.
+	 *
+	 * @return void
+	 */
+	public function testNonCamtXmlIsReportedNotThrown(): void
+	{
+		$processor = new Camt053FileProcessor($this->mockDb);
+
+		$result = $processor->parseContent('<?xml version="1.0"?><Document><Other/></Document>');
+
+		$this->assertFalse($result);
+		$this->assertNotEmpty($processor->getError());
 	}
 
 	/**

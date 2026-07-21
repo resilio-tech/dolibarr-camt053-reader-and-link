@@ -657,6 +657,39 @@ class BankStatementMatcherTest extends TestCase
 	}
 
 	/**
+	 * That branch claims its line too: a second identical entry must not be
+	 * reported against the same already reconciled line.
+	 *
+	 * @return void
+	 */
+	public function testAllCandidatesReconciledClaimsTheReportedLine(): void
+	{
+		$fileStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$fileStatement->setIsFromFile(true);
+		$fileStatement->createEntry(-50.00, '2024-02-01', 'Frais');
+		$fileStatement->createEntry(-50.00, '2024-02-01', 'Frais');
+
+		$dbStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$dbStatement->setIsFromFile(false);
+		foreach (array(1, 2) as $rowid) {
+			$done = $dbStatement->createEntry(-50.00, '2024-02-01', 'Frais');
+			$done->setBankLine($this->createMockBankLine($rowid, 1));
+		}
+
+		$results = $this->matcher->compare($fileStatement, $dbStatement);
+
+		$reported = array();
+		foreach ($results['already_linked'] as $item) {
+			$reported[] = $item['db']->getBankLine()->rowid;
+		}
+		sort($reported);
+
+		// Exactly one row per line: without the claim the first line is reported
+		// for both entries and the second one is added again by the trailing pass.
+		$this->assertSame(array(1, 2), $reported, 'Each line answers for exactly one entry');
+	}
+
+	/**
 	 * One reconciled bank line answers for one entry: a second identical entry
 	 * stays visible as unmatched instead of being reported reconciled too, which
 	 * also inflated the counters of the headless report.
