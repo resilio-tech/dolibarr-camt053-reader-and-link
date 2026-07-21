@@ -29,9 +29,9 @@ jobs:
 
       - name: Get module version
         id: version
-        # Never interpolate ${{ }} straight into the shell: a tag name may
-        # contain backticks, $() and ; , which would run as code in this job.
-        # Everything goes through the environment instead.
+        # Never interpolate a GitHub expression straight into the shell: a tag
+        # name may contain backticks, dollar-parens and semicolons, which would
+        # run as code in this job. Everything goes through the environment.
         env:
           INPUT_VERSION: ${{ github.event.inputs.version }}
           REF_NAME: ${{ github.ref_name }}
