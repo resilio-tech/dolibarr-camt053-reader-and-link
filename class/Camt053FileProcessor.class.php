@@ -152,6 +152,14 @@ class Camt053FileProcessor
 			$this->extractStatements();
 
 			return true;
+		} catch (Throwable $e) {
+			// extractStatements() throws on anything that is not a CAMT.053
+			// document. parseStructure() already reports that as a false return;
+			// letting it escape here killed the whole cron run (and with it the
+			// SFTP disconnect and the run status) on the first stray XML file
+			// sitting in the remote directory.
+			$this->error = $e->getMessage();
+			return false;
 		} finally {
 			// Restore previous settings
 			libxml_use_internal_errors($previousUseErrors);
@@ -178,7 +186,7 @@ class Camt053FileProcessor
 		try {
 			$this->extractStatements();
 			return true;
-		} catch (Exception $e) {
+		} catch (Throwable $e) {
 			$this->error = $e->getMessage();
 			return false;
 		}
@@ -499,11 +507,15 @@ class Camt053FileProcessor
 	 * entries silently: they were never displayed, never reconciled, and the cron
 	 * still marked the file processed and deleted it from the SFTP server.
 	 *
+	 * A movement repeated across blocks (same AcctSvcrRef) is kept once. The
+	 * merged statements are new objects, so calling this twice is safe.
+	 *
 	 * @return array<int, Camt053Statement>
 	 */
 	public function getStatementsByAccountId(): array
 	{
 		$result = array();
+		$seenReferences = array();
 		foreach ($this->statements as $statement) {
 			$accountId = $statement->getAccountId();
 			if ($accountId === null) {
@@ -511,13 +523,27 @@ class Camt053FileProcessor
 			}
 
 			if (!isset($result[$accountId])) {
-				$result[$accountId] = $statement;
-				continue;
+				// A fresh statement: merging into the parsed one would mutate
+				// $this->statements and make a second call return more entries.
+				$merged = new Camt053Statement($statement->getIban(), $accountId);
+				$merged->setIsFromFile(true);
+				$merged->setCreationDate($statement->getCreationDate());
+				$result[$accountId] = $merged;
+				$seenReferences[$accountId] = array();
 			}
 
-			// Merge through addEntry() so the hash deduplication still applies
-			// across blocks.
 			foreach ($statement->getEntries() as $entry) {
+				// Overlapping blocks re-report the same movement. The bank
+				// reference identifies it, so a repeat is dropped rather than
+				// added under a rewritten hash, which would show up as a phantom
+				// unmatched entry inviting a duplicate payment.
+				$reference = $entry->getBankReference();
+				if ($reference !== '') {
+					if (isset($seenReferences[$accountId][$reference])) {
+						continue;
+					}
+					$seenReferences[$accountId][$reference] = true;
+				}
 				$result[$accountId]->addEntry($entry);
 			}
 		}
