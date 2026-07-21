@@ -13,13 +13,27 @@
 - Harden SFTP secret handling and cron parse-failure safety
 - Open the supplier invoice payment page with `action=create`, without which it showed no form
 - Preselect the statement bank account on every prefilled payment page
-- Load Dolibarr bank lines with a margin equal to the matcher date tolerance, so an entry dated one day outside the imported period (typically a manually entered salary or various payment) is matched instead of being ignored
+- Load Dolibarr bank lines with a backward margin equal to the matcher date tolerance, so a line keyed a day early (typically a manually entered salary or various payment) is matched instead of being ignored. Lines from that margin are matchable but never listed, an in-period line always wins over one from the margin, and a margin line already reconciled to another statement can no longer absorb an entry
+- Derive the interactive reconciliation period from the entries the file carries, like the headless path already did: a weekly or daily statement was previously compared against the whole previous calendar month
+- Define the missing `verifCsrfToken()` helper (renamed `camt053VerifCsrfToken()`), without which saving the setup, saving an SFTP account and deleting one all raised a fatal error
+- Require a CSRF token on the reconciliation confirmation, and gate it on `banque.consolidate` like Dolibarr core instead of `banque.modifier`
+- Ignore a bank line selected for several statement entries instead of reporting it reconciled twice, and let an explicit dropdown choice win over an automatic link
+- Keep statement entry hashes unique so two identical movements on the same day no longer collapse into one form field, silently dropping an entry
+- Survive a self-closed `<AcctSvcrRef/>`, which aborted the whole import with a type error
+- Scope the SFTP config read/write, the bank relationship lookups and the CLI runner's user pick to the current entity
+- Declare the prerequisites the code actually needs (Dolibarr 17, PHP 7.4, `modBanque`) instead of Dolibarr 11 / PHP 7.0 / no dependency
+
+### Build
+- Stamp the version into the module descriptor before packaging, so the published zip no longer ships the previous version number
+- Pass workflow inputs through the environment and validate the version string, closing a shell injection from a crafted tag name
+- Fix a duplicate `env:` key that made the build workflow file invalid, which silently stopped every workflow run on the repository
 
 ### Tests
 - `PaymentSuggestionFinderTest.php` - payment link building and currency handling
 - `EntityScopeSqlTest.php` - entity scoping of the IBAN and bank-line queries
 - `BankRelationshipLookupTest.php` - related document lookup for the reconciliation dropdown
-- `DatabaseBankStatementLoaderTest.php` - date window widening when loading bank lines
+- `DatabaseBankStatementLoaderTest.php` - date window and in/out-of-period flagging
+- `Camt053StatementTest.php` - entry hash uniqueness
 
 ## 2.0.1 (2024)
 
