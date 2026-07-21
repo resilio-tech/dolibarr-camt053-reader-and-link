@@ -129,7 +129,44 @@ class Camt053Statement
 	public function addEntry(Camt053Entry $entry): void
 	{
 		$entry->setIsFromFile($this->isFromFile);
+		$this->ensureUniqueHash($entry);
 		$this->entries[] = $entry;
+	}
+
+	/**
+	 * Guarantee the entry hash is unique within this statement.
+	 *
+	 * Without AcctSvcrRef the hash falls back to amount + date + name + info, so
+	 * two identical movements on the same day collide. The hash keys the
+	 * reconciliation form fields, and duplicate field names mean PHP keeps only
+	 * the last one: one of the two entries would be dropped with no error.
+	 *
+	 * @param Camt053Entry $entry Entry about to be added
+	 * @return void
+	 */
+	private function ensureUniqueHash(Camt053Entry $entry): void
+	{
+		$hash = $entry->getHash();
+		if ($hash === '') {
+			return;
+		}
+
+		$taken = array();
+		foreach ($this->entries as $existing) {
+			$taken[$existing->getHash()] = true;
+		}
+
+		if (!isset($taken[$hash])) {
+			return;
+		}
+
+		$suffix = 2;
+		do {
+			$candidate = md5($hash . '#' . $suffix);
+			$suffix++;
+		} while (isset($taken[$candidate]));
+
+		$entry->setHash($candidate);
 	}
 
 	/**
