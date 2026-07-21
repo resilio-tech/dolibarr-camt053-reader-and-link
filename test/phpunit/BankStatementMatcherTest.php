@@ -542,6 +542,65 @@ class BankStatementMatcherTest extends TestCase
 	}
 
 	/**
+	 * Re-importing a statement that was already reconciled must stay idempotent:
+	 * the in-period line, now rapproché, still wins over any margin candidate,
+	 * so nothing is proposed for reconciliation a second time.
+	 *
+	 * @return void
+	 */
+	public function testReimportingAReconciledStatementProposesNothing(): void
+	{
+		$fileStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$fileStatement->setIsFromFile(true);
+		$fileStatement->createEntry(-1200.00, '2024-02-01', 'Loyer');
+
+		$dbStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$dbStatement->setIsFromFile(false);
+
+		// An unrelated January movement of the same amount, still open.
+		$margin = $dbStatement->createEntry(-1200.00, '2024-01-31', 'Autre chose');
+		$margin->setBankLine($this->createMockBankLine(1, 0));
+		$margin->setInPeriod(false);
+
+		// The line this file already reconciled on a previous import.
+		$inPeriod = $dbStatement->createEntry(-1200.00, '2024-02-01', 'Loyer');
+		$inPeriod->setBankLine($this->createMockBankLine(2, 1));
+
+		$results = $this->matcher->compare($fileStatement, $dbStatement);
+
+		$this->assertCount(0, $results['linkeds'], 'Nothing may be reconciled twice');
+		$this->assertCount(1, $results['already_linked']);
+		$this->assertEquals(2, $results['already_linked'][0]['db']->getBankLine()->rowid);
+	}
+
+	/**
+	 * One Dolibarr line cannot satisfy two identical statement entries: the
+	 * second must stay unmatched instead of auto-linking to the same row, which
+	 * would report two reconciliations while performing one.
+	 *
+	 * @return void
+	 */
+	public function testOneBankLineIsNotClaimedByTwoFileEntries(): void
+	{
+		$fileStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$fileStatement->setIsFromFile(true);
+		$fileStatement->createEntry(-50.00, '2024-02-01', 'Frais');
+		$fileStatement->createEntry(-50.00, '2024-02-01', 'Frais');
+
+		$dbStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$dbStatement->setIsFromFile(false);
+		$only = $dbStatement->createEntry(-50.00, '2024-02-01', 'Frais');
+		$only->setBankLine($this->createMockBankLine(7, 0));
+
+		$results = $this->matcher->compare($fileStatement, $dbStatement);
+
+		$this->assertCount(1, $results['linkeds'], 'Only one entry may claim the line');
+		$this->assertEquals(7, $results['linkeds'][0]['db']->getBankLine()->rowid);
+		$this->assertCount(1, $results['unlinkeds'], 'The second entry stays visible as unmatched');
+		$this->assertTrue($results['unlinkeds'][0]->isFromFile());
+	}
+
+	/**
 	 * An out-of-period line already reconciled to another statement must not
 	 * absorb a file entry: doing so would mask a missing payment behind an
 	 * "already reconciled" row and drop its payment suggestion.
