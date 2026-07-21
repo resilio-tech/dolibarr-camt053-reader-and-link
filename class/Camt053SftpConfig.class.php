@@ -243,6 +243,7 @@ class Camt053SftpConfig
 		$sql .= ", fk_default_bank_account = " . ($this->fk_default_bank_account ? (int) $this->fk_default_bank_account : 'NULL');
 		$sql .= ", fk_user_modif = " . ($this->fk_user_modif ? (int) $this->fk_user_modif : 'NULL');
 		$sql .= " WHERE rowid = " . ((int) $this->id);
+		$sql .= " AND entity IN (" . getEntity(self::TABLE) . ")";
 
 		if (!$this->db->query($sql)) {
 			$this->error = 'Database error: ' . $this->db->lasterror();
@@ -332,6 +333,7 @@ class Camt053SftpConfig
 		}
 
 		$sql = "DELETE FROM " . MAIN_DB_PREFIX . self::TABLE . " WHERE rowid = " . ((int) $this->id);
+		$sql .= " AND entity IN (" . getEntity(self::TABLE) . ")";
 		if (!$this->db->query($sql)) {
 			$this->error = 'Database error: ' . $this->db->lasterror();
 			return -1;
@@ -358,6 +360,7 @@ class Camt053SftpConfig
 		$sql .= " last_run = '" . $this->db->idate($now) . "'";
 		$sql .= ", last_status = " . $this->quote(dol_trunc($status, 250, 'right', 'UTF-8', 1));
 		$sql .= " WHERE rowid = " . ((int) $this->id);
+		$sql .= " AND entity IN (" . getEntity(self::TABLE) . ")";
 
 		if (!$this->db->query($sql)) {
 			$this->error = 'Database error: ' . $this->db->lasterror();

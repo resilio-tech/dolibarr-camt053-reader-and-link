@@ -55,7 +55,11 @@ $user = new User($db);
 if ($login !== '') {
 	$user->fetch(0, $login);
 } else {
-	$sql = "SELECT rowid FROM " . MAIN_DB_PREFIX . "user WHERE admin = 1 AND statut = 1 ORDER BY rowid ASC";
+	// Scoped to the entity this run targets: the picked user becomes the author
+	// of every reconciliation, so it must not come from another company.
+	$sql = "SELECT rowid FROM " . MAIN_DB_PREFIX . "user WHERE admin = 1 AND statut = 1";
+	$sql .= " AND entity IN (" . getEntity('user') . ")";
+	$sql .= " ORDER BY rowid ASC";
 	$resql = $db->query($sql);
 	if ($resql && ($obj = $db->fetch_object($resql))) {
 		$user->fetch($obj->rowid);
