@@ -75,17 +75,22 @@ if ($action == 'testconn' && $id > 0 && $user->admin) {
 		$object = new Camt053SftpConfig($db);
 		if ($object->fetch($id) > 0) {
 			$transport = new SftpFileTransport($object);
+			// trans() restores some tags after encoding, so escape every parameter
+			// that carries user-supplied text.
+			$host = dol_escape_htmltag($object->host);
+			$port = dol_escape_htmltag($object->port);
+			$remoteDir = dol_escape_htmltag($object->remote_dir);
 			if ($transport->connect()) {
 				$files = $transport->listFiles();
 				if ($files === null) {
-					setEventMessages($langs->trans("Camt053SftpTestListFailed", $object->host, $object->port, $object->remote_dir, $transport->getError()), null, 'warnings');
+					setEventMessages($langs->trans("Camt053SftpTestListFailed", $host, $port, $remoteDir, dol_escape_htmltag($transport->getError())), null, 'warnings');
 				} else {
-					setEventMessages($langs->trans("Camt053SftpTestConnectOk", $object->host, $object->port), null, 'mesgs');
-					setEventMessages($langs->trans("Camt053SftpTestListOk", $object->remote_dir, count($files)), null, 'mesgs');
+					setEventMessages($langs->trans("Camt053SftpTestConnectOk", $host, $port), null, 'mesgs');
+					setEventMessages($langs->trans("Camt053SftpTestListOk", $remoteDir, count($files)), null, 'mesgs');
 				}
 				$transport->disconnect();
 			} else {
-				setEventMessages($langs->trans("Camt053SftpTestFailed", $object->host, $object->port, $transport->getError()), null, 'errors');
+				setEventMessages($langs->trans("Camt053SftpTestFailed", $host, $port, dol_escape_htmltag($transport->getError())), null, 'errors');
 			}
 		} else {
 			setEventMessages($object->getError(), null, 'errors');
@@ -175,7 +180,7 @@ if (empty($list)) {
 		$lastrun = $cfg->last_run ? dol_print_date($cfg->last_run, 'dayhour') : '<span class="opacitymedium">-</span>';
 		print '<td>'.$lastrun.'</td>';
 		print '<td class="right nowraponall">';
-		print '<a class="butAction small" href="'.$_SERVER["PHP_SELF"].'?action=testconn&id='.$cfg->id.'&token='.newToken().'">'.img_picto($langs->trans("Camt053SftpTest"), 'network-tower', 'class="pictofixedwidth"').$langs->trans("Camt053SftpTest").'</a>';
+		print '<a class="butAction small" href="'.$_SERVER["PHP_SELF"].'?action=testconn&id='.$cfg->id.'&token='.newToken().'">'.img_picto($langs->trans("Camt053SftpTest"), 'globe', 'class="pictofixedwidth"').$langs->trans("Camt053SftpTest").'</a>';
 		print ' <a class="editfielda" href="'.$editlink.'">'.img_edit().'</a>';
 		print ' <a class="reposition" href="'.$_SERVER["PHP_SELF"].'?action=delete&id='.$cfg->id.'&token='.newToken().'">'.img_delete().'</a>';
 		print '</td>';
