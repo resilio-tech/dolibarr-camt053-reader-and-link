@@ -507,6 +507,41 @@ class BankStatementMatcherTest extends TestCase
 	}
 
 	/**
+	 * A line inside the period wins over one from the margin. Without that rule a
+	 * recurring amount (rent, salary) matches both every month and a clean
+	 * auto-link degrades into an ambiguity prompt.
+	 *
+	 * @return void
+	 */
+	public function testInPeriodEntryWinsOverMarginEntry(): void
+	{
+		$fileStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$fileStatement->setIsFromFile(true);
+		$fileStatement->createEntry(-1200.00, '2024-02-01', 'Loyer');
+
+		$dbStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$dbStatement->setIsFromFile(false);
+
+		// Last month's rent, not yet reconciled, sitting in the margin.
+		$margin = $dbStatement->createEntry(-1200.00, '2024-01-31', 'Loyer');
+		$margin->setBankLine($this->createMockBankLine(1, 0));
+		$margin->setInPeriod(false);
+
+		// This month's rent, the one that should be picked.
+		$inPeriod = $dbStatement->createEntry(-1200.00, '2024-02-01', 'Loyer');
+		$inPeriod->setBankLine($this->createMockBankLine(2, 0));
+
+		$results = $this->matcher->compare($fileStatement, $dbStatement);
+
+		$this->assertCount(0, $results['multiples'], 'No ambiguity: the in-period line wins');
+		$this->assertCount(1, $results['linkeds']);
+		$this->assertEquals(2, $results['linkeds'][0]['db']->getBankLine()->rowid);
+
+		// The margin line is not the user's business for this statement.
+		$this->assertCount(0, $results['unlinkeds']);
+	}
+
+	/**
 	 * An out-of-period line already reconciled to another statement must not
 	 * absorb a file entry: doing so would mask a missing payment behind an
 	 * "already reconciled" row and drop its payment suggestion.
