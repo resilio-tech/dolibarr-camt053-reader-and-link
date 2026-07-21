@@ -511,6 +511,16 @@ class Camt053CronRunner
 		if (empty($pattern)) {
 			return false;
 		}
-		return (bool) @preg_match($pattern, $name);
+
+		$result = @preg_match($pattern, $name);
+		if ($result === false) {
+			// An invalid admin-supplied regex would otherwise silently make the
+			// cron skip every file, with nothing in the log to explain why.
+			// preg_last_error_msg() is PHP 8.0+, the module supports 7.4.
+			dol_syslog('CAMT053: invalid file pattern ' . $pattern . ' (preg error ' . preg_last_error() . ')', LOG_ERR);
+			return false;
+		}
+
+		return (bool) $result;
 	}
 }
