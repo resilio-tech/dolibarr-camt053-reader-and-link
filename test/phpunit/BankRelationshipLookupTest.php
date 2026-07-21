@@ -78,6 +78,13 @@ class BankRelationshipLookupTest extends TestCase
 		if (!defined('MAIN_DB_PREFIX')) {
 			define('MAIN_DB_PREFIX', 'llx_');
 		}
+		// The lookups scope every query to the current entity.
+		if (!function_exists('getEntity')) {
+			function getEntity($element = '', $shared = 1, $currentobject = null)
+			{
+				return '1';
+			}
+		}
 	}
 
 	/**
