@@ -29,6 +29,20 @@ require_once dirname(__FILE__) . '/../../class/Camt053Entry.class.php';
 require_once dirname(__FILE__) . '/../../class/Camt053Statement.class.php';
 require_once dirname(__FILE__) . '/../../class/Camt053FileProcessor.class.php';
 require_once dirname(__FILE__) . '/../../class/DatabaseBankStatementLoader.class.php';
+require_once dirname(__FILE__) . '/../../class/BankRelationshipLookup.class.php';
+
+if (!class_exists('Account')) {
+	/**
+	 * Stand-in for Dolibarr's Account: the loader instantiates it before walking
+	 * the rows, and these tests return none.
+	 */
+	class Account
+	{
+		public function __construct($db = null)
+		{
+		}
+	}
+}
 
 /**
  * Database mock that records every SQL query it receives.
@@ -144,6 +158,50 @@ class EntityScopeSqlTest extends TestCase
 
 		$this->assertNull($result);
 		$this->assertStringContainsString('entity IN (', $db->lastSql());
+	}
+
+	/**
+	 * The bank-line load itself must be scoped: it is the query that decides
+	 * which lines can be reconciled at all.
+	 *
+	 * @runInSeparateProcess
+	 * @preserveGlobalState disabled
+	 * @return void
+	 */
+	public function testLoaderStatementQueryIsEntityScoped(): void
+	{
+		$this->defineDolibarrStubs();
+
+		$db = new RecordingDb(true, false);
+		$loader = new DatabaseBankStatementLoader($db);
+
+		$loader->loadStatements('01/06/2024', '30/06/2024');
+
+		$this->assertNotEmpty($db->queries);
+		$this->assertStringContainsString('bank_account', $db->queries[0]);
+		$this->assertStringContainsString('entity IN (', $db->queries[0]);
+	}
+
+	/**
+	 * Every relationship lookup is scoped: a bank line, an invoice and a supplier
+	 * invoice from another entity must never surface in the reconciliation list.
+	 *
+	 * @runInSeparateProcess
+	 * @preserveGlobalState disabled
+	 * @return void
+	 */
+	public function testRelationshipLookupsAreEntityScoped(): void
+	{
+		$this->defineDolibarrStubs();
+
+		$db = new RecordingDb(true, false);
+		$lookup = new BankRelationshipLookup($db);
+
+		$this->assertNull($lookup->getRelation(100));
+		$this->assertCount(3, $db->queries, 'customer invoice, supplier invoice, bank line');
+		foreach ($db->queries as $sql) {
+			$this->assertStringContainsString('entity IN (', $sql);
+		}
 	}
 
 	/**
