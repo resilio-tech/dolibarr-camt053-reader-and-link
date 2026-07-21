@@ -118,3 +118,4 @@ Camt053SftpTestListFailed = Connected to %s:%s, but listing directory '%s' faile
 Camt053SftpTestFailed = Connection to %s:%s failed: %s
 Camt053DuplicateBankLineSelected = Bank line #%s was selected for several statement entries; the duplicate was ignored.
 SecurityTokenError = Security token is invalid or has expired, the action was cancelled. Please retry.
+Camt053EmptyStatementReference = No statement reference could be computed from the period, nothing was reconciled.

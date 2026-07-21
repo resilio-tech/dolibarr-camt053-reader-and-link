@@ -94,15 +94,22 @@ print '<div class="fichecenter camt053readerandlink">';
 // win over a match the module made on its own.
 $linked = array();
 foreach ($_POST as $key => $value) {
+	// Only scalars: a field named "linked_x[]" would otherwise reach the (int)
+	// cast below as an array, which PHP evaluates to 1 and would reconcile bank
+	// line 1. Entry references come from the bank, so the key is not trusted.
+	if (!is_scalar($value)) {
+		continue;
+	}
 	if (preg_match('/^linked_(.+)$/', $key, $matches)) {
 		$hash = $matches[1];
-		$linked[$hash] = $value;
+		$linked[$hash] = (string) $value;
 	}
 }
 foreach (GETPOST('linked', 'array') as $hash => $value) {
-	if (!isset($linked[$hash])) {
-		$linked[$hash] = $value;
+	if (!is_scalar($value) || isset($linked[$hash])) {
+		continue;
 	}
+	$linked[$hash] = (string) $value;
 }
 $date_start = GETPOST('date_start', 'alphanohtml');
 $date_end = GETPOST('date_end', 'alphanohtml');
@@ -114,7 +121,12 @@ $upload_file = GETPOST('upload_file', 'alpha');
 if (!empty($upload_file)) {
 	$realUploadFile = realpath($upload_file);
 	$allowedDir = realpath(DOL_DATA_ROOT . '/camt053readerandlink');
-	if ($realUploadFile === false || strpos($realUploadFile, $allowedDir) !== 0) {
+	// realpath() returns false when the directory does not exist yet, and
+	// strpos($x, false) matches everything: without the explicit check the guard
+	// would wave any path through. The trailing separator keeps a sibling
+	// directory such as "camt053readerandlink_evil" from passing the prefix test.
+	if ($realUploadFile === false || $allowedDir === false
+		|| strpos($realUploadFile, $allowedDir . DIRECTORY_SEPARATOR) !== 0) {
 		dol_syslog('CAMT053: Path traversal attempt detected: ' . $upload_file, LOG_WARNING);
 		$upload_file = '';
 	}
@@ -149,9 +161,14 @@ $reconcileErrors = array();
 // after fetch() so it is known even if the reconciliation itself later fails.
 $linkedAccountIds = array();
 
-// An empty statement reference makes update_conciliation() fail when BANK_STATEMENT_REGEX_RULE is set
-if (empty($date_concil)) {
-	dol_syslog('CAMT053: Empty statement reference (num_releve) computed from date_end=' . $date_end . ' - reconciliation may fail if BANK_STATEMENT_REGEX_RULE is set', LOG_WARNING);
+// Without a statement reference every update_conciliation() call fails once
+// BANK_STATEMENT_REGEX_RULE is set, and each failure leaves an unclosed
+// transaction behind (core opens one before validating). Stop before the loop
+// rather than iterating over a guaranteed failure.
+if (empty($date_concil) && !empty($linked)) {
+	dol_syslog('CAMT053: Empty statement reference (num_releve) computed from date_end=' . $date_end . ' - aborting', LOG_ERR);
+	setEventMessages($langs->trans('Camt053EmptyStatementReference'), null, 'errors');
+	$linked = array();
 }
 
 dol_syslog('CAMT053: Starting reconciliation of ' . count($linked) . ' linked entry(ies), num_releve=' . $date_concil, LOG_DEBUG);
