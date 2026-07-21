@@ -101,6 +101,9 @@ class modCamt053ReaderAndLink extends DolibarrModules
 		// declared as supported. 17 is a conservative floor; the only version the
 		// module is actually developed and run against is 24.
 		$this->need_dolibarr_version = array(17, 0);
+		// The SFTP auto-fetch needs ext-ssh2 (as Dolibarr core's own SFTP does).
+		// Not listed as a hard requirement: the manual upload, which is the main
+		// feature, works without it.
 		$this->need_javascript_ajax = 0;
 
 		// Activation warnings

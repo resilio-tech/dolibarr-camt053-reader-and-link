@@ -105,6 +105,8 @@ if (($action == 'add' || $action == 'update') && $user->admin) {
 		$postedKey = trim((string) GETPOST('private_key', 'none'));
 		$object->private_key = ($postedKey !== '') ? $postedKey : $keepKey;
 
+		$object->public_key = trim((string) GETPOST('public_key', 'none'));
+
 		$postedPass = (string) GETPOST('private_key_passphrase', 'none');
 		$object->private_key_passphrase = ($postedPass !== '') ? $postedPass : $keepPass;
 
@@ -190,12 +192,16 @@ print '<tr><td class="fieldrequired">'.$langs->trans("Camt053SftpAuthType").'</t
 print '<td>'.$form->selectarray('auth_type', array('key' => $langs->trans("Camt053SftpAuthKey"), 'password' => $langs->trans("Camt053SftpAuthPassword")), $object->auth_type, 0, 0, 0, '', 0, 0, 0, '', 'minwidth200').'</td></tr>';
 
 // Private key
-$keyPlaceholder = ($id > 0 && !empty($object->private_key)) ? $langs->trans("Camt053SftpKeepCurrentSecret") : '-----BEGIN OPENSSH PRIVATE KEY----- ...';
+$keyPlaceholder = ($id > 0 && !empty($object->private_key)) ? $langs->trans("Camt053SftpKeepCurrentSecret") : '-----BEGIN RSA PRIVATE KEY----- ...';
 print '<tr><td>'.$langs->trans("Camt053SftpPrivateKey").'</td>';
 print '<td><textarea name="private_key" class="quatrevingtpercent" rows="8" placeholder="'.dol_escape_htmltag($keyPlaceholder).'"></textarea>';
 print '<br><span class="opacitymedium">'.$langs->trans("Camt053SftpPrivateKeyHelp").'</span></td></tr>';
 
 // Private key passphrase
+print '<tr><td>'.$langs->trans("Camt053SftpPublicKey").'</td>';
+print '<td><textarea name="public_key" class="quatrevingtpercent" rows="3" placeholder="ssh-rsa AAAAB3NzaC1yc2E...">'.dol_escape_htmltag((string) $object->public_key).'</textarea>';
+print '<br /><span class="opacitymedium small">'.$langs->trans("Camt053SftpPublicKeyHelp").'</span></td></tr>';
+
 $passPlaceholder = ($id > 0 && !empty($object->private_key_passphrase)) ? $langs->trans("Camt053SftpKeepCurrentSecret") : '';
 print '<tr><td>'.$langs->trans("Camt053SftpPassphrase").'</td>';
 print '<td><input type="password" name="private_key_passphrase" autocomplete="new-password" class="minwidth300" value="" placeholder="'.dol_escape_htmltag($passPlaceholder).'"></td></tr>';

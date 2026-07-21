@@ -122,3 +122,5 @@ Camt053DuplicateBankLineSelected = La ligne bancaire #%s a été sélectionnée 
 SecurityTokenError = Le jeton de sécurité est invalide ou a expiré, l'action a été annulée. Merci de réessayer.
 Camt053EmptyStatementReference = Aucune référence de relevé n'a pu être calculée à partir de la période, rien n'a été rapproché.
 Camt053ReaderAndLinkResults = Résultats du rapprochement CAMT.053
+Camt053SftpPublicKey = Clé publique SSH
+Camt053SftpPublicKeyHelp = Facultatif pour une clé RSA : elle est déduite de la clé privée si ce champ est vide. Obligatoire pour tout autre type de clé. La clé privée doit être au format PEM (ssh-keygen -p -m PEM -f &lt;fichier&gt;), le seul que l'extension PHP ssh2 sache lire.

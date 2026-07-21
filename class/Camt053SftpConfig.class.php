@@ -71,6 +71,10 @@ class Camt053SftpConfig
 	/** @var string|null SSH private key (PEM), plaintext in memory, encrypted at rest */
 	public $private_key;
 
+	/** @var string|null Matching OpenSSH public key line. Derived from the private
+	 *                   key when left empty, which only works for RSA. */
+	public $public_key;
+
 	/** @var string|null Passphrase for the private key, plaintext in memory, encrypted at rest */
 	public $private_key_passphrase;
 
@@ -174,7 +178,7 @@ class Camt053SftpConfig
 
 		$sql = "INSERT INTO " . MAIN_DB_PREFIX . self::TABLE . " (";
 		$sql .= "entity, ref, label, active, host, port, username, auth_type,";
-		$sql .= " private_key, private_key_passphrase, password, remote_dir,";
+		$sql .= " private_key, public_key, private_key_passphrase, password, remote_dir,";
 		$sql .= " daily_pattern, monthly_pattern, post_download_action,";
 		$sql .= " fk_default_bank_account, date_creation, fk_user_creat";
 		$sql .= ") VALUES (";
@@ -187,6 +191,7 @@ class Camt053SftpConfig
 		$sql .= ", " . $this->quote($this->username);
 		$sql .= ", " . $this->quote($this->auth_type);
 		$sql .= ", " . $this->quote($this->encrypt($this->private_key));
+		$sql .= ", " . $this->quote($this->public_key);
 		$sql .= ", " . $this->quote($this->encrypt($this->private_key_passphrase));
 		$sql .= ", " . $this->quote($this->encrypt($this->password));
 		$sql .= ", " . $this->quote($this->remote_dir);
@@ -234,6 +239,7 @@ class Camt053SftpConfig
 		$sql .= ", username = " . $this->quote($this->username);
 		$sql .= ", auth_type = " . $this->quote($this->auth_type);
 		$sql .= ", private_key = " . $this->quote($this->encrypt($this->private_key));
+		$sql .= ", public_key = " . $this->quote($this->public_key);
 		$sql .= ", private_key_passphrase = " . $this->quote($this->encrypt($this->private_key_passphrase));
 		$sql .= ", password = " . $this->quote($this->encrypt($this->password));
 		$sql .= ", remote_dir = " . $this->quote($this->remote_dir);
@@ -390,7 +396,7 @@ class Camt053SftpConfig
 	private function fieldList(): string
 	{
 		return "rowid, entity, ref, label, active, host, port, username, auth_type,"
-			. " private_key, private_key_passphrase, password, remote_dir,"
+			. " private_key, public_key, private_key_passphrase, password, remote_dir,"
 			. " daily_pattern, monthly_pattern, post_download_action,"
 			. " fk_default_bank_account, last_run, last_status, date_creation,"
 			. " fk_user_creat, fk_user_modif";
@@ -414,6 +420,8 @@ class Camt053SftpConfig
 		$this->username = $obj->username;
 		$this->auth_type = $obj->auth_type;
 		$this->private_key = $this->decrypt($obj->private_key);
+		// Public key material is not secret: stored as-is.
+		$this->public_key = $obj->public_key;
 		$this->private_key_passphrase = $this->decrypt($obj->private_key_passphrase);
 		$this->password = $this->decrypt($obj->password);
 		$this->remote_dir = $obj->remote_dir;

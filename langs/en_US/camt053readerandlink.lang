@@ -120,3 +120,5 @@ Camt053DuplicateBankLineSelected = Bank line #%s was selected for several statem
 SecurityTokenError = Security token is invalid or has expired, the action was cancelled. Please retry.
 Camt053EmptyStatementReference = No statement reference could be computed from the period, nothing was reconciled.
 Camt053ReaderAndLinkResults = CAMT.053 reconciliation results
+Camt053SftpPublicKey = SSH public key
+Camt053SftpPublicKeyHelp = Optional for an RSA key: it is derived from the private key when left empty. Required for any other key type. The private key must be in PEM format (ssh-keygen -p -m PEM -f &lt;keyfile&gt;), which is the only format the PHP ssh2 extension reads.

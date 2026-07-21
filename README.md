@@ -21,6 +21,14 @@ Bank reconciliation module that allows importing bank statements in CAMT.053 for
   `$user->hasRight()` and `GETPOSTINT()`; only Dolibarr 24 is actively tested)
 - PHP >= 7.4
 - Bank module enabled in Dolibarr (declared as a module dependency)
+- For the optional SFTP auto-fetch only: the PHP `ssh2` extension, the same one
+  Dolibarr core uses for its own SFTP support. The module bundles no third-party
+  library. Without the extension the manual upload works normally and the SFTP
+  configuration reports that the extension is missing.
+  Key authentication needs the private key in PEM format
+  (`ssh-keygen -p -m PEM -f <keyfile>`); the OpenSSH container format is refused
+  with an explicit message. Paste the matching public key in the configuration,
+  or leave it empty for an RSA key and it is derived from the private one.
 
 ### Module Installation
 

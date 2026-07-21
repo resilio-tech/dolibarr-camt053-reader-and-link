@@ -24,6 +24,7 @@ CREATE TABLE llx_camt053readerandlink_sftpconfig(
 	username				varchar(128) NOT NULL,
 	auth_type				varchar(16) DEFAULT 'key' NOT NULL,
 	private_key				text,
+	public_key				text,
 	private_key_passphrase	text,
 	password				text,
 	remote_dir				varchar(255) DEFAULT 'yellow-net-reports' NOT NULL,

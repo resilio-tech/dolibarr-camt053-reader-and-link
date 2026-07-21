@@ -18,27 +18,33 @@
 /**
  * \file       class/SftpFileTransport.class.php
  * \ingroup    camt053readerandlink
- * \brief      SFTP transport (phpseclib 3) to list, download and delete files
- *             on a PostFinance MFTPF server.
+ * \brief      SFTP transport to list, download and delete files on a
+ *             PostFinance MFTPF server.
+ *
+ * Built on the ssh2 PHP extension, which is what Dolibarr core itself uses for
+ * SFTP (see core/lib/ftp.lib.php): the module ships no third-party library.
  *
  * IMPORTANT: PostFinance locks the account after 3 failed logins. This class
  * therefore performs a SINGLE login attempt and never retries.
  */
 
-require_once __DIR__ . '/../libs/autoload.php';
 require_once __DIR__ . '/Camt053SftpConfig.class.php';
+require_once __DIR__ . '/Camt053SshPublicKey.class.php';
 
 /**
  * Class SftpFileTransport
  *
- * Thin wrapper around phpseclib3\Net\SFTP driven by a Camt053SftpConfig.
+ * Thin wrapper around the ssh2 extension driven by a Camt053SftpConfig.
  */
 class SftpFileTransport
 {
 	/** @var Camt053SftpConfig Connection config */
 	private $config;
 
-	/** @var \phpseclib3\Net\SFTP|null Active SFTP client */
+	/** @var resource|null Active SSH session */
+	private $session;
+
+	/** @var resource|null Active SFTP subsystem */
 	private $sftp;
 
 	/** @var string|null Last error message */
@@ -67,22 +73,114 @@ class SftpFileTransport
 	{
 		$this->error = null;
 
-		try {
-			$this->sftp = new \phpseclib3\Net\SFTP($this->config->host, (int) $this->config->port, $this->timeout);
+		if (!function_exists('ssh2_connect')) {
+			$this->error = 'The PHP ssh2 extension is required for SFTP and is not installed on this server';
+			return false;
+		}
 
-			$credential = $this->buildCredential();
-			if ($credential === null) {
+		$session = @ssh2_connect($this->config->host, (int) $this->config->port);
+		if ($session === false) {
+			$this->error = 'Unable to reach ' . $this->config->host . ':' . $this->config->port;
+			return false;
+		}
+
+		if (!$this->authenticate($session)) {
+			return false;
+		}
+
+		$sftp = @ssh2_sftp($session);
+		if ($sftp === false) {
+			$this->error = 'Authenticated, but the server refused to open the SFTP subsystem';
+			return false;
+		}
+
+		$this->session = $session;
+		$this->sftp = $sftp;
+
+		return true;
+	}
+
+	/**
+	 * Perform the single authentication attempt allowed by the remote policy.
+	 *
+	 * @param resource $session Open SSH session
+	 * @return bool True when authenticated (see getError() otherwise)
+	 */
+	private function authenticate($session): bool
+	{
+		if ($this->config->auth_type === 'password') {
+			if (empty($this->config->password)) {
+				$this->error = 'No password configured';
 				return false;
 			}
-
-			if (!$this->sftp->login($this->config->username, $credential)) {
+			if (!@ssh2_auth_password($session, $this->config->username, $this->config->password)) {
 				$this->error = 'SFTP authentication failed for user ' . $this->config->username;
-				$this->sftp = null;
 				return false;
 			}
-		} catch (\Throwable $e) {
-			$this->error = 'SFTP connection error: ' . $e->getMessage();
-			$this->sftp = null;
+
+			return true;
+		}
+
+		return $this->authenticateWithKey($session);
+	}
+
+	/**
+	 * Authenticate with the configured private key.
+	 *
+	 * ssh2_auth_pubkey_file() reads both keys from disk, so the material is
+	 * written to a private directory for the duration of the handshake and
+	 * removed immediately afterwards, whatever the outcome.
+	 *
+	 * @param resource $session Open SSH session
+	 * @return bool
+	 */
+	private function authenticateWithKey($session): bool
+	{
+		if (empty($this->config->private_key)) {
+			$this->error = 'No private key configured';
+			return false;
+		}
+
+		$privateKey = (string) $this->config->private_key;
+		$passphrase = (string) $this->config->private_key_passphrase;
+
+		if (Camt053SshPublicKey::isOpenSshFormat($privateKey)) {
+			$this->error = 'The private key is in the OpenSSH format, which the ssh2 extension cannot read.'
+				. ' Convert it with: ssh-keygen -p -m PEM -f <keyfile>';
+			return false;
+		}
+
+		$publicKey = (string) $this->config->public_key;
+		if ($publicKey === '') {
+			$publicKey = (string) Camt053SshPublicKey::fromPrivateKey($privateKey, $passphrase);
+		}
+		if ($publicKey === '') {
+			$this->error = 'Unable to derive the public key from the private key.'
+				. ' Paste the matching public key in the configuration (RSA keys only).';
+			return false;
+		}
+
+		$paths = $this->writeKeyPair($privateKey, $publicKey);
+		if ($paths === null) {
+			return false;
+		}
+
+		try {
+			$authenticated = @ssh2_auth_pubkey_file(
+				$session,
+				$this->config->username,
+				$paths['public'],
+				$paths['private'],
+				$passphrase !== '' ? $passphrase : null
+			);
+		} finally {
+			foreach ($paths as $path) {
+				@unlink($path);
+			}
+		}
+
+		if (!$authenticated) {
+			$this->error = 'SFTP authentication failed for user ' . $this->config->username;
 			return false;
 		}
 
@@ -90,33 +188,38 @@ class SftpFileTransport
 	}
 
 	/**
-	 * Build the login credential (private key object or password) from config.
+	 * Write the key pair to a private directory readable by this process only.
 	 *
-	 * @return \phpseclib3\Crypt\Common\PrivateKey|string|null Credential, or null on error
+	 * @param string $privateKey Private key material
+	 * @param string $publicKey  Matching OpenSSH public key line
+	 * @return array{private:string,public:string}|null Paths, or null on error
 	 */
-	private function buildCredential()
+	private function writeKeyPair(string $privateKey, string $publicKey): ?array
 	{
-		if ($this->config->auth_type === 'password') {
-			if (empty($this->config->password)) {
-				$this->error = 'No password configured';
+		$dir = DOL_DATA_ROOT . '/camt053readerandlink/keys';
+		if (!is_dir($dir) && !@mkdir($dir, 0700, true) && !is_dir($dir)) {
+			$this->error = 'Unable to create the key directory ' . $dir;
+			return null;
+		}
+		@chmod($dir, 0700);
+
+		$base = $dir . '/' . uniqid('sftp', true);
+		$paths = array('private' => $base, 'public' => $base . '.pub');
+
+		foreach (array($paths['private'] => $privateKey, $paths['public'] => $publicKey) as $path => $content) {
+			// Create empty and lock down the permissions before any key material
+			// touches the file, so it is never briefly world-readable.
+			if (@file_put_contents($path, '') === false || !@chmod($path, 0600)
+				|| @file_put_contents($path, $content) !== strlen($content)) {
+				foreach ($paths as $written) {
+					@unlink($written);
+				}
+				$this->error = 'Unable to write the key material to ' . $dir;
 				return null;
 			}
-			return $this->config->password;
 		}
 
-		// Key authentication
-		if (empty($this->config->private_key)) {
-			$this->error = 'No private key configured';
-			return null;
-		}
-
-		try {
-			$passphrase = (string) $this->config->private_key_passphrase;
-			return \phpseclib3\Crypt\PublicKeyLoader::load($this->config->private_key, $passphrase !== '' ? $passphrase : false);
-		} catch (\Throwable $e) {
-			$this->error = 'Unable to load private key: ' . $e->getMessage();
-			return null;
-		}
+		return $paths;
 	}
 
 	/**
@@ -132,7 +235,7 @@ class SftpFileTransport
 		}
 
 		$dir = $this->config->remote_dir;
-		$names = $this->sftp->nlist($dir);
+		$names = @scandir($this->streamPath($dir));
 		if ($names === false) {
 			$this->error = 'Unable to list remote directory: ' . $dir;
 			return null;
@@ -143,7 +246,7 @@ class SftpFileTransport
 			if ($name === '.' || $name === '..') {
 				continue;
 			}
-			if ($this->sftp->is_dir($dir . '/' . $name)) {
+			if (is_dir($this->streamPath(rtrim($dir, '/') . '/' . $name))) {
 				continue;
 			}
 			if ($pattern !== null && $pattern !== '' && !preg_match($pattern, $name)) {
@@ -168,7 +271,7 @@ class SftpFileTransport
 			return null;
 		}
 
-		$content = $this->sftp->get($this->remotePath($name));
+		$content = @file_get_contents($this->streamPath($this->remotePath($name)));
 		if ($content === false) {
 			$this->error = 'Unable to download remote file: ' . $name;
 			return null;
@@ -189,7 +292,7 @@ class SftpFileTransport
 			return false;
 		}
 
-		if (!$this->sftp->delete($this->remotePath($name), false)) {
+		if (!@ssh2_sftp_unlink($this->sftp, $this->remotePath($name))) {
 			$this->error = 'Unable to delete remote file: ' . $name;
 			return false;
 		}
@@ -204,14 +307,11 @@ class SftpFileTransport
 	 */
 	public function disconnect(): void
 	{
-		if ($this->sftp !== null) {
-			try {
-				$this->sftp->disconnect();
-			} catch (\Throwable $e) {
-				// ignore
-			}
-			$this->sftp = null;
+		if ($this->session !== null && function_exists('ssh2_disconnect')) {
+			@ssh2_disconnect($this->session);
 		}
+		$this->sftp = null;
+		$this->session = null;
 	}
 
 	/**
@@ -233,6 +333,20 @@ class SftpFileTransport
 	private function remotePath(string $name): string
 	{
 		return rtrim($this->config->remote_dir, '/') . '/' . ltrim($name, '/');
+	}
+
+	/**
+	 * Turn a remote path into the stream wrapper URL the ssh2 extension exposes.
+	 *
+	 * The resource id has to be cast to int: that is the documented way to
+	 * address an open SFTP subsystem, and it is what Dolibarr core does too.
+	 *
+	 * @param string $path Absolute or relative remote path
+	 * @return string
+	 */
+	private function streamPath(string $path): string
+	{
+		return 'ssh2.sftp://' . (int) $this->sftp . '/' . ltrim($path, '/');
 	}
 
 	/**
