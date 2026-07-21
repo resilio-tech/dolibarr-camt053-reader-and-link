@@ -182,8 +182,9 @@ Matching algorithm:
 
 #### `DatabaseBankStatementLoader`
 Loads entries from Dolibarr:
-- `loadStatements()`: Loads by date range
-- Queries `llx_bank` and `llx_bank_account`
+- `loadStatements()`: Loads by date range, optionally widened by a day margin so
+  the matcher's date tolerance can reach lines dated just outside the period
+- Queries `llx_bank` and `llx_bank_account`, scoped to the current entity
 
 #### `BankEntryReconciler`
 Performs reconciliation:

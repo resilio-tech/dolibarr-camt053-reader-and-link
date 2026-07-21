@@ -161,66 +161,6 @@ class DatabaseBankStatementLoader
 	}
 
 	/**
-	 * Load statements as flat data array (legacy format)
-	 *
-	 * @param DateTime|string $startDate Start date
-	 * @param DateTime|string $endDate   End date
-	 * @return array Array of entry data with bank_obj
-	 */
-	public function loadFlatData($startDate, $endDate): array
-	{
-		$this->error = null;
-
-		// Normalize dates
-		$startDateStr = $this->formatDateForSql($startDate);
-		$endDateStr = $this->formatDateForSql($endDate);
-
-		if (empty($startDateStr) || empty($endDateStr)) {
-			$this->error = 'Invalid date format';
-			return array();
-		}
-
-		// Build secure SQL query
-		$sql = "SELECT rowid FROM " . MAIN_DB_PREFIX . "bank ";
-		$sql .= "WHERE datev >= DATE('" . $this->db->escape($startDateStr) . "') ";
-		$sql .= "AND datev <= DATE('" . $this->db->escape($endDateStr) . "') ";
-		$sql .= "ORDER BY datev ASC";
-
-		$resql = $this->db->query($sql);
-		if (!$resql) {
-			$this->error = 'Database error: ' . $this->db->lasterror();
-			return array();
-		}
-
-		$data = array();
-		$bankAccount = new Account($this->db);
-
-		while ($obj = $this->db->fetch_object($resql)) {
-			$bankLine = new AccountLine($this->db);
-			$bankLine->fetch($obj->rowid);
-
-			if (empty($bankLine->datev)) {
-				continue;
-			}
-
-			$bankLinks = $bankAccount->get_url($bankLine->id);
-
-			$amount = (float) $bankLine->amount;
-			$valueDate = $this->formatDateValue($bankLine->datev);
-			$name = $this->buildEntryName($bankLine, $bankLinks);
-
-			$data[] = array(
-				'amount' => $amount,
-				'value_date' => $valueDate,
-				'name' => $name,
-				'bank_obj' => $bankLine
-			);
-		}
-
-		return $data;
-	}
-
-	/**
 	 * Get bank account by ID with secure SQL
 	 *
 	 * @param int $bankId Bank account ID
