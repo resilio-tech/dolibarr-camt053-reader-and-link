@@ -65,5 +65,10 @@ function camt053readerandlinkAdminPrepareHead()
 function camt053VerifCsrfToken()
 {
 	$sessiontoken = empty($_SESSION['token']) ? '' : $_SESSION['token'];
+	if ($sessiontoken === '') {
+		// No token in session yet: nothing to compare against, so nothing passes.
+		return false;
+	}
+
 	return (GETPOSTISSET('token') && GETPOST('token', 'alpha') === $sessiontoken);
 }
