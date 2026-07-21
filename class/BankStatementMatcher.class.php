@@ -91,10 +91,22 @@ class BankStatementMatcher
 
 		// Track which DB entries have been matched
 		$matchedDbEntries = array();
+		// DB entries auto-linked to a file entry. They are removed from the pool
+		// so a second identical file entry cannot claim the same bank line.
+		// Candidates merely offered in a multi-match dropdown stay available: the
+		// user still has to pick, and each entry needs the full choice.
+		$claimedDbEntries = array();
 
 		// For each file entry, find matching DB entries
 		foreach ($fileEntries as $fileEntry) {
-			$matches = $this->findMatches($fileEntry, $dbEntries);
+			$available = array();
+			foreach ($dbEntries as $dbEntry) {
+				if (!isset($claimedDbEntries[spl_object_id($dbEntry)])) {
+					$available[] = $dbEntry;
+				}
+			}
+
+			$matches = $this->findMatches($fileEntry, $available);
 
 			if (count($matches) === 0) {
 				// No match found
@@ -117,6 +129,7 @@ class BankStatementMatcher
 						'db' => $dbEntry
 					);
 					$matchedDbEntries[] = spl_object_id($dbEntry);
+					$claimedDbEntries[spl_object_id($dbEntry)] = true;
 				}
 			} else {
 				// Multiple matches - filter out already reconciled
@@ -139,6 +152,7 @@ class BankStatementMatcher
 						'db' => $nonReconciledMatches[0]
 					);
 					$matchedDbEntries[] = spl_object_id($nonReconciledMatches[0]);
+					$claimedDbEntries[spl_object_id($nonReconciledMatches[0])] = true;
 				} else {
 					// Multiple non-reconciled matches - user must choose
 					$multiples[] = array(
@@ -288,40 +302,15 @@ class BankStatementMatcher
 			}
 		}
 
-		// A line inside the period beats one from the margin. Without this, a
-		// recurring amount (rent, salary, subscription) turns a clean auto-link
+		// A line inside the period always beats one from the margin. Without this,
+		// a recurring amount (rent, salary, subscription) turns a clean auto-link
 		// into an ambiguity prompt every month, and picking the margin line would
 		// reconcile the neighbouring period's entry onto this statement.
-		// The preference only applies while the period still has something left to
-		// reconcile: if every in-period candidate is already rapproché, the margin
-		// ones must stay on the table, otherwise compare() reports the entry as
-		// already reconciled and hides the line that actually matches it.
-		if (empty($matches)) {
-			return $marginMatches;
-		}
-		if (empty($marginMatches) || $this->hasUnreconciled($matches)) {
-			return $matches;
-		}
-
-		return array_merge($matches, $marginMatches);
-	}
-
-	/**
-	 * Whether at least one entry is not reconciled yet.
-	 *
-	 * @param Camt053Entry[] $entries Candidate entries
-	 * @return bool
-	 */
-	private function hasUnreconciled(array $entries): bool
-	{
-		foreach ($entries as $entry) {
-			$bankLine = $entry->getBankLine();
-			if (!$bankLine || $bankLine->rappro != 1) {
-				return true;
-			}
-		}
-
-		return false;
+		// The preference holds even when the in-period line is already rapproché:
+		// an in-period line reconciled means this very statement was already
+		// imported, and re-importing it must stay idempotent ("already
+		// reconciled") instead of falling back to an unrelated margin line.
+		return !empty($matches) ? $matches : $marginMatches;
 	}
 
 	/**
