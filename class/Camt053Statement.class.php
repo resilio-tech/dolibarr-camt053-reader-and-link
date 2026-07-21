@@ -209,17 +209,6 @@ class Camt053Statement
 	}
 
 	/**
-	 * Clear all entries
-	 *
-	 * @return void
-	 */
-	public function clearEntries(): void
-	{
-		$this->entries = array();
-		$this->takenHashes = array();
-	}
-
-	/**
 	 * Check if statement is from file
 	 *
 	 * @return bool
