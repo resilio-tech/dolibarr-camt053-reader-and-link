@@ -61,7 +61,6 @@ include_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/compta/bank/class/account.class.php';
 
 // Load module classes
-require_once __DIR__ . '/class/BankEntryReconciler.class.php';
 require_once __DIR__ . '/lib/camt053readerandlink.lib.php';
 
 // Load translation files required by the page
@@ -151,7 +150,6 @@ print '<td class="right">'.$langs->trans('Amount').'</td>';
 print '</tr>';
 
 $bank_account = new Account($db);
-$reconciler = new BankEntryReconciler($db, $user);
 
 // Counters and errors to give visible feedback instead of failing silently
 $reconcileSuccess = 0;

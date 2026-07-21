@@ -89,7 +89,6 @@ camt053readerandlink/
 │   ├── Camt053FileProcessor.class.php  # Secure XML parser
 │   ├── BankStatementMatcher.class.php  # Matching algorithm
 │   ├── DatabaseBankStatementLoader.class.php  # DB loading
-│   ├── BankEntryReconciler.class.php   # Reconciliation
 │   └── BankRelationshipLookup.class.php  # Third party lookup
 ├── core/modules/
 │   └── modCamt053ReaderAndLink.class.php  # Module descriptor
@@ -186,11 +185,6 @@ Loads entries from Dolibarr:
   day margin so the matcher's date tolerance can reach a line keyed a day early.
   Lines from that margin are flagged out of period: matchable, never listed.
 - Queries `llx_bank` and `llx_bank_account`, scoped to the current entity
-
-#### `BankEntryReconciler`
-Performs reconciliation:
-- `reconcile()`: Marks an entry as reconciled
-- Updates `rappro = 1` and `num_releve`
 
 ---
 
