@@ -71,6 +71,13 @@ $date = GETPOST('date', 'alphanohtml');
 
 $error = '';
 
+// The amount comes from the URL and is prefilled into the form posted to
+// core's transfer.php, which accepts a negative amount on a labelled line and
+// would book the transfer the wrong way round.
+if ($amount <= 0) {
+	$error = $langs->trans('Camt053TransferInvalidAmount');
+}
+
 $accountFrom = new Account($db);
 $accountTo = new Account($db);
 if ($fromId <= 0 || $toId <= 0 || $fromId === $toId) {
@@ -93,7 +100,11 @@ if ($fromId <= 0 || $toId <= 0 || $fromId === $toId) {
 $day = (int) date('j');
 $month = (int) date('n');
 $year = (int) date('Y');
-if (preg_match('/^(\d{4})-(\d{2})-(\d{2})/', (string) $date, $m)) {
+// Anchored at both ends and checked against the calendar: a partial match let
+// "2026-13-45anything" through, which dol_mktime() then rolled into a real but
+// unintended transfer date.
+if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', (string) $date, $m)
+	&& checkdate((int) $m[2], (int) $m[3], (int) $m[1])) {
 	$year = (int) $m[1];
 	$month = (int) $m[2];
 	$day = (int) $m[3];
@@ -112,7 +123,8 @@ function camt053_currency_rate($db, string $code, int $entity): float
 	$sql .= " JOIN ".MAIN_DB_PREFIX."multicurrency_rate r ON r.fk_multicurrency = m.rowid";
 	$sql .= " WHERE m.code = '".$db->escape($code)."' AND m.entity = ".((int) $entity);
 	$sql .= " ORDER BY r.date_sync DESC";
-	$db->plimit(1);
+	// plimit() returns the clause, it does not modify the query.
+	$sql .= $db->plimit(1);
 	$resql = $db->query($sql);
 	if ($resql && ($o = $db->fetch_object($resql)) && (float) $o->rate > 0) {
 		return (float) $o->rate;
@@ -162,9 +174,10 @@ print '<input type="hidden" name="1_day" value="'.((int) $day).'">';
 print '<input type="hidden" name="1_month" value="'.((int) $month).'">';
 print '<input type="hidden" name="1_year" value="'.((int) $year).'">';
 
-// transfer.php loops over MAXLINESFORTRANSFERT (20) lines and treats a line as
-// active unless its accounts are < 0. Mark the unused lines as empty (-1) so
-// only line 1 (our transfer) is processed.
+// transfer.php iterates `$i = 1; while ($i < MAXLINESFORTRANSFERT)`, so it reads
+// lines 1 to 19 and treats a line as active unless its accounts are < 0. Mark
+// lines 2 to 19 as empty (-1) so only line 1, our transfer, is processed. There
+// is no line 20: the loop bound is exclusive.
 for ($k = 2; $k < 20; $k++) {
 	print '<input type="hidden" name="'.$k.'_account_from" value="-1">';
 	print '<input type="hidden" name="'.$k.'_account_to" value="-1">';
