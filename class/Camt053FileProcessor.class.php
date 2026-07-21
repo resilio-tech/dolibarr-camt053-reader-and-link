@@ -336,8 +336,12 @@ class Camt053FileProcessor
 			}
 		}
 
-		// Get hash (account service reference)
+		// Get hash (account service reference). A self-closed <AcctSvcrRef/> comes
+		// back as an empty array from the SimpleXML round trip, which the entry
+		// constructor would reject: normalise anything but a usable string to
+		// null so the entry falls back to its content hash.
 		$hash = $this->getArrayValue($entry, array('AcctSvcrRef'));
+		$hash = (is_string($hash) && $hash !== '') ? $hash : null;
 
 		// Determine type name for party lookup
 		$typeNm = ($type === 'DBIT') ? 'Dbtr' : 'Cdtr';
@@ -378,7 +382,7 @@ class Camt053FileProcessor
 		$camt053Entry = new Camt053Entry($amount, $valueDate, $name, $info, $hash);
 
 		// Currency: per-entry Amt@Ccy captured from SimpleXML, else statement currency.
-		$ref = is_string($hash) ? $hash : '';
+		$ref = (string) $hash;
 		$currency = ($ref !== '' && isset($this->entryCurrencyByRef[$ref]))
 			? $this->entryCurrencyByRef[$ref]
 			: $statementCcy;
