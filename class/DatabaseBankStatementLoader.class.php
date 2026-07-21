@@ -64,14 +64,19 @@ class DatabaseBankStatementLoader
 	 * @param DateTime|string $startDate Start date
 	 * @param DateTime|string $endDate   End date
 	 * @param int|null        $accountId Optional: limit to specific bank account
-	 * @param int             $dayMargin Extra days loaded before and after the period.
-	 *                                   A Dolibarr line dated one day off the CAMT
-	 *                                   booking date (typical for manually entered
-	 *                                   salaries and various payments) must still be
-	 *                                   reachable by the matcher's date tolerance.
-	 *                                   Entries loaded from that margin are flagged
-	 *                                   out of period so they are only ever matched,
-	 *                                   never listed on their own.
+	 * @param int             $dayMargin Extra days loaded *before* the period. A
+	 *                                   Dolibarr line keyed a day early (salary paid
+	 *                                   the 30th, booked by the bank the 1st) must
+	 *                                   stay reachable by the matcher's date
+	 *                                   tolerance. Entries from that margin are
+	 *                                   flagged out of period: they can be matched,
+	 *                                   but never listed on their own.
+	 *                                   The margin is deliberately not applied after
+	 *                                   the period: a line dated past the end belongs
+	 *                                   to the next statement, and absorbing it here
+	 *                                   would stamp it with this statement's number
+	 *                                   and silently hide a missing payment. The next
+	 *                                   import sees it in period anyway.
 	 * @return array<int, Camt053Statement> Statements indexed by account ID
 	 */
 	public function loadStatements($startDate, $endDate, ?int $accountId = null, int $dayMargin = 0): array
@@ -89,7 +94,7 @@ class DatabaseBankStatementLoader
 
 		$dayMargin = max(0, $dayMargin);
 		$loadStartStr = $this->shiftDate($startDateStr, -$dayMargin);
-		$loadEndStr = $this->shiftDate($endDateStr, $dayMargin);
+		$loadEndStr = $endDateStr;
 
 		// Build secure SQL query. Join bank_account to keep entries scoped to the
 		// current entity: a bank line from another entity must never be matched.

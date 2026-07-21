@@ -246,6 +246,7 @@ class BankStatementMatcher
 	public function findMatches(Camt053Entry $fileEntry, array $dbEntries): array
 	{
 		$matches = array();
+		$marginMatches = array();
 
 		$fileAmount = $this->formatAmount($fileEntry->getAmount());
 		$fileDate = $this->parseDate($fileEntry->getValueDate());
@@ -279,11 +280,19 @@ class BankStatementMatcher
 
 			// Check date within tolerance
 			if ($this->datesMatch($fileDate, $dbDate)) {
-				$matches[] = $dbEntry;
+				if ($dbEntry->isInPeriod()) {
+					$matches[] = $dbEntry;
+				} else {
+					$marginMatches[] = $dbEntry;
+				}
 			}
 		}
 
-		return $matches;
+		// A line inside the period always beats one from the margin. Without this,
+		// a recurring amount (rent, salary, subscription) turns a clean auto-link
+		// into an ambiguity prompt every month, and picking the margin line would
+		// reconcile the neighbouring period's entry onto this statement.
+		return !empty($matches) ? $matches : $marginMatches;
 	}
 
 	/**

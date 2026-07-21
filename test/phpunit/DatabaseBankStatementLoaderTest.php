@@ -212,9 +212,10 @@ class DatabaseBankStatementLoaderTest extends TestCase
 	}
 
 	/**
-	 * With a margin, the window is widened on both sides so a bank line dated
-	 * just outside the period (salary paid on the 30th, booked on the 1st) is
-	 * still reachable by the matcher's date tolerance.
+	 * With a margin, the window is widened backwards only, so a bank line keyed
+	 * a day early (salary paid on the 30th, booked on the 1st) is still
+	 * reachable by the matcher's date tolerance. It is never widened forwards:
+	 * a line dated past the end belongs to the next statement.
 	 *
 	 * @runInSeparateProcess
 	 * @preserveGlobalState disabled
@@ -230,11 +231,11 @@ class DatabaseBankStatementLoaderTest extends TestCase
 		$loader->loadStatements('01/06/2024', '30/06/2024', null, 1);
 
 		$this->assertStringContainsString("b.datev >= DATE('2024-05-31')", $db->lastSql());
-		$this->assertStringContainsString("b.datev <= DATE('2024-07-01')", $db->lastSql());
+		$this->assertStringContainsString("b.datev <= DATE('2024-06-30')", $db->lastSql());
 	}
 
 	/**
-	 * The margin crosses year boundaries.
+	 * The backward margin crosses year boundaries.
 	 *
 	 * @runInSeparateProcess
 	 * @preserveGlobalState disabled
@@ -250,7 +251,7 @@ class DatabaseBankStatementLoaderTest extends TestCase
 		$loader->loadStatements('01/01/2024', '31/12/2024', null, 2);
 
 		$this->assertStringContainsString("b.datev >= DATE('2023-12-30')", $db->lastSql());
-		$this->assertStringContainsString("b.datev <= DATE('2025-01-02')", $db->lastSql());
+		$this->assertStringContainsString("b.datev <= DATE('2024-12-31')", $db->lastSql());
 	}
 
 	/**
