@@ -503,6 +503,70 @@ class Camt053FileProcessorTest extends TestCase
 	}
 
 	/**
+	 * The same rule in the second block: a reference repeated inside block 2 is
+	 * kept, while the copy of block 1's reference is dropped. Pins the dedup to
+	 * the real block index rather than a constant.
+	 *
+	 * @runInSeparateProcess
+	 * @preserveGlobalState disabled
+	 * @return void
+	 */
+	public function testRepeatedReferenceInsideTheSecondBlockIsKept(): void
+	{
+		if (!defined('MAIN_DB_PREFIX')) {
+			define('MAIN_DB_PREFIX', 'llx_');
+		}
+		if (!function_exists('getEntity')) {
+			function getEntity($element = '', $shared = 1, $currentobject = null)
+			{
+				return '1';
+			}
+		}
+
+		$mockAccount = new stdClass();
+		$mockAccount->rowid = 7;
+		$this->mockDb->setQueryResult(true);
+		$this->mockDb->setFetchResult($mockAccount);
+
+		$ntry = function ($amount, $day, $ref) {
+			return array(
+				'Amt' => $amount,
+				'CdtDbtInd' => 'CRDT',
+				'ValDt' => array('Dt' => '2024-01-' . $day),
+				'AcctSvcrRef' => $ref,
+			);
+		};
+		$acct = array('Id' => array('IBAN' => 'BE71096123456769'));
+
+		$structure = array(
+			'BkToCstmrStmt' => array(
+				'GrpHdr' => array('MsgId' => 'TEST', 'CreDtTm' => '2024-01-31T12:00:00'),
+				'Stmt' => array(
+					array('Acct' => $acct, 'Ntry' => array($ntry('100.00', '15', 'REF-A'))),
+					array('Acct' => $acct, 'Ntry' => array(
+						// Re-report of block 1: dropped.
+						$ntry('100.00', '15', 'REF-A'),
+						// Two real movements of block 2 sharing a reference: kept.
+						$ntry('300.00', '20', 'REF-B'),
+						$ntry('400.00', '21', 'REF-B'),
+					)),
+				),
+			),
+		);
+
+		$processor = new Camt053FileProcessor($this->mockDb);
+		$this->assertTrue($processor->parseStructure($structure));
+
+		$amounts = array();
+		foreach ($processor->getStatementsByAccountId()[7]->getEntries() as $entry) {
+			$amounts[] = $entry->getAmount();
+		}
+		sort($amounts);
+
+		$this->assertSame(array(100.0, 300.0, 400.0), $amounts);
+	}
+
+	/**
 	 * The merged statement keeps the identity the rest of the module reads from
 	 * it: origin flag, IBAN and creation date.
 	 *
