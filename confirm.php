@@ -253,7 +253,8 @@ try {
 			$name .= ' - ' . dol_escape_htmltag($bank_links[1]['label']);
 		}
 
-		$name = '<a href="' . DOL_URL_ROOT . '/compta/bank/line.php?rowid=' . ((int)$obj->id) . '&save_lastsearch_values=1" title="' . dol_escape_htmltag($name, 1) . '" class="classfortooltip" target="_blank">' . img_picto('', $obj->picto) . ' ' . $obj->id . ' ' . $name . '</a>';
+		$lineUrl = DOL_URL_ROOT . '/compta/bank/line.php?rowid=' . ((int) $obj->id) . '&save_lastsearch_values=1';
+		$name = '<a href="' . dol_escape_htmltag($lineUrl) . '" title="' . dol_escape_htmltag($name, 1) . '" class="classfortooltip" target="_blank" rel="noopener noreferrer">' . img_picto('', $obj->picto) . ' ' . $obj->id . ' ' . $name . '</a>';
 
 		print '<tr>';
 		print '<td>' . $name . '</td>';

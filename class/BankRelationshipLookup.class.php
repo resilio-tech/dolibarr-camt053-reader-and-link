@@ -213,7 +213,7 @@ class BankRelationshipLookup
 			$icon = img_picto('', 'supplier_invoice');
 		}
 
-		return '<a href="' . $url . '" title="' . $title . '" class="classfortooltip" target="_blank">'
+		return '<a href="' . dol_escape_htmltag($url) . '" title="' . $title . '" class="classfortooltip" target="_blank" rel="noopener noreferrer">'
 			. $icon . ' ' . ((int) $invoice->rowid) . ' ' . $name . '</a>';
 	}
 
@@ -228,7 +228,7 @@ class BankRelationshipLookup
 		$name = dol_escape_htmltag($bankLine->label);
 		$url = DOL_URL_ROOT . '/compta/bank/line.php?rowid=' . ((int) $bankLine->rowid) . '&save_lastsearch_values=1';
 
-		return '<a href="' . $url . '" title="' . $name . '" class="classfortooltip" target="_blank">'
+		return '<a href="' . dol_escape_htmltag($url) . '" title="' . $name . '" class="classfortooltip" target="_blank" rel="noopener noreferrer">'
 			. img_picto('', 'bank') . ' ' . ((int) $bankLine->rowid) . ' ' . $name . '</a>';
 	}
 

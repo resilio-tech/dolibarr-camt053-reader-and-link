@@ -141,7 +141,7 @@ function camt053_render_suggestions($entry, $entity, $accountId, $finder, $detec
 	$transfer = $detector->detect($entry, (int) $accountId, (int) $entity);
 	if ($transfer !== null) {
 		$label = $langs->trans('Camt053SuggestInternalTransfer', dol_escape_htmltag($transfer['counterparty_ref']));
-		$out[] = '<a href="' . $detector->confirmUrl($transfer) . '">'
+		$out[] = '<a href="' . dol_escape_htmltag($detector->confirmUrl($transfer)) . '">'
 			. img_picto('', 'bank_account', 'class="paddingright"') . $label . '</a>';
 	}
 
@@ -163,7 +163,7 @@ function camt053_render_suggestions($entry, $entity, $accountId, $finder, $detec
 	foreach ($suggestions['links'] as $link) {
 		if ($link['kind'] === 'pay') {
 			$label = $langs->trans($labelKeys[$link['type']], dol_escape_htmltag($link['ref']));
-			$out[] = '<a href="' . $link['url'] . '" target="_blank">'
+			$out[] = '<a href="' . dol_escape_htmltag($link['url']) . '" target="_blank" rel="noopener noreferrer">'
 				. img_picto('', $pictos[$link['type']], 'class="paddingright"') . $label . '</a>';
 		} else {
 			// Several documents share this amount: let the user pick which one to pay.
