@@ -353,10 +353,8 @@ if ($action == 'upload') {
 			setEventMessages($langs->trans('AllEntriesReconciled'), null, 'mesgs');
 		}
 	} catch (Throwable $e) {
+		// Throwable already covers Error and Exception; no narrower catch below.
 		dol_syslog('CAMT053: Error processing file - ' . $e->getMessage(), LOG_ERR);
-		$processError = $e->getMessage();
-	} catch (TypeError $e) {
-		dol_syslog('CAMT053: Type error processing file - ' . $e->getMessage(), LOG_ERR);
 		$processError = $e->getMessage();
 	}
 }
@@ -443,7 +441,11 @@ if (!empty($banks)) {
 				print '<td>' . dol_escape_htmltag($entry['value_date']) . '</td>';
 				print '<td>' . dol_escape_htmltag($entry['name']) . '<br /><span class="info">' . dol_escape_htmltag($entry['info']) . '</span></td>';
 				print '<td><div class="statement_link_linked">' . $langs->trans('WillBeConciliated') . '</div></td>';
-				print '<td>' . $name . '<input type="hidden" name="linked[' . dol_escape_htmltag($n_obj['file']->getHash()) . ']" value="' . ((int) $o->rowid) . '" /></td>';
+				// The field key must be unique across the whole form, which spans
+				// every account of the file: two accounts can carry an identical
+				// movement, and hashes are only deduplicated within a statement.
+				$fieldKey = ((int) $accountId) . '-' . $n_obj['file']->getHash();
+				print '<td>' . $name . '<input type="hidden" name="linked[' . dol_escape_htmltag($fieldKey) . ']" value="' . ((int) $o->rowid) . '" /></td>';
 				print '</tr>';
 			}
 
@@ -476,7 +478,7 @@ if (!empty($banks)) {
 					}
 					$array[$id] = '(' . $id . ') ' . $doc . $n . '<br />' . $a . '<br />' . $d;
 				}
-				print $form->selectMassAction('', $array, 1, 'linked_' . dol_escape_htmltag($ntry_hash));
+				print $form->selectMassAction('', $array, 1, 'linked_' . dol_escape_htmltag(((int) $accountId) . '-' . $ntry_hash));
 				print '</td>';
 				print '</tr>';
 			}
