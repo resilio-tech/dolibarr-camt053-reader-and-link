@@ -17,9 +17,10 @@ Bank reconciliation module that allows importing bank statements in CAMT.053 for
 
 ### Prerequisites
 
-- Dolibarr >= 11.0
-- PHP >= 7.0
-- Bank module enabled in Dolibarr
+- Dolibarr >= 17.0 (the code relies on `isModEnabled()`, `getDolGlobalString()`,
+  `$user->hasRight()` and `GETPOSTINT()`; only Dolibarr 24 is actively tested)
+- PHP >= 7.4
+- Bank module enabled in Dolibarr (declared as a module dependency)
 
 ### Module Installation
 
@@ -106,8 +107,7 @@ camt053readerandlink/
 │   └── fixtures/sample_camt053.xml     # Test file
 ├── index.php                           # Upload page
 ├── submit.php                          # Processing + comparison
-├── confirm.php                         # Reconciliation confirmation
-└── statements.php                      # Legacy classes
+└── confirm.php                         # Reconciliation confirmation
 ```
 
 ### Flow Diagram
@@ -182,8 +182,9 @@ Matching algorithm:
 
 #### `DatabaseBankStatementLoader`
 Loads entries from Dolibarr:
-- `loadStatements()`: Loads by date range, optionally widened by a day margin so
-  the matcher's date tolerance can reach lines dated just outside the period
+- `loadStatements()`: Loads by date range, optionally widened *backwards* by a
+  day margin so the matcher's date tolerance can reach a line keyed a day early.
+  Lines from that margin are flagged out of period: matchable, never listed.
 - Queries `llx_bank` and `llx_bank_account`, scoped to the current entity
 
 #### `BankEntryReconciler`
