@@ -175,7 +175,7 @@ if (empty($list)) {
 		$lastrun = $cfg->last_run ? dol_print_date($cfg->last_run, 'dayhour') : '<span class="opacitymedium">-</span>';
 		print '<td>'.$lastrun.'</td>';
 		print '<td class="right nowraponall">';
-		print '<a class="butActionDelete small" href="'.$_SERVER["PHP_SELF"].'?action=testconn&id='.$cfg->id.'&token='.newToken().'" style="background:none;color:inherit;border:1px solid #ccc;">'.img_picto($langs->trans("Camt053SftpTest"), 'network-tower', 'class="pictofixedwidth"').$langs->trans("Camt053SftpTest").'</a>';
+		print '<a class="butAction small" href="'.$_SERVER["PHP_SELF"].'?action=testconn&id='.$cfg->id.'&token='.newToken().'">'.img_picto($langs->trans("Camt053SftpTest"), 'network-tower', 'class="pictofixedwidth"').$langs->trans("Camt053SftpTest").'</a>';
 		print ' <a class="editfielda" href="'.$editlink.'">'.img_edit().'</a>';
 		print ' <a class="reposition" href="'.$_SERVER["PHP_SELF"].'?action=delete&id='.$cfg->id.'&token='.newToken().'">'.img_delete().'</a>';
 		print '</td>';
