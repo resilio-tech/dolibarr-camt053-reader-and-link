@@ -491,7 +491,13 @@ class Camt053FileProcessor
 	}
 
 	/**
-	 * Get statements indexed by account ID
+	 * Get statements indexed by account ID.
+	 *
+	 * A CAMT.053 document may carry several <Stmt> blocks for the same account
+	 * (monthly bundles routinely do). Their entries are merged into one statement
+	 * instead of the last block overwriting the previous ones, which used to drop
+	 * entries silently: they were never displayed, never reconciled, and the cron
+	 * still marked the file processed and deleted it from the SFTP server.
 	 *
 	 * @return array<int, Camt053Statement>
 	 */
@@ -500,8 +506,19 @@ class Camt053FileProcessor
 		$result = array();
 		foreach ($this->statements as $statement) {
 			$accountId = $statement->getAccountId();
-			if ($accountId !== null) {
+			if ($accountId === null) {
+				continue;
+			}
+
+			if (!isset($result[$accountId])) {
 				$result[$accountId] = $statement;
+				continue;
+			}
+
+			// Merge through addEntry() so the hash deduplication still applies
+			// across blocks.
+			foreach ($statement->getEntries() as $entry) {
+				$result[$accountId]->addEntry($entry);
 			}
 		}
 		return $result;

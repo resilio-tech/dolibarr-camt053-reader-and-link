@@ -322,6 +322,77 @@ class Camt053FileProcessorTest extends TestCase
 	}
 
 	/**
+	 * A document carrying several <Stmt> blocks for the same account must keep
+	 * every entry: the blocks are merged, not overwritten. Losing them is
+	 * invisible in the UI, and the cron would delete the source file from the
+	 * SFTP server afterwards.
+	 *
+	 * @runInSeparateProcess
+	 * @preserveGlobalState disabled
+	 * @return void
+	 */
+	public function testStatementsOfTheSameAccountAreMerged(): void
+	{
+		// The IBAN lookup is skipped unless the Dolibarr context is present.
+		if (!defined('MAIN_DB_PREFIX')) {
+			define('MAIN_DB_PREFIX', 'llx_');
+		}
+		if (!function_exists('getEntity')) {
+			function getEntity($element = '', $shared = 1, $currentobject = null)
+			{
+				return '1';
+			}
+		}
+
+		$mockAccount = new stdClass();
+		$mockAccount->rowid = 7;
+		$this->mockDb->setQueryResult(true);
+		$this->mockDb->setFetchResult($mockAccount);
+
+		$makeStmt = function ($refs) {
+			$entries = array();
+			foreach ($refs as $i => $ref) {
+				$entries[] = array(
+					'Amt' => (string) (100 * ($i + 1)) . '.00',
+					'CdtDbtInd' => 'CRDT',
+					'ValDt' => array('Dt' => '2024-01-1' . ($i + 1)),
+					'AcctSvcrRef' => $ref,
+				);
+			}
+			return array(
+				'Acct' => array('Id' => array('IBAN' => 'BE71096123456769')),
+				'Ntry' => $entries,
+			);
+		};
+
+		$structure = array(
+			'BkToCstmrStmt' => array(
+				'GrpHdr' => array('MsgId' => 'TEST', 'CreDtTm' => '2024-01-31T12:00:00'),
+				'Stmt' => array(
+					$makeStmt(array('REF-A', 'REF-B')),
+					$makeStmt(array('REF-C')),
+				),
+			),
+		);
+
+		$processor = new Camt053FileProcessor($this->mockDb);
+		$this->assertTrue($processor->parseStructure($structure));
+		$this->assertCount(2, $processor->getStatements());
+
+		$byAccount = $processor->getStatementsByAccountId();
+
+		$this->assertArrayHasKey(7, $byAccount);
+		$this->assertCount(1, $byAccount, 'Both blocks belong to the same account');
+		$this->assertCount(3, $byAccount[7]->getEntries(), 'No entry may be dropped');
+
+		$hashes = array();
+		foreach ($byAccount[7]->getEntries() as $entry) {
+			$hashes[] = $entry->getHash();
+		}
+		$this->assertCount(3, array_unique($hashes), 'Merged entries keep distinct form keys');
+	}
+
+	/**
 	 * Test parsing XML with single entry (not array)
 	 *
 	 * @return void
