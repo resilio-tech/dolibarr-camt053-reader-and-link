@@ -55,3 +55,15 @@ function camt053readerandlinkAdminPrepareHead()
 
 	return $head;
 }
+
+/**
+ * Check the anti-CSRF token submitted with a form against the session token.
+ * Mirrors the check done by Dolibarr in main.inc.php (token vs $_SESSION['token']).
+ *
+ * @return bool  True if the submitted token is valid.
+ */
+function verifCsrfToken()
+{
+	$sessiontoken = empty($_SESSION['token']) ? '' : $_SESSION['token'];
+	return (GETPOSTISSET('token') && GETPOST('token', 'alpha') === $sessiontoken);
+}
