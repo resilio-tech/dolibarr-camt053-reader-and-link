@@ -129,7 +129,7 @@ class BankRelationshipLookup
 		$sql .= "LEFT JOIN " . MAIN_DB_PREFIX . "paiement_facture AS pf ON f.rowid = pf.fk_facture ";
 		$sql .= "LEFT JOIN " . MAIN_DB_PREFIX . "paiement AS p ON pf.fk_paiement = p.rowid ";
 		$sql .= "WHERE p.fk_bank = " . ((int) $lineId);
-		$sql .= " AND f.entity IN (" . getEntity('facture') . ")";
+		$sql .= " AND f.entity IN (" . getEntity('invoice') . ")";
 
 		$resql = $this->db->query($sql);
 		if ($resql) {
@@ -155,7 +155,7 @@ class BankRelationshipLookup
 		$sql .= "LEFT JOIN " . MAIN_DB_PREFIX . "paiementfourn_facturefourn AS pf ON f.rowid = pf.fk_facturefourn ";
 		$sql .= "LEFT JOIN " . MAIN_DB_PREFIX . "paiementfourn AS p ON pf.fk_paiementfourn = p.rowid ";
 		$sql .= "WHERE p.fk_bank = " . ((int) $lineId);
-		$sql .= " AND f.entity IN (" . getEntity('facture_fourn') . ")";
+		$sql .= " AND f.entity IN (" . getEntity('supplier_invoice') . ")";
 
 		$resql = $this->db->query($sql);
 		if ($resql) {
