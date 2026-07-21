@@ -29,30 +29,45 @@ jobs:
 
       - name: Get module version
         id: version
+        # Never interpolate ${{ }} straight into the shell: a tag name may
+        # contain backticks, $() and ; , which would run as code in this job.
+        # Everything goes through the environment instead.
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+          REF_NAME: ${{ github.ref_name }}
+          REF: ${{ github.ref }}
         run: |
-          if [ -n "${{ github.event.inputs.version }}" ]; then
-            VERSION="${{ github.event.inputs.version }}"
-          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            VERSION="${{ github.ref_name }}"
-            VERSION="${VERSION#v}"
+          if [ -n "$INPUT_VERSION" ]; then
+            VERSION="$INPUT_VERSION"
+          elif [ "${REF#refs/tags/v}" != "$REF" ]; then
+            VERSION="${REF_NAME#v}"
           else
             # Extract version from module descriptor
             VERSION=$(grep -oP "\\\$this->version\s*=\s*'\K[^']+" core/modules/modCamt053ReaderAndLink.class.php)
           fi
+
+          # Only a plain version string may reach sed, filenames and git below.
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+(\.[0-9]+)*([.-][A-Za-z0-9]+)*$'; then
+            echo "Refusing to build: unexpected version string '$VERSION'" >&2
+            exit 1
+          fi
+
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Module version: $VERSION"
 
       - name: Stamp the version into the module descriptor
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
           # Must run before packaging: otherwise the published zip installs a
           # module still reporting the previous (pre-release) version.
           sed -i "s/\$this->version = '[^']*'/\$this->version = '$VERSION'/" core/modules/modCamt053ReaderAndLink.class.php
           grep -n "this->version" core/modules/modCamt053ReaderAndLink.class.php
 
       - name: Create module package
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
           MODULE_NAME="camt053readerandlink"
           PACKAGE_NAME="module_${MODULE_NAME}-${VERSION}"
 
@@ -91,8 +106,11 @@ jobs:
           path: module_camt053readerandlink-${{ steps.version.outputs.version }}.zip
           retention-days: 30
 
+      # On a `release` event github.ref is also refs/tags/v..., so this must be
+      # narrowed to the tag push, otherwise it runs alongside "Upload to Release"
+      # and regenerates the notes of an already published release.
       - name: Create Release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v1
         with:
           files: module_camt053readerandlink-${{ steps.version.outputs.version }}.zip
@@ -110,9 +128,9 @@ jobs:
 
       - name: Commit version update
         if: github.event_name == 'release'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
-
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
@@ -130,6 +148,13 @@ jobs:
           fi
 
           sed -i "s/\$this->version = '[^']*'/\$this->version = '$VERSION'/" core/modules/modCamt053ReaderAndLink.class.php
+
+          # The sed above assumes exact spacing; make a silent no-op fatal here
+          # rather than letting `git commit` fail with "nothing to commit".
+          if git diff --quiet core/modules/modCamt053ReaderAndLink.class.php; then
+            echo "Version stamping did not change the descriptor, check its formatting" >&2
+            exit 1
+          fi
 
           git add core/modules/modCamt053ReaderAndLink.class.php
           git commit -m "chore: bump version to $VERSION"
