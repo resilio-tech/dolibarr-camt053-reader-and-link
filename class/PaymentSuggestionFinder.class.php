@@ -61,11 +61,13 @@ class PaymentSuggestionFinder
 	/**
 	 * Find payment suggestions for one unreconciled file entry.
 	 *
-	 * @param Camt053Entry $entry  Entry from the CAMT.053 file (not in Dolibarr)
-	 * @param int          $entity Entity of the bank account
+	 * @param Camt053Entry $entry     Entry from the CAMT.053 file (not in Dolibarr)
+	 * @param int          $entity    Entity of the bank account
+	 * @param int          $accountId Bank account the statement belongs to; preselected
+	 *                                on the payment page (0 to leave the choice open)
 	 * @return array{currency:string, links:array<int,array>} Link descriptors
 	 */
-	public function findForEntry(Camt053Entry $entry, int $entity): array
+	public function findForEntry(Camt053Entry $entry, int $entity, int $accountId = 0): array
 	{
 		if ($entity <= 0) {
 			global $conf;
@@ -107,7 +109,7 @@ class PaymentSuggestionFinder
 					'label' => $c['label'],
 					'amount' => $c['remaining'],
 					'currency' => $currency,
-					'url' => $this->payUrl($type, $c['id'], $c['remaining'], $date, $currency),
+					'url' => $this->payUrl($type, $c['id'], $c['remaining'], $date, $currency, $accountId),
 				);
 			} else {
 				$options = array();
@@ -118,7 +120,7 @@ class PaymentSuggestionFinder
 						'label' => $c['label'],
 						'amount' => $c['remaining'],
 						'currency' => $currency,
-						'url' => $this->payUrl($type, $c['id'], $c['remaining'], $date, $currency),
+						'url' => $this->payUrl($type, $c['id'], $c['remaining'], $date, $currency, $accountId),
 					);
 				}
 				$links[] = array(
@@ -285,18 +287,22 @@ class PaymentSuggestionFinder
 	/**
 	 * Build a deep link to a prefilled payment-creation page.
 	 *
-	 * @param string $type     Document type
-	 * @param int    $id       Document id
-	 * @param float  $amount   Amount to prefill (in $currency)
-	 * @param string $date     Value date (Y-m-d)
-	 * @param string $currency Payable currency of the document
+	 * @param string $type      Document type
+	 * @param int    $id        Document id
+	 * @param float  $amount    Amount to prefill (in $currency)
+	 * @param string $date      Value date (Y-m-d)
+	 * @param string $currency  Payable currency of the document
+	 * @param int    $accountId Bank account to preselect (0 for none)
 	 * @return string URL
 	 */
-	private function payUrl(string $type, int $id, float $amount, string $date, string $currency = ''): string
+	private function payUrl(string $type, int $id, float $amount, string $date, string $currency = '', int $accountId = 0): string
 	{
 		$amt = number_format($amount, 2, '.', '');
 		list($y, $m, $d) = $this->dateParts($date);
 		$dateParams = '&remonth=' . $m . '&reday=' . $d . '&reyear=' . $y;
+
+		// All four payment pages read "accountid" to preselect the bank account.
+		$accountParam = $accountId > 0 ? '&accountid=' . $accountId : '';
 
 		// Multicurrency invoices are paid in their own currency: Dolibarr expects
 		// the amount in the "multicurrency_amount_<id>" field, not "amount_<id>"
@@ -307,13 +313,15 @@ class PaymentSuggestionFinder
 
 		switch ($type) {
 			case 'customer_invoice':
-				return DOL_URL_ROOT . '/compta/paiement.php?facid=' . $id . '&' . $amountField . $id . '=' . $amt . $dateParams;
+				return DOL_URL_ROOT . '/compta/paiement.php?facid=' . $id . '&' . $amountField . $id . '=' . $amt . $dateParams . $accountParam;
 			case 'supplier_invoice':
-				return DOL_URL_ROOT . '/fourn/facture/paiement.php?facid=' . $id . '&' . $amountField . $id . '=' . $amt . $dateParams;
+				// Unlike compta/paiement.php, the supplier page only renders the
+				// payment form when action=create is present.
+				return DOL_URL_ROOT . '/fourn/facture/paiement.php?facid=' . $id . '&action=create&' . $amountField . $id . '=' . $amt . $dateParams . $accountParam;
 			case 'expense_report':
-				return DOL_URL_ROOT . '/expensereport/payment/payment.php?id=' . $id . '&action=create&amount_' . $id . '=' . $amt . $dateParams;
+				return DOL_URL_ROOT . '/expensereport/payment/payment.php?id=' . $id . '&action=create&amount_' . $id . '=' . $amt . $dateParams . $accountParam;
 			case 'social_charge':
-				return DOL_URL_ROOT . '/compta/paiement_charge.php?id=' . $id . '&action=create&amount_' . $id . '=' . $amt . $dateParams;
+				return DOL_URL_ROOT . '/compta/paiement_charge.php?id=' . $id . '&action=create&amount_' . $id . '=' . $amt . $dateParams . $accountParam;
 		}
 		return '';
 	}

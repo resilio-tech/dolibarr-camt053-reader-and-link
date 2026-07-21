@@ -108,7 +108,7 @@ function camt053_render_suggestions($entry, $entity, $accountId, $finder, $detec
 		'social_charge' => 'payment',
 	);
 
-	$suggestions = $finder->findForEntry($entry, (int) $entity);
+	$suggestions = $finder->findForEntry($entry, (int) $entity, (int) $accountId);
 	foreach ($suggestions['links'] as $link) {
 		if ($link['kind'] === 'pay') {
 			$label = $langs->trans($labelKeys[$link['type']], dol_escape_htmltag($link['ref']));

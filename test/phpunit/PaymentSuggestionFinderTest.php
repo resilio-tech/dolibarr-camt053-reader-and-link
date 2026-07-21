@@ -64,14 +64,15 @@ class PaymentSuggestionFinderTest extends TestCase
 	 * @param int    $id       Document id
 	 * @param float  $amount   Amount
 	 * @param string $date     Value date (Y-m-d)
-	 * @param string $currency Payable currency
+	 * @param string $currency  Payable currency
+	 * @param int    $accountId Bank account to preselect
 	 * @return string
 	 */
-	private function payUrl(string $type, int $id, float $amount, string $date, string $currency): string
+	private function payUrl(string $type, int $id, float $amount, string $date, string $currency, int $accountId = 0): string
 	{
 		$method = new ReflectionMethod(PaymentSuggestionFinder::class, 'payUrl');
 		$method->setAccessible(true);
-		return $method->invoke($this->finder, $type, $id, $amount, $date, $currency);
+		return $method->invoke($this->finder, $type, $id, $amount, $date, $currency, $accountId);
 	}
 
 	/**
@@ -155,6 +156,55 @@ class PaymentSuggestionFinderTest extends TestCase
 		$this->assertStringContainsString('/compta/paiement_charge.php?id=9', $url);
 		$this->assertStringContainsString('&amount_9=88.00', $url);
 		$this->assertStringNotContainsString('multicurrency_amount_', $url);
+	}
+
+	/**
+	 * The supplier payment page only renders its form when action=create is in
+	 * the URL, so the link must carry it.
+	 *
+	 * @return void
+	 */
+	public function testPayUrlSupplierInvoiceCarriesCreateAction(): void
+	{
+		$url = $this->payUrl('supplier_invoice', 12, 250.5, '2026-06-25', 'CHF');
+
+		$this->assertStringContainsString('/fourn/facture/paiement.php?facid=12', $url);
+		$this->assertStringContainsString('&action=create', $url);
+		$this->assertStringContainsString('&amount_12=250.50', $url);
+	}
+
+	/**
+	 * The statement bank account is preselected on every payment page.
+	 *
+	 * @return void
+	 */
+	public function testPayUrlPreselectsBankAccount(): void
+	{
+		$types = array(
+			'customer_invoice' => '/compta/paiement.php',
+			'supplier_invoice' => '/fourn/facture/paiement.php',
+			'expense_report' => '/expensereport/payment/payment.php',
+			'social_charge' => '/compta/paiement_charge.php',
+		);
+
+		foreach ($types as $type => $page) {
+			$url = $this->payUrl($type, 5, 10.0, '2026-06-05', 'CHF', 4);
+
+			$this->assertStringContainsString($page, $url);
+			$this->assertStringContainsString('&accountid=4', $url);
+		}
+	}
+
+	/**
+	 * Without a known bank account, no accountid parameter is added.
+	 *
+	 * @return void
+	 */
+	public function testPayUrlOmitsBankAccountWhenUnknown(): void
+	{
+		$url = $this->payUrl('customer_invoice', 5, 10.0, '2026-06-05', 'CHF', 0);
+
+		$this->assertStringNotContainsString('accountid', $url);
 	}
 
 	/**

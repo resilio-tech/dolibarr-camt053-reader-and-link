@@ -11,6 +11,8 @@
 - Show the related invoice reference and third party in the multi-match reconciliation dropdown (#8)
 - Prefill foreign-currency invoice payments in the `multicurrency_amount` field instead of the company-currency field (#9)
 - Harden SFTP secret handling and cron parse-failure safety
+- Open the supplier invoice payment page with `action=create`, without which it showed no form
+- Preselect the statement bank account on every prefilled payment page
 
 ### Tests
 - `PaymentSuggestionFinderTest.php` - payment link building and currency handling
