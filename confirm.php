@@ -88,11 +88,19 @@ llxHeader("", $langs->trans("Camt053ReaderAndLinkArea"), '', '', 0, 0, '', '', '
 
 print '<div class="fichecenter camt053readerandlink">';
 
-// Get linked entries from form
-$linked = GETPOST('linked', 'array');
+// Get linked entries from form. The explicit dropdown choices come first: when
+// one of them collides with an automatic link on the same bank line, the
+// duplicate guard below keeps whichever came first, and the user's decision must
+// win over a match the module made on its own.
+$linked = array();
 foreach ($_POST as $key => $value) {
 	if (preg_match('/^linked_(.+)$/', $key, $matches)) {
 		$hash = $matches[1];
+		$linked[$hash] = $value;
+	}
+}
+foreach (GETPOST('linked', 'array') as $hash => $value) {
+	if (!isset($linked[$hash])) {
 		$linked[$hash] = $value;
 	}
 }
