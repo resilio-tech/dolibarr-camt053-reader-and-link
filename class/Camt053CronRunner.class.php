@@ -26,6 +26,7 @@
 require_once DOL_DOCUMENT_ROOT . '/core/lib/files.lib.php';
 require_once DOL_DOCUMENT_ROOT . '/compta/bank/class/account.class.php';
 require_once __DIR__ . '/Camt053FileOutcome.class.php';
+require_once __DIR__ . '/Camt053SafeFile.class.php';
 require_once __DIR__ . '/Camt053SftpConfig.class.php';
 require_once __DIR__ . '/Camt053ProcessedFile.class.php';
 require_once __DIR__ . '/SftpFileTransport.class.php';
@@ -171,9 +172,19 @@ class Camt053CronRunner
 			// Whatever matched is reconciled and archived by now. Capture the
 			// monthly summary before any early exit below: it is the only place
 			// unresolved IBANs are ever shown to a human.
-			$this->archiveForSummary($name, $content, $summary);
+			$archived = $this->archiveForSummary($name, $content, $summary);
 			if ($isMonthly) {
 				$monthlySummaries[$name] = $summary;
+			}
+
+			// Nothing landed on disk although there was something to write (full
+			// or unwritable bank document directory): the remote copy is the only
+			// one left and must stay, whatever the reconciliation achieved.
+			if (!$archived) {
+				$this->error .= '[' . $config->ref . '] ' . $name . ': archiving failed, file kept on the server; ';
+				dol_syslog('CAMT053 cron: could not archive ' . $name . ' anywhere, keeping the remote file', LOG_ERR);
+				$counters['errors']++;
+				continue;
 			}
 
 			// A statement whose IBAN resolves to no Dolibarr account is data
@@ -200,7 +211,7 @@ class Camt053CronRunner
 				dol_syslog('CAMT053 cron: ' . $name . ' - ' . $reason . ', raw file archived locally', LOG_WARNING);
 			}
 
-			$this->recordProcessed($processedTracker, $config, $name, $hash, $summary, $isMonthly);
+			$this->recordProcessed($processedTracker, $config, $name, $hash, $summary, $isMonthly, $reason);
 			$this->postDownloadCleanup($transport, $config, $name);
 		}
 
@@ -282,14 +293,6 @@ class Camt053CronRunner
 	}
 
 	/**
-	 * Archive the downloaded file under each resolved account/statement.
-	 *
-	 * @param string $name    File name
-	 * @param string $content Raw content
-	 * @param array  $summary Merged summary
-	 * @return void
-	 */
-	/**
 	 * Archive the raw file outside any bank account.
 	 *
 	 * archiveForSummary() files a copy under each account it matched. When an
@@ -305,7 +308,10 @@ class Camt053CronRunner
 	private function archiveUnresolved(Camt053SftpConfig $config, string $name, string $content): bool
 	{
 		$targetDir = DOL_DATA_ROOT . '/camt053readerandlink/unresolved/' . dol_sanitizeFileName($config->ref);
-		$targetFile = $targetDir . '/' . dol_sanitizeFileName($name);
+		// Banks that publish a fixed remote name (camt053.xml) would otherwise
+		// have the previous day's copy answer for today's: the content hash makes
+		// the path unique per payload, and identical content idempotent.
+		$targetFile = $targetDir . '/' . substr(hash('sha256', $content), 0, 12) . '-' . dol_sanitizeFileName($name);
 
 		if (!is_dir($targetDir)) {
 			dol_mkdir($targetDir);
@@ -313,7 +319,7 @@ class Camt053CronRunner
 		if (file_exists($targetFile)) {
 			return true;
 		}
-		if (file_put_contents($targetFile, $content) === false) {
+		if (!Camt053SafeFile::write($targetFile, $content)) {
 			dol_syslog('CAMT053 cron: failed to archive unresolved file to ' . $targetFile, LOG_ERR);
 			return false;
 		}
@@ -323,9 +329,22 @@ class Camt053CronRunner
 		return true;
 	}
 
-	private function archiveForSummary(string $name, string $content, array $summary): void
+	/**
+	 * Archive the downloaded file under each resolved account/statement.
+	 *
+	 * @param string $name    File name
+	 * @param string $content Raw content
+	 * @param array  $summary Merged summary
+	 * @return bool False when there was something to archive and not a single
+	 *              copy landed: the caller must then keep the remote file, which
+	 *              is the only one left.
+	 */
+	private function archiveForSummary(string $name, string $content, array $summary): bool
 	{
 		global $conf;
+
+		$attempted = 0;
+		$archived = 0;
 
 		foreach ($summary['accounts'] as $accountId => $account) {
 			$id = (int) $accountId;
@@ -338,6 +357,8 @@ class Camt053CronRunner
 				continue;
 			}
 
+			$attempted++;
+
 			$safe = dol_sanitizeFileName($name);
 			$targetDir = $conf->bank->dir_output . '/' . $id . '/statement/' . dol_sanitizeFileName($account['num_releve']);
 			$targetFile = $targetDir . '/' . $safe;
@@ -346,18 +367,23 @@ class Camt053CronRunner
 				dol_mkdir($targetDir);
 			}
 			if (file_exists($targetFile)) {
+				$archived++;
 				continue;
 			}
-			if (file_put_contents($targetFile, $content) === false) {
+			if (!Camt053SafeFile::write($targetFile, $content)) {
 				dol_syslog('CAMT053 cron: failed to archive ' . $name . ' to ' . $targetFile, LOG_ERR);
 				continue;
 			}
+
+			$archived++;
 
 			$resindex = addFileIntoDatabaseIndex($targetDir, $safe, $name, 'uploaded', 1, $object);
 			if ($resindex < 0) {
 				dol_syslog('CAMT053 cron: archived ' . $targetFile . ' but database indexing failed', LOG_WARNING);
 			}
 		}
+
+		return ($attempted === 0 || $archived > 0);
 	}
 
 	/**
@@ -369,9 +395,11 @@ class Camt053CronRunner
 	 * @param string               $hash      File hash
 	 * @param array                $summary   Merged summary
 	 * @param bool                 $isMonthly Whether this is the monthly file
+	 * @param string               $reason    What the file failed to attach to an
+	 *                                        account, empty when it all resolved
 	 * @return void
 	 */
-	private function recordProcessed(Camt053ProcessedFile $tracker, Camt053SftpConfig $config, string $name, string $hash, array $summary, bool $isMonthly): void
+	private function recordProcessed(Camt053ProcessedFile $tracker, Camt053SftpConfig $config, string $name, string $hash, array $summary, bool $isMonthly, string $reason = ''): void
 	{
 		$firstAccount = null;
 		foreach ($summary['accounts'] as $account) {
@@ -389,8 +417,12 @@ class Camt053CronRunner
 		$record->nb_auto = (int) $summary['totals']['auto'];
 		$record->nb_ambiguous = (int) $summary['totals']['ambiguous'];
 		$record->nb_unmatched = (int) $summary['totals']['unmatched'];
-		$record->status = ($summary['totals']['errors'] > 0) ? 'error' : 'done';
-		$record->error_detail = $this->collectErrorDetail($summary);
+		// The file is never revisited once recorded, so this row is the only
+		// durable trace: an unresolved IBAN has to show up here, not just in the
+		// run output that ages out.
+		$record->status = ($summary['totals']['errors'] > 0 || $reason !== '') ? 'error' : 'done';
+		$details = array_filter(array($reason, $this->collectErrorDetail($summary)));
+		$record->error_detail = !empty($details) ? implode(' | ', $details) : null;
 
 		if ($record->create() < 0) {
 			dol_syslog('CAMT053 cron: failed to record processed file ' . $name . ' - ' . $record->getError(), LOG_ERR);
