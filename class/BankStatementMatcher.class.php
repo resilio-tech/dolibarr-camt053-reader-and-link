@@ -288,11 +288,40 @@ class BankStatementMatcher
 			}
 		}
 
-		// A line inside the period always beats one from the margin. Without this,
-		// a recurring amount (rent, salary, subscription) turns a clean auto-link
+		// A line inside the period beats one from the margin. Without this, a
+		// recurring amount (rent, salary, subscription) turns a clean auto-link
 		// into an ambiguity prompt every month, and picking the margin line would
 		// reconcile the neighbouring period's entry onto this statement.
-		return !empty($matches) ? $matches : $marginMatches;
+		// The preference only applies while the period still has something left to
+		// reconcile: if every in-period candidate is already rapproché, the margin
+		// ones must stay on the table, otherwise compare() reports the entry as
+		// already reconciled and hides the line that actually matches it.
+		if (empty($matches)) {
+			return $marginMatches;
+		}
+		if (empty($marginMatches) || $this->hasUnreconciled($matches)) {
+			return $matches;
+		}
+
+		return array_merge($matches, $marginMatches);
+	}
+
+	/**
+	 * Whether at least one entry is not reconciled yet.
+	 *
+	 * @param Camt053Entry[] $entries Candidate entries
+	 * @return bool
+	 */
+	private function hasUnreconciled(array $entries): bool
+	{
+		foreach ($entries as $entry) {
+			$bankLine = $entry->getBankLine();
+			if (!$bankLine || $bankLine->rappro != 1) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	/**
