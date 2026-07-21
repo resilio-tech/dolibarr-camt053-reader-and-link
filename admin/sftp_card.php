@@ -150,6 +150,8 @@ llxHeader('', $title, $help_url, '', 0, 0, '', '', '', 'mod-camt053readerandlink
 $linkback = '<a href="'.$listurl.'">'.$langs->trans("BackToList").'</a>';
 print load_fiche_titre($title, $linkback, 'title_setup');
 
+camt053WarnIfSftpExtensionMissing();
+
 $head = camt053readerandlinkAdminPrepareHead();
 print dol_get_fiche_head($head, 'sftp', $langs->trans("Camt053SftpAccounts"), -1, "camt053readerandlink@camt053readerandlink");
 

@@ -130,6 +130,8 @@ llxHeader('', $langs->trans($page_name), $help_url, '', 0, 0, '', '', '', 'mod-c
 $linkback = '<a href="'.DOL_URL_ROOT.'/admin/modules.php?restore_lastsearch_values=1">'.$langs->trans("BackToModuleList").'</a>';
 print load_fiche_titre($langs->trans("Camt053ReaderAndLinkSetup"), $linkback, 'title_setup');
 
+camt053WarnIfSftpExtensionMissing();
+
 $head = camt053readerandlinkAdminPrepareHead();
 print dol_get_fiche_head($head, 'sftp', $langs->trans($page_name), -1, "camt053readerandlink@camt053readerandlink");
 

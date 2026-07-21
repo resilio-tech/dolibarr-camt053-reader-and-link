@@ -57,6 +57,28 @@ function camt053readerandlinkAdminPrepareHead()
 }
 
 /**
+ * Warn, on the SFTP configuration screens, when the extension they depend on is
+ * absent.
+ *
+ * Without this the failure only surfaces after an account has been filled in and
+ * a private key pasted, either on an explicit connection test or, worse, in a
+ * silent cron error. Whoever configures the module is rarely whoever installs
+ * PHP extensions, so the message has to reach them where they are.
+ *
+ * @return void
+ */
+function camt053WarnIfSftpExtensionMissing()
+{
+	global $langs;
+
+	if (function_exists('ssh2_connect')) {
+		return;
+	}
+
+	print '<div class="warning">' . $langs->trans('Camt053SftpExtensionMissing') . '</div>';
+}
+
+/**
  * Check the anti-CSRF token submitted with a form against the session token.
  * Mirrors the check done by Dolibarr in main.inc.php (token vs $_SESSION['token']).
  *
