@@ -75,6 +75,11 @@ class Camt053Entry
 	private $counterpartyIban = '';
 
 	/**
+	 * @var string Bank reference (AcctSvcrRef) when the file provided one
+	 */
+	private $bankReference = '';
+
+	/**
 	 * @var bool Whether the entry falls inside the requested period. Database
 	 *           entries are loaded with a few days of margin so the matcher's
 	 *           date tolerance can still reach them; the ones outside the period
@@ -98,6 +103,20 @@ class Camt053Entry
 		$this->name = $name;
 		$this->info = $info;
 		$this->hash = $hash ?? $this->generateHash();
+		// Remember whether the bank gave us its own reference (AcctSvcrRef): the
+		// hash may later be rewritten to keep form keys unique, but the reference
+		// is what identifies the movement across statement blocks.
+		$this->bankReference = ($hash !== null && $hash !== '') ? $hash : '';
+	}
+
+	/**
+	 * Bank reference (AcctSvcrRef) when the file provided one.
+	 *
+	 * @return string Empty when the entry hash is derived from its content
+	 */
+	public function getBankReference(): string
+	{
+		return $this->bankReference;
 	}
 
 	/**
