@@ -64,9 +64,17 @@ class DatabaseBankStatementLoader
 	 * @param DateTime|string $startDate Start date
 	 * @param DateTime|string $endDate   End date
 	 * @param int|null        $accountId Optional: limit to specific bank account
+	 * @param int             $dayMargin Extra days loaded before and after the period.
+	 *                                   A Dolibarr line dated one day off the CAMT
+	 *                                   booking date (typical for manually entered
+	 *                                   salaries and various payments) must still be
+	 *                                   reachable by the matcher's date tolerance.
+	 *                                   Entries loaded from that margin are flagged
+	 *                                   out of period so they are only ever matched,
+	 *                                   never listed on their own.
 	 * @return array<int, Camt053Statement> Statements indexed by account ID
 	 */
-	public function loadStatements($startDate, $endDate, ?int $accountId = null): array
+	public function loadStatements($startDate, $endDate, ?int $accountId = null, int $dayMargin = 0): array
 	{
 		$this->error = null;
 
@@ -79,12 +87,16 @@ class DatabaseBankStatementLoader
 			return array();
 		}
 
+		$dayMargin = max(0, $dayMargin);
+		$loadStartStr = $this->shiftDate($startDateStr, -$dayMargin);
+		$loadEndStr = $this->shiftDate($endDateStr, $dayMargin);
+
 		// Build secure SQL query. Join bank_account to keep entries scoped to the
 		// current entity: a bank line from another entity must never be matched.
 		$sql = "SELECT b.rowid FROM " . MAIN_DB_PREFIX . "bank AS b ";
 		$sql .= "INNER JOIN " . MAIN_DB_PREFIX . "bank_account AS ba ON ba.rowid = b.fk_account ";
-		$sql .= "WHERE b.datev >= DATE('" . $this->db->escape($startDateStr) . "') ";
-		$sql .= "AND b.datev <= DATE('" . $this->db->escape($endDateStr) . "') ";
+		$sql .= "WHERE b.datev >= DATE('" . $this->db->escape($loadStartStr) . "') ";
+		$sql .= "AND b.datev <= DATE('" . $this->db->escape($loadEndStr) . "') ";
 		$sql .= "AND ba.entity IN (" . getEntity('bank_account') . ") ";
 
 		if ($accountId !== null) {
@@ -138,6 +150,9 @@ class DatabaseBankStatementLoader
 			$entry = new Camt053Entry($amount, $valueDate, $name);
 			$entry->setBankLine($bankLine);
 			$entry->setIsFromFile(false);
+			// An unreadable value date cannot be matched anyway; keep listing it
+			// rather than hiding it as an out-of-period entry.
+			$entry->setInPeriod($valueDate === '' || ($valueDate >= $startDateStr && $valueDate <= $endDateStr));
 
 			$statements[$fkAccount]->addEntry($entry);
 		}
@@ -310,6 +325,29 @@ class DatabaseBankStatementLoader
 		}
 
 		return '';
+	}
+
+	/**
+	 * Shift a Y-m-d date by a number of days.
+	 *
+	 * @param string $dateStr Date in Y-m-d format
+	 * @param int    $days    Days to add (negative to subtract)
+	 * @return string Shifted date in Y-m-d format (input returned when unparsable)
+	 */
+	private function shiftDate(string $dateStr, int $days): string
+	{
+		if ($days === 0) {
+			return $dateStr;
+		}
+
+		$dateObj = DateTime::createFromFormat('Y-m-d', $dateStr);
+		if ($dateObj === false) {
+			return $dateStr;
+		}
+
+		$dateObj->modify(($days > 0 ? '+' : '-') . abs($days) . ' day');
+
+		return $dateObj->format('Y-m-d');
 	}
 
 	/**

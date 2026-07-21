@@ -480,4 +480,80 @@ class BankStatementMatcherTest extends TestCase
 		$this->assertCount(1, $results['linkeds']);
 		$this->assertEquals(2, $results['linkeds'][0]['db']->getBankLine()->rowid);
 	}
+
+	/**
+	 * A database entry loaded from the margin around the period (typically a
+	 * salary or various payment dated one day off the CAMT booking date) is
+	 * matched like any other.
+	 *
+	 * @return void
+	 */
+	public function testOutOfPeriodDbEntryStillMatches(): void
+	{
+		$fileStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$fileStatement->setIsFromFile(true);
+		$fileStatement->createEntry(-2500.00, '2024-02-01', 'Salaires');
+
+		$dbStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$dbStatement->setIsFromFile(false);
+		$dbEntry = $dbStatement->createEntry(-2500.00, '2024-01-31', 'Salaires');
+		$dbEntry->setBankLine($this->createMockBankLine(123));
+		$dbEntry->setInPeriod(false);
+
+		$results = $this->matcher->compare($fileStatement, $dbStatement);
+
+		$this->assertCount(1, $results['linkeds']);
+		$this->assertCount(0, $results['unlinkeds']);
+	}
+
+	/**
+	 * An unmatched database entry from that same margin is not listed: it lies
+	 * outside the statement the user is reconciling.
+	 *
+	 * @return void
+	 */
+	public function testUnmatchedOutOfPeriodDbEntryIsNotListed(): void
+	{
+		$fileStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$fileStatement->setIsFromFile(true);
+
+		$dbStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$dbStatement->setIsFromFile(false);
+
+		$inPeriod = $dbStatement->createEntry(-100.00, '2024-01-15', 'In period');
+		$inPeriod->setBankLine($this->createMockBankLine(1));
+
+		$outOfPeriod = $dbStatement->createEntry(-200.00, '2024-02-01', 'Out of period');
+		$outOfPeriod->setBankLine($this->createMockBankLine(2));
+		$outOfPeriod->setInPeriod(false);
+
+		$results = $this->matcher->compare($fileStatement, $dbStatement);
+
+		$this->assertCount(1, $results['unlinkeds']);
+		$this->assertEquals(1, $results['unlinkeds'][0]->getBankLine()->rowid);
+	}
+
+	/**
+	 * The same rule applies to already reconciled entries: one from the margin
+	 * must not show up in the already-linked list.
+	 *
+	 * @return void
+	 */
+	public function testUnmatchedOutOfPeriodReconciledDbEntryIsNotListed(): void
+	{
+		$fileStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$fileStatement->setIsFromFile(true);
+
+		$dbStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$dbStatement->setIsFromFile(false);
+
+		$outOfPeriod = $dbStatement->createEntry(-200.00, '2024-02-01', 'Out of period');
+		$outOfPeriod->setBankLine($this->createMockBankLine(2, 1));
+		$outOfPeriod->setInPeriod(false);
+
+		$results = $this->matcher->compare($fileStatement, $dbStatement);
+
+		$this->assertCount(0, $results['already_linked']);
+		$this->assertCount(0, $results['unlinkeds']);
+	}
 }

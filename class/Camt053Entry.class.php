@@ -75,6 +75,14 @@ class Camt053Entry
 	private $counterpartyIban = '';
 
 	/**
+	 * @var bool Whether the entry falls inside the requested period. Database
+	 *           entries are loaded with a few days of margin so the matcher's
+	 *           date tolerance can still reach them; the ones outside the period
+	 *           are only there to be matched, never to be listed on their own.
+	 */
+	private $inPeriod = true;
+
+	/**
 	 * Constructor
 	 *
 	 * @param float       $amount    Entry amount
@@ -328,6 +336,27 @@ class Camt053Entry
 	public function setCounterpartyIban(string $iban): void
 	{
 		$this->counterpartyIban = strtoupper(str_replace(' ', '', trim($iban)));
+	}
+
+	/**
+	 * Whether the entry belongs to the requested period.
+	 *
+	 * @return bool
+	 */
+	public function isInPeriod(): bool
+	{
+		return $this->inPeriod;
+	}
+
+	/**
+	 * Flag the entry as inside or outside the requested period.
+	 *
+	 * @param bool $inPeriod
+	 * @return void
+	 */
+	public function setInPeriod(bool $inPeriod): void
+	{
+		$this->inPeriod = $inPeriod;
 	}
 
 	/**

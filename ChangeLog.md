@@ -13,11 +13,13 @@
 - Harden SFTP secret handling and cron parse-failure safety
 - Open the supplier invoice payment page with `action=create`, without which it showed no form
 - Preselect the statement bank account on every prefilled payment page
+- Load Dolibarr bank lines with a margin equal to the matcher date tolerance, so an entry dated one day outside the imported period (typically a manually entered salary or various payment) is matched instead of being ignored
 
 ### Tests
 - `PaymentSuggestionFinderTest.php` - payment link building and currency handling
 - `EntityScopeSqlTest.php` - entity scoping of the IBAN and bank-line queries
 - `BankRelationshipLookupTest.php` - related document lookup for the reconciliation dropdown
+- `DatabaseBankStatementLoaderTest.php` - date window widening when loading bank lines
 
 ## 2.0.1 (2024)
 

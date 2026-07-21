@@ -257,8 +257,10 @@ if ($action == 'upload') {
 			throw new Exception('Invalid date format. Use dd/mm/yyyy');
 		}
 
-		// Load database statements
-		$dbStatements = $dbLoader->loadStatements($date_start, $date_end);
+		// Load database statements. The window is widened by the matcher's date
+		// tolerance: a Dolibarr line dated one day off the CAMT booking date must
+		// be loaded, otherwise the tolerance can never reach it.
+		$dbStatements = $dbLoader->loadStatements($date_start, $date_end, null, $matcher->getDateTolerance());
 		if ($dbLoader->getError()) {
 			throw new Exception($dbLoader->getError());
 		}

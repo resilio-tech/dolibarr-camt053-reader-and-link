@@ -173,6 +173,13 @@ class BankStatementMatcher
 				continue;
 			}
 
+			// Entries loaded from the margin around the period exist only so the
+			// date tolerance can reach them. Unmatched, they are none of the
+			// user's business for this statement.
+			if (!$dbEntry->isInPeriod()) {
+				continue;
+			}
+
 			$bankLine = $dbEntry->getBankLine();
 			if ($bankLine && $bankLine->rappro == 1) {
 				// Already reconciled, no file match
