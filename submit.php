@@ -85,7 +85,11 @@ function camt053_entries_date_range($fileProcessor)
 	$min = null;
 	$max = null;
 
-	foreach ($fileProcessor->getStatements() as $statement) {
+	// Resolved accounts only, exactly like ReconciliationService: an IBAN that
+	// matches no Dolibarr account contributes nothing to the reconciliation, and
+	// letting its dates widen the window drags unrelated bank lines into the
+	// results as "unlinked".
+	foreach ($fileProcessor->getStatementsByAccountId() as $statement) {
 		foreach ($statement->getEntries() as $entry) {
 			// Pin the time: createFromFormat() would otherwise stamp "now", which
 			// makes two same-day entries compare unequal.
