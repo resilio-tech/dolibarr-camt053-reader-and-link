@@ -46,6 +46,11 @@ class Camt053Statement
 	private $entries = array();
 
 	/**
+	 * @var array<string,bool> Hashes already used by an entry of this statement
+	 */
+	private $takenHashes = array();
+
+	/**
 	 * @var bool Whether this statement comes from a CAMT.053 file
 	 */
 	private $isFromFile = false;
@@ -151,12 +156,8 @@ class Camt053Statement
 			return;
 		}
 
-		$taken = array();
-		foreach ($this->entries as $existing) {
-			$taken[$existing->getHash()] = true;
-		}
-
-		if (!isset($taken[$hash])) {
+		if (!isset($this->takenHashes[$hash])) {
+			$this->takenHashes[$hash] = true;
 			return;
 		}
 
@@ -164,9 +165,10 @@ class Camt053Statement
 		do {
 			$candidate = md5($hash . '#' . $suffix);
 			$suffix++;
-		} while (isset($taken[$candidate]));
+		} while (isset($this->takenHashes[$candidate]));
 
 		$entry->setHash($candidate);
+		$this->takenHashes[$candidate] = true;
 	}
 
 	/**
@@ -214,6 +216,7 @@ class Camt053Statement
 	public function clearEntries(): void
 	{
 		$this->entries = array();
+		$this->takenHashes = array();
 	}
 
 	/**
