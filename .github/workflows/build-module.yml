@@ -42,6 +42,14 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Module version: $VERSION"
 
+      - name: Stamp the version into the module descriptor
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          # Must run before packaging: otherwise the published zip installs a
+          # module still reporting the previous (pre-release) version.
+          sed -i "s/\$this->version = '[^']*'/\$this->version = '$VERSION'/" core/modules/modCamt053ReaderAndLink.class.php
+          grep -n "this->version" core/modules/modCamt053ReaderAndLink.class.php
+
       - name: Create module package
         run: |
           VERSION="${{ steps.version.outputs.version }}"
@@ -107,6 +115,10 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Drop the stamping done for the package, otherwise switching branches
+          # fails on the dirty descriptor. It is re-applied on main below.
+          git checkout -- core/modules/modCamt053ReaderAndLink.class.php
 
           git fetch origin main:refs/remotes/origin/main
           git checkout -B main origin/main
