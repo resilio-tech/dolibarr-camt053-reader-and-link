@@ -64,9 +64,22 @@ class DatabaseBankStatementLoader
 	 * @param DateTime|string $startDate Start date
 	 * @param DateTime|string $endDate   End date
 	 * @param int|null        $accountId Optional: limit to specific bank account
+	 * @param int             $dayMargin Extra days loaded *before* the period. A
+	 *                                   Dolibarr line keyed a day early (salary paid
+	 *                                   the 30th, booked by the bank the 1st) must
+	 *                                   stay reachable by the matcher's date
+	 *                                   tolerance. Entries from that margin are
+	 *                                   flagged out of period: they can be matched,
+	 *                                   but never listed on their own.
+	 *                                   The margin is deliberately not applied after
+	 *                                   the period: a line dated past the end belongs
+	 *                                   to the next statement, and absorbing it here
+	 *                                   would stamp it with this statement's number
+	 *                                   and silently hide a missing payment. The next
+	 *                                   import sees it in period anyway.
 	 * @return array<int, Camt053Statement> Statements indexed by account ID
 	 */
-	public function loadStatements($startDate, $endDate, ?int $accountId = null): array
+	public function loadStatements($startDate, $endDate, ?int $accountId = null, int $dayMargin = 0): array
 	{
 		$this->error = null;
 
@@ -79,16 +92,23 @@ class DatabaseBankStatementLoader
 			return array();
 		}
 
-		// Build secure SQL query
-		$sql = "SELECT rowid FROM " . MAIN_DB_PREFIX . "bank ";
-		$sql .= "WHERE datev >= DATE('" . $this->db->escape($startDateStr) . "') ";
-		$sql .= "AND datev <= DATE('" . $this->db->escape($endDateStr) . "') ";
+		$dayMargin = max(0, $dayMargin);
+		$loadStartStr = $this->shiftDate($startDateStr, -$dayMargin);
+		$loadEndStr = $endDateStr;
+
+		// Build secure SQL query. Join bank_account to keep entries scoped to the
+		// current entity: a bank line from another entity must never be matched.
+		$sql = "SELECT b.rowid FROM " . MAIN_DB_PREFIX . "bank AS b ";
+		$sql .= "INNER JOIN " . MAIN_DB_PREFIX . "bank_account AS ba ON ba.rowid = b.fk_account ";
+		$sql .= "WHERE b.datev >= DATE('" . $this->db->escape($loadStartStr) . "') ";
+		$sql .= "AND b.datev <= DATE('" . $this->db->escape($loadEndStr) . "') ";
+		$sql .= "AND ba.entity IN (" . getEntity('bank_account') . ") ";
 
 		if ($accountId !== null) {
-			$sql .= "AND fk_account = " . ((int) $accountId) . " ";
+			$sql .= "AND b.fk_account = " . ((int) $accountId) . " ";
 		}
 
-		$sql .= "ORDER BY datev ASC";
+		$sql .= "ORDER BY b.datev ASC";
 
 		$resql = $this->db->query($sql);
 		if (!$resql) {
@@ -135,71 +155,14 @@ class DatabaseBankStatementLoader
 			$entry = new Camt053Entry($amount, $valueDate, $name);
 			$entry->setBankLine($bankLine);
 			$entry->setIsFromFile(false);
+			// An unreadable value date cannot be matched anyway; keep listing it
+			// rather than hiding it as an out-of-period entry.
+			$entry->setInPeriod($valueDate === '' || ($valueDate >= $startDateStr && $valueDate <= $endDateStr));
 
 			$statements[$fkAccount]->addEntry($entry);
 		}
 
 		return $statements;
-	}
-
-	/**
-	 * Load statements as flat data array (legacy format)
-	 *
-	 * @param DateTime|string $startDate Start date
-	 * @param DateTime|string $endDate   End date
-	 * @return array Array of entry data with bank_obj
-	 */
-	public function loadFlatData($startDate, $endDate): array
-	{
-		$this->error = null;
-
-		// Normalize dates
-		$startDateStr = $this->formatDateForSql($startDate);
-		$endDateStr = $this->formatDateForSql($endDate);
-
-		if (empty($startDateStr) || empty($endDateStr)) {
-			$this->error = 'Invalid date format';
-			return array();
-		}
-
-		// Build secure SQL query
-		$sql = "SELECT rowid FROM " . MAIN_DB_PREFIX . "bank ";
-		$sql .= "WHERE datev >= DATE('" . $this->db->escape($startDateStr) . "') ";
-		$sql .= "AND datev <= DATE('" . $this->db->escape($endDateStr) . "') ";
-		$sql .= "ORDER BY datev ASC";
-
-		$resql = $this->db->query($sql);
-		if (!$resql) {
-			$this->error = 'Database error: ' . $this->db->lasterror();
-			return array();
-		}
-
-		$data = array();
-		$bankAccount = new Account($this->db);
-
-		while ($obj = $this->db->fetch_object($resql)) {
-			$bankLine = new AccountLine($this->db);
-			$bankLine->fetch($obj->rowid);
-
-			if (empty($bankLine->datev)) {
-				continue;
-			}
-
-			$bankLinks = $bankAccount->get_url($bankLine->id);
-
-			$amount = (float) $bankLine->amount;
-			$valueDate = $this->formatDateValue($bankLine->datev);
-			$name = $this->buildEntryName($bankLine, $bankLinks);
-
-			$data[] = array(
-				'amount' => $amount,
-				'value_date' => $valueDate,
-				'name' => $name,
-				'bank_obj' => $bankLine
-			);
-		}
-
-		return $data;
 	}
 
 	/**
@@ -213,6 +176,7 @@ class DatabaseBankStatementLoader
 	{
 		$sql = "SELECT rowid, iban_prefix FROM " . MAIN_DB_PREFIX . "bank_account ";
 		$sql .= "WHERE rowid = " . ((int) $bankId);
+		$sql .= " AND entity IN (" . getEntity('bank_account') . ")";
 
 		$resql = $this->db->query($sql);
 		if (!$resql) {
@@ -244,8 +208,9 @@ class DatabaseBankStatementLoader
 		$ibanWithSpace = $this->formatIban($iban);
 
 		$sql = "SELECT rowid FROM " . MAIN_DB_PREFIX . "bank_account ";
-		$sql .= "WHERE iban_prefix = '" . $this->db->escape($ibanWithSpace) . "' ";
-		$sql .= "OR iban_prefix = '" . $this->db->escape($ibanNoSpace) . "'";
+		$sql .= "WHERE (iban_prefix = '" . $this->db->escape($ibanWithSpace) . "' ";
+		$sql .= "OR iban_prefix = '" . $this->db->escape($ibanNoSpace) . "') ";
+		$sql .= "AND entity IN (" . getEntity('bank_account') . ")";
 
 		$resql = $this->db->query($sql);
 		if ($resql) {
@@ -305,6 +270,29 @@ class DatabaseBankStatementLoader
 		}
 
 		return '';
+	}
+
+	/**
+	 * Shift a Y-m-d date by a number of days.
+	 *
+	 * @param string $dateStr Date in Y-m-d format
+	 * @param int    $days    Days to add (negative to subtract)
+	 * @return string Shifted date in Y-m-d format (input returned when unparsable)
+	 */
+	private function shiftDate(string $dateStr, int $days): string
+	{
+		if ($days === 0) {
+			return $dateStr;
+		}
+
+		$dateObj = DateTime::createFromFormat('Y-m-d', $dateStr);
+		if ($dateObj === false) {
+			return $dateStr;
+		}
+
+		$dateObj->modify(($days > 0 ? '+' : '-') . abs($days) . ' day');
+
+		return $dateObj->format('Y-m-d');
 	}
 
 	/**

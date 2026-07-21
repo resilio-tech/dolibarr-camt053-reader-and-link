@@ -74,6 +74,22 @@ $modulepart = GETPOST('modulepart', 'aZ09');
  * Actions
  */
 
+if ($action == 'update_zulip') {
+	if (!camt053VerifCsrfToken()) {
+		setEventMessages($langs->trans("SecurityTokenError"), null, 'errors');
+	} else {
+		dolibarr_set_const($db, 'CAMT053_ZULIP_SITE', GETPOST('zulip_site', 'alphanohtml'), 'chaine', 0, '', $conf->entity);
+		dolibarr_set_const($db, 'CAMT053_ZULIP_BOT_EMAIL', GETPOST('zulip_email', 'alphanohtml'), 'chaine', 0, '', $conf->entity);
+		dolibarr_set_const($db, 'CAMT053_ZULIP_STREAM', GETPOST('zulip_stream', 'alphanohtml'), 'chaine', 0, '', $conf->entity);
+		dolibarr_set_const($db, 'CAMT053_ZULIP_TOPIC', GETPOST('zulip_topic', 'alphanohtml'), 'chaine', 0, '', $conf->entity);
+		$apikey = trim((string) GETPOST('zulip_apikey', 'none'));
+		if ($apikey !== '') {
+			dolibarr_set_const($db, 'CAMT053_ZULIP_BOT_APIKEY', dolEncrypt($apikey), 'chaine', 0, '', $conf->entity);
+		}
+		setEventMessages($langs->trans("RecordSaved"), null, 'mesgs');
+	}
+}
+
 include DOL_DOCUMENT_ROOT.'/core/actions_setmoduleoptions.inc.php';
 
 /*
@@ -99,7 +115,38 @@ print dol_get_fiche_head($head, 'settings', $langs->trans($page_name), -1, "camt
 // Setup page info
 echo '<span class="opacitymedium">'.$langs->trans("Camt053ReaderAndLinkSetupPage").'</span><br><br>';
 
-print '<br>'.$langs->trans("NothingToSetup");
+// Zulip report configuration
+print '<form method="POST" action="'.$_SERVER["PHP_SELF"].'">';
+print '<input type="hidden" name="token" value="'.newToken().'">';
+print '<input type="hidden" name="action" value="update_zulip">';
+
+print load_fiche_titre($langs->trans("Camt053ZulipSetup"), '', '');
+print '<span class="opacitymedium">'.$langs->trans("Camt053ZulipSetupHelp").'</span><br><br>';
+
+print '<table class="noborder centpercent">';
+print '<tr class="liste_titre"><td class="titlefield">'.$langs->trans("Parameter").'</td><td>'.$langs->trans("Value").'</td></tr>';
+
+print '<tr class="oddeven"><td>'.$langs->trans("Camt053ZulipSite").'</td>';
+print '<td><input type="text" name="zulip_site" class="minwidth300" value="'.dol_escape_htmltag(getDolGlobalString('CAMT053_ZULIP_SITE')).'" placeholder="https://your-org.zulipchat.com"></td></tr>';
+
+print '<tr class="oddeven"><td>'.$langs->trans("Camt053ZulipBotEmail").'</td>';
+print '<td><input type="text" name="zulip_email" class="minwidth300" value="'.dol_escape_htmltag(getDolGlobalString('CAMT053_ZULIP_BOT_EMAIL')).'" placeholder="camt053-bot@your-org.zulipchat.com"></td></tr>';
+
+$apikeyPlaceholder = getDolGlobalString('CAMT053_ZULIP_BOT_APIKEY') !== '' ? $langs->trans("Camt053SftpKeepCurrentSecret") : '';
+print '<tr class="oddeven"><td>'.$langs->trans("Camt053ZulipApiKey").'</td>';
+print '<td><input type="password" name="zulip_apikey" autocomplete="new-password" class="minwidth300" value="" placeholder="'.dol_escape_htmltag($apikeyPlaceholder).'"></td></tr>';
+
+print '<tr class="oddeven"><td>'.$langs->trans("Camt053ZulipStream").'</td>';
+print '<td><input type="text" name="zulip_stream" class="minwidth300" value="'.dol_escape_htmltag(getDolGlobalString('CAMT053_ZULIP_STREAM')).'"></td></tr>';
+
+print '<tr class="oddeven"><td>'.$langs->trans("Camt053ZulipTopic").'</td>';
+print '<td><input type="text" name="zulip_topic" class="minwidth300" value="'.dol_escape_htmltag(getDolGlobalString('CAMT053_ZULIP_TOPIC')).'" placeholder="CAMT.053"></td></tr>';
+
+print '</table>';
+print '<div class="center" style="margin-top:10px">';
+print '<input type="submit" class="button" value="'.$langs->trans("Save").'">';
+print '</div>';
+print '</form>';
 
 // Page end
 print dol_get_fiche_end();

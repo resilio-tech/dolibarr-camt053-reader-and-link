@@ -480,4 +480,340 @@ class BankStatementMatcherTest extends TestCase
 		$this->assertCount(1, $results['linkeds']);
 		$this->assertEquals(2, $results['linkeds'][0]['db']->getBankLine()->rowid);
 	}
+
+	/**
+	 * A database entry loaded from the margin around the period (typically a
+	 * salary or various payment dated one day off the CAMT booking date) is
+	 * matched like any other.
+	 *
+	 * @return void
+	 */
+	public function testOutOfPeriodDbEntryStillMatches(): void
+	{
+		$fileStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$fileStatement->setIsFromFile(true);
+		$fileStatement->createEntry(-2500.00, '2024-02-01', 'Salaires');
+
+		$dbStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$dbStatement->setIsFromFile(false);
+		$dbEntry = $dbStatement->createEntry(-2500.00, '2024-01-31', 'Salaires');
+		$dbEntry->setBankLine($this->createMockBankLine(123));
+		$dbEntry->setInPeriod(false);
+
+		$results = $this->matcher->compare($fileStatement, $dbStatement);
+
+		$this->assertCount(1, $results['linkeds']);
+		$this->assertCount(0, $results['unlinkeds']);
+	}
+
+	/**
+	 * A line inside the period wins over one from the margin. Without that rule a
+	 * recurring amount (rent, salary) matches both every month and a clean
+	 * auto-link degrades into an ambiguity prompt.
+	 *
+	 * @return void
+	 */
+	public function testInPeriodEntryWinsOverMarginEntry(): void
+	{
+		$fileStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$fileStatement->setIsFromFile(true);
+		$fileStatement->createEntry(-1200.00, '2024-02-01', 'Loyer');
+
+		$dbStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$dbStatement->setIsFromFile(false);
+
+		// Last month's rent, not yet reconciled, sitting in the margin.
+		$margin = $dbStatement->createEntry(-1200.00, '2024-01-31', 'Loyer');
+		$margin->setBankLine($this->createMockBankLine(1, 0));
+		$margin->setInPeriod(false);
+
+		// This month's rent, the one that should be picked.
+		$inPeriod = $dbStatement->createEntry(-1200.00, '2024-02-01', 'Loyer');
+		$inPeriod->setBankLine($this->createMockBankLine(2, 0));
+
+		$results = $this->matcher->compare($fileStatement, $dbStatement);
+
+		$this->assertCount(0, $results['multiples'], 'No ambiguity: the in-period line wins');
+		$this->assertCount(1, $results['linkeds']);
+		$this->assertEquals(2, $results['linkeds'][0]['db']->getBankLine()->rowid);
+
+		// The margin line is not the user's business for this statement.
+		$this->assertCount(0, $results['unlinkeds']);
+	}
+
+	/**
+	 * Re-importing a statement that was already reconciled must stay idempotent:
+	 * the in-period line, now rapproché, still wins over any margin candidate,
+	 * so nothing is proposed for reconciliation a second time.
+	 *
+	 * @return void
+	 */
+	public function testReimportingAReconciledStatementProposesNothing(): void
+	{
+		$fileStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$fileStatement->setIsFromFile(true);
+		$fileStatement->createEntry(-1200.00, '2024-02-01', 'Loyer');
+
+		$dbStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$dbStatement->setIsFromFile(false);
+
+		// An unrelated January movement of the same amount, still open.
+		$margin = $dbStatement->createEntry(-1200.00, '2024-01-31', 'Autre chose');
+		$margin->setBankLine($this->createMockBankLine(1, 0));
+		$margin->setInPeriod(false);
+
+		// The line this file already reconciled on a previous import.
+		$inPeriod = $dbStatement->createEntry(-1200.00, '2024-02-01', 'Loyer');
+		$inPeriod->setBankLine($this->createMockBankLine(2, 1));
+
+		$results = $this->matcher->compare($fileStatement, $dbStatement);
+
+		$this->assertCount(0, $results['linkeds'], 'Nothing may be reconciled twice');
+		$this->assertCount(1, $results['already_linked']);
+		$this->assertEquals(2, $results['already_linked'][0]['db']->getBankLine()->rowid);
+	}
+
+	/**
+	 * One Dolibarr line cannot satisfy two identical statement entries: the
+	 * second must stay unmatched instead of auto-linking to the same row, which
+	 * would report two reconciliations while performing one.
+	 *
+	 * @return void
+	 */
+	public function testOneBankLineIsNotClaimedByTwoFileEntries(): void
+	{
+		$fileStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$fileStatement->setIsFromFile(true);
+		$fileStatement->createEntry(-50.00, '2024-02-01', 'Frais');
+		$fileStatement->createEntry(-50.00, '2024-02-01', 'Frais');
+
+		$dbStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$dbStatement->setIsFromFile(false);
+		$only = $dbStatement->createEntry(-50.00, '2024-02-01', 'Frais');
+		$only->setBankLine($this->createMockBankLine(7, 0));
+
+		$results = $this->matcher->compare($fileStatement, $dbStatement);
+
+		$this->assertCount(1, $results['linkeds'], 'Only one entry may claim the line');
+		$this->assertEquals(7, $results['linkeds'][0]['db']->getBankLine()->rowid);
+		$this->assertCount(1, $results['unlinkeds'], 'The second entry stays visible as unmatched');
+		$this->assertTrue($results['unlinkeds'][0]->isFromFile());
+	}
+
+	/**
+	 * The multi-match branch claims its line too: when a second identical entry
+	 * follows, it must not auto-link to the line the first one just took.
+	 *
+	 * @return void
+	 */
+	public function testMultiMatchResolvedToOneLineClaimsIt(): void
+	{
+		$fileStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$fileStatement->setIsFromFile(true);
+		$fileStatement->createEntry(-50.00, '2024-02-01', 'Frais');
+		$fileStatement->createEntry(-50.00, '2024-02-01', 'Frais');
+
+		$dbStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$dbStatement->setIsFromFile(false);
+		// One reconciled and one open line: the first entry sees two candidates
+		// and resolves to the only open one.
+		$done = $dbStatement->createEntry(-50.00, '2024-02-01', 'Frais');
+		$done->setBankLine($this->createMockBankLine(1, 1));
+		$open = $dbStatement->createEntry(-50.00, '2024-02-01', 'Frais');
+		$open->setBankLine($this->createMockBankLine(2, 0));
+
+		$results = $this->matcher->compare($fileStatement, $dbStatement);
+
+		$this->assertCount(1, $results['linkeds'], 'Line 2 may only be taken once');
+		$this->assertEquals(2, $results['linkeds'][0]['db']->getBankLine()->rowid);
+		$this->assertCount(1, $results['already_linked']);
+		$this->assertEquals(1, $results['already_linked'][0]['db']->getBankLine()->rowid);
+	}
+
+	/**
+	 * Re-importing an ambiguous statement whose candidates are all reconciled
+	 * reports it as done instead of showing an empty dropdown.
+	 *
+	 * @return void
+	 */
+	public function testAllCandidatesReconciledReportsAlreadyLinked(): void
+	{
+		$fileStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$fileStatement->setIsFromFile(true);
+		$fileStatement->createEntry(-50.00, '2024-02-01', 'Frais');
+
+		$dbStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$dbStatement->setIsFromFile(false);
+		foreach (array(1, 2) as $rowid) {
+			$done = $dbStatement->createEntry(-50.00, '2024-02-01', 'Frais');
+			$done->setBankLine($this->createMockBankLine($rowid, 1));
+		}
+
+		$results = $this->matcher->compare($fileStatement, $dbStatement);
+
+		$this->assertCount(0, $results['multiples'], 'No empty dropdown');
+		$this->assertCount(0, $results['linkeds']);
+		$this->assertCount(2, $results['already_linked'], 'The entry plus the untouched second line');
+	}
+
+	/**
+	 * That branch claims its line too: a second identical entry must not be
+	 * reported against the same already reconciled line.
+	 *
+	 * @return void
+	 */
+	public function testAllCandidatesReconciledClaimsTheReportedLine(): void
+	{
+		$fileStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$fileStatement->setIsFromFile(true);
+		$fileStatement->createEntry(-50.00, '2024-02-01', 'Frais');
+		$fileStatement->createEntry(-50.00, '2024-02-01', 'Frais');
+
+		$dbStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$dbStatement->setIsFromFile(false);
+		foreach (array(1, 2) as $rowid) {
+			$done = $dbStatement->createEntry(-50.00, '2024-02-01', 'Frais');
+			$done->setBankLine($this->createMockBankLine($rowid, 1));
+		}
+
+		$results = $this->matcher->compare($fileStatement, $dbStatement);
+
+		$reported = array();
+		foreach ($results['already_linked'] as $item) {
+			$reported[] = $item['db']->getBankLine()->rowid;
+		}
+		sort($reported);
+
+		// Exactly one row per line: without the claim the first line is reported
+		// for both entries and the second one is added again by the trailing pass.
+		$this->assertSame(array(1, 2), $reported, 'Each line answers for exactly one entry');
+	}
+
+	/**
+	 * One reconciled bank line answers for one entry: a second identical entry
+	 * stays visible as unmatched instead of being reported reconciled too, which
+	 * also inflated the counters of the headless report.
+	 *
+	 * @return void
+	 */
+	public function testReconciledLineIsNotReportedForTwoEntries(): void
+	{
+		$fileStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$fileStatement->setIsFromFile(true);
+		$fileStatement->createEntry(-50.00, '2024-02-01', 'Frais');
+		$fileStatement->createEntry(-50.00, '2024-02-01', 'Frais');
+
+		$dbStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$dbStatement->setIsFromFile(false);
+		$done = $dbStatement->createEntry(-50.00, '2024-02-01', 'Frais');
+		$done->setBankLine($this->createMockBankLine(1, 1));
+
+		$results = $this->matcher->compare($fileStatement, $dbStatement);
+
+		$this->assertCount(1, $results['already_linked']);
+		$this->assertCount(1, $results['unlinkeds'], 'The second entry has no counterpart');
+		$this->assertTrue($results['unlinkeds'][0]->isFromFile());
+	}
+
+	/**
+	 * An out-of-period line already reconciled to another statement must not
+	 * absorb a file entry: doing so would mask a missing payment behind an
+	 * "already reconciled" row and drop its payment suggestion.
+	 *
+	 * @return void
+	 */
+	public function testOutOfPeriodReconciledDbEntryDoesNotAbsorbFileEntry(): void
+	{
+		$fileStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$fileStatement->setIsFromFile(true);
+		$fileStatement->createEntry(-1200.00, '2024-02-01', 'Loyer');
+
+		$dbStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$dbStatement->setIsFromFile(false);
+		// Last month's rent, already reconciled to January's statement.
+		$previousMonth = $dbStatement->createEntry(-1200.00, '2024-01-31', 'Loyer');
+		$previousMonth->setBankLine($this->createMockBankLine(123, 1));
+		$previousMonth->setInPeriod(false);
+
+		$results = $this->matcher->compare($fileStatement, $dbStatement);
+
+		$this->assertCount(0, $results['already_linked'], 'The file entry must not be reported as reconciled');
+		$this->assertCount(0, $results['linkeds']);
+		$this->assertCount(1, $results['unlinkeds'], 'The file entry stays unmatched so it keeps its payment suggestion');
+		$this->assertTrue($results['unlinkeds'][0]->isFromFile());
+	}
+
+	/**
+	 * The same line, not yet reconciled, is still a legitimate candidate: that
+	 * is the whole point of loading the margin.
+	 *
+	 * @return void
+	 */
+	public function testOutOfPeriodUnreconciledDbEntryStillMatches(): void
+	{
+		$fileStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$fileStatement->setIsFromFile(true);
+		$fileStatement->createEntry(-1200.00, '2024-02-01', 'Loyer');
+
+		$dbStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$dbStatement->setIsFromFile(false);
+		$previousMonth = $dbStatement->createEntry(-1200.00, '2024-01-31', 'Loyer');
+		$previousMonth->setBankLine($this->createMockBankLine(123, 0));
+		$previousMonth->setInPeriod(false);
+
+		$results = $this->matcher->compare($fileStatement, $dbStatement);
+
+		$this->assertCount(1, $results['linkeds']);
+	}
+
+	/**
+	 * An unmatched database entry from that same margin is not listed: it lies
+	 * outside the statement the user is reconciling.
+	 *
+	 * @return void
+	 */
+	public function testUnmatchedOutOfPeriodDbEntryIsNotListed(): void
+	{
+		$fileStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$fileStatement->setIsFromFile(true);
+
+		$dbStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$dbStatement->setIsFromFile(false);
+
+		$inPeriod = $dbStatement->createEntry(-100.00, '2024-01-15', 'In period');
+		$inPeriod->setBankLine($this->createMockBankLine(1));
+
+		$outOfPeriod = $dbStatement->createEntry(-200.00, '2024-02-01', 'Out of period');
+		$outOfPeriod->setBankLine($this->createMockBankLine(2));
+		$outOfPeriod->setInPeriod(false);
+
+		$results = $this->matcher->compare($fileStatement, $dbStatement);
+
+		$this->assertCount(1, $results['unlinkeds']);
+		$this->assertEquals(1, $results['unlinkeds'][0]->getBankLine()->rowid);
+	}
+
+	/**
+	 * The same rule applies to already reconciled entries: one from the margin
+	 * must not show up in the already-linked list.
+	 *
+	 * @return void
+	 */
+	public function testUnmatchedOutOfPeriodReconciledDbEntryIsNotListed(): void
+	{
+		$fileStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$fileStatement->setIsFromFile(true);
+
+		$dbStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$dbStatement->setIsFromFile(false);
+
+		$outOfPeriod = $dbStatement->createEntry(-200.00, '2024-02-01', 'Out of period');
+		$outOfPeriod->setBankLine($this->createMockBankLine(2, 1));
+		$outOfPeriod->setInPeriod(false);
+
+		$results = $this->matcher->compare($fileStatement, $dbStatement);
+
+		$this->assertCount(0, $results['already_linked']);
+		$this->assertCount(0, $results['unlinkeds']);
+	}
 }

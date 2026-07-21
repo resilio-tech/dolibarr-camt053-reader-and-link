@@ -129,6 +129,7 @@ class BankRelationshipLookup
 		$sql .= "LEFT JOIN " . MAIN_DB_PREFIX . "paiement_facture AS pf ON f.rowid = pf.fk_facture ";
 		$sql .= "LEFT JOIN " . MAIN_DB_PREFIX . "paiement AS p ON pf.fk_paiement = p.rowid ";
 		$sql .= "WHERE p.fk_bank = " . ((int) $lineId);
+		$sql .= " AND f.entity IN (" . getEntity('invoice') . ")";
 
 		$resql = $this->db->query($sql);
 		if ($resql) {
@@ -154,6 +155,7 @@ class BankRelationshipLookup
 		$sql .= "LEFT JOIN " . MAIN_DB_PREFIX . "paiementfourn_facturefourn AS pf ON f.rowid = pf.fk_facturefourn ";
 		$sql .= "LEFT JOIN " . MAIN_DB_PREFIX . "paiementfourn AS p ON pf.fk_paiementfourn = p.rowid ";
 		$sql .= "WHERE p.fk_bank = " . ((int) $lineId);
+		$sql .= " AND f.entity IN (" . getEntity('supplier_invoice') . ")";
 
 		$resql = $this->db->query($sql);
 		if ($resql) {
@@ -174,7 +176,11 @@ class BankRelationshipLookup
 	 */
 	private function getBankLine(int $lineId): ?object
 	{
-		$sql = "SELECT rowid, label FROM " . MAIN_DB_PREFIX . "bank WHERE rowid = " . ((int) $lineId);
+		// Scoped through the bank account, like every other bank-line query here.
+		$sql = "SELECT b.rowid, b.label FROM " . MAIN_DB_PREFIX . "bank AS b";
+		$sql .= " INNER JOIN " . MAIN_DB_PREFIX . "bank_account AS ba ON ba.rowid = b.fk_account";
+		$sql .= " WHERE b.rowid = " . ((int) $lineId);
+		$sql .= " AND ba.entity IN (" . getEntity('bank_account') . ")";
 
 		$resql = $this->db->query($sql);
 		if ($resql) {
@@ -207,7 +213,7 @@ class BankRelationshipLookup
 			$icon = img_picto('', 'supplier_invoice');
 		}
 
-		return '<a href="' . $url . '" title="' . $title . '" class="classfortooltip" target="_blank">'
+		return '<a href="' . dol_escape_htmltag($url) . '" title="' . $title . '" class="classfortooltip" target="_blank" rel="noopener noreferrer">'
 			. $icon . ' ' . ((int) $invoice->rowid) . ' ' . $name . '</a>';
 	}
 
@@ -222,7 +228,7 @@ class BankRelationshipLookup
 		$name = dol_escape_htmltag($bankLine->label);
 		$url = DOL_URL_ROOT . '/compta/bank/line.php?rowid=' . ((int) $bankLine->rowid) . '&save_lastsearch_values=1';
 
-		return '<a href="' . $url . '" title="' . $name . '" class="classfortooltip" target="_blank">'
+		return '<a href="' . dol_escape_htmltag($url) . '" title="' . $name . '" class="classfortooltip" target="_blank" rel="noopener noreferrer">'
 			. img_picto('', 'bank') . ' ' . ((int) $bankLine->rowid) . ' ' . $name . '</a>';
 	}
 

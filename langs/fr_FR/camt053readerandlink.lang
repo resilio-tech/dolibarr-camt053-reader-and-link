@@ -41,7 +41,88 @@ CheckNewConciliations = Vérifier les nouveaux rapprochements
 ViewBankStatement = Voir le relevé bancaire
 AllEntriesReconciled = Toutes les écritures sont déjà rapprochées
 NoEntriesToReconcile = Aucune écriture trouvée à rapprocher
+Camt053IbanNotInCurrentEntity = Le compte bancaire avec l'IBAN %s n'existe pas dans l'entité courante. Ses écritures ont été ignorées. Basculez vers l'entité propriétaire de ce compte avant d'importer.
 BasedOnPreviousMonthIfNotFilled = Basé sur le mois précédent de la date d'extraction du fichier si non rempli
 ErrorProcessingFile = Erreur lors du traitement du fichier
 ReconciliationFailed = Échec du rapprochement pour la ligne bancaire
 StatementFileNotArchived = Le fichier de relevé n'a pas pu être archivé car aucun compte bancaire n'a pu être déterminé
+
+#
+# Comptes SFTP (PostFinance MFTPF)
+#
+
+Camt053SftpAccounts = Comptes SFTP
+Camt053SftpAccountsHelp = Connexions SFTP utilisées pour récupérer automatiquement les fichiers CAMT.053 (ex. PostFinance MFTPF). Les identifiants sont stockés chiffrés.
+Camt053SftpAccountNew = Nouveau compte SFTP
+Camt053SftpAccountEdit = Modifier le compte SFTP
+Camt053SftpNoAccount = Aucun compte SFTP défini pour le moment
+Camt053SftpHost = Hôte
+Camt053SftpPort = Port
+Camt053SftpUsername = Identifiant
+Camt053SftpUsernameHelp = User ID MFTPF communiqué par PostFinance
+Camt053SftpAuthType = Authentification
+Camt053SftpAuthKey = Clé privée SSH
+Camt053SftpAuthPassword = Mot de passe
+Camt053SftpPrivateKey = Clé privée SSH
+Camt053SftpPrivateKeyHelp = Clé privée PEM (RSA &gt; 4096 bits pour PostFinance MFTPF). Stockée chiffrée. Laisser vide en modification pour conserver la clé actuelle.
+Camt053SftpPassphrase = Phrase secrète de la clé
+Camt053SftpKeepCurrentSecret = Laisser vide pour conserver la valeur actuelle
+Camt053SftpRemoteDir = Répertoire distant
+Camt053SftpRemoteDirHelp = PostFinance : yellow-net-reports (production) ou yellow-net-reports-t (test)
+Camt053SftpDailyPattern = Motif fichier journalier
+Camt053SftpPatternHelp = Expression régulière correspondant aux noms des fichiers CAMT.053 journaliers
+Camt053SftpMonthlyPattern = Motif fichier mensuel
+Camt053SftpMonthlyPatternHelp = Expression régulière correspondant au fichier CAMT.053 mensuel (déclenche le rapport Zulip)
+Camt053SftpPostAction = Après téléchargement
+Camt053SftpPostDelete = Supprimer le fichier sur le serveur
+Camt053SftpPostLeave = Laisser le fichier sur le serveur
+Camt053SftpDefaultAccount = Compte bancaire de repli
+Camt053SftpDefaultAccountHelp = Utilisé uniquement lorsque l'IBAN du fichier ne peut pas être associé à un compte bancaire
+Camt053SftpLastRun = Dernière exécution
+Camt053SftpDeleteTitle = Supprimer le compte SFTP
+Camt053SftpDeleteConfirm = Êtes-vous sûr de vouloir supprimer ce compte SFTP ?
+
+#
+# Rapport Zulip
+#
+
+Camt053ZulipSetup = Rapport Zulip
+Camt053ZulipSetupHelp = Le fichier CAMT.053 mensuel déclenche un rapport de rapprochement envoyé sur Zulip via un bot. La clé API est stockée chiffrée.
+Camt053ZulipSite = URL du site Zulip
+Camt053ZulipBotEmail = E-mail du bot
+Camt053ZulipApiKey = Clé API du bot
+Camt053ZulipStream = Flux (stream)
+Camt053ZulipTopic = Sujet (topic)
+
+#
+# Suggestions de paiement pour les écritures non rapprochées
+#
+Camt053SuggestPayCustomerInvoice = Payer la facture client %s
+Camt053SuggestPaySupplierInvoice = Payer la facture fournisseur %s
+Camt053SuggestPayExpenseReport = Payer la note de frais %s
+Camt053SuggestPaySocialCharge = Payer la charge %s
+Camt053SuggestChoose = Choisir parmi %s documents impayés du même montant
+Camt053SuggestInternalTransfer = Virement interne vers %s
+
+#
+# Confirmation du virement interne
+#
+Camt053TransferConfirmTitle = Confirmer le virement interne
+Camt053TransferConfirmHelp = Cette écriture correspond à un virement entre deux de vos comptes. Vérifiez les valeurs préremplies et confirmez pour créer le virement interne.
+Camt053TransferLabel = Virement interne (CAMT.053)
+Camt053TransferCreate = Créer le virement
+Camt053TransferRateHint = Estimé d'après le taux de change actuel, ajustez si nécessaire.
+Camt053TransferInvalidAccounts = Comptes bancaires invalides ou manquants pour ce virement.
+Camt053SftpTest = Tester la connexion
+Camt053SftpTestConnectOk = Connexion à %s:%s réussie.
+Camt053SftpTestListOk = Répertoire distant « %s » listé : %s fichier(s) trouvé(s).
+Camt053SftpTestListFailed = Connecté à %s:%s, mais le listage du répertoire « %s » a échoué : %s
+Camt053SftpTestFailed = Échec de la connexion à %s:%s : %s
+Camt053DuplicateBankLineSelected = La ligne bancaire #%s a été sélectionnée pour plusieurs écritures du relevé ; le doublon a été ignoré.
+SecurityTokenError = Le jeton de sécurité est invalide ou a expiré, l'action a été annulée. Merci de réessayer.
+Camt053EmptyStatementReference = Aucune référence de relevé n'a pu être calculée à partir de la période, rien n'a été rapproché.
+Camt053ReaderAndLinkResults = Résultats du rapprochement CAMT.053
+Camt053SftpPublicKey = Clé publique SSH
+Camt053SftpPublicKeyHelp = Facultatif pour une clé RSA : elle est déduite de la clé privée si ce champ est vide. Obligatoire pour tout autre type de clé. La clé privée doit être au format PEM (ssh-keygen -p -m PEM -f &lt;fichier&gt;), le seul que l'extension PHP ssh2 sache lire.
+Camt053TransferInvalidAmount = Le montant du virement doit être strictement positif.
+Camt053SftpExtensionMissing = L'extension PHP <b>ssh2</b> n'est pas installée sur ce serveur. La récupération SFTP automatique ne peut pas fonctionner sans elle ; l'import manuel de CAMT.053 n'est pas affecté. Demandez son installation à votre administrateur système (Debian/Ubuntu : <b>php-ssh2</b>, sinon <b>pecl install ssh2</b>).

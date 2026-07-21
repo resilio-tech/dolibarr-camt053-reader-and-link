@@ -64,6 +64,30 @@ class Camt053Entry
 	private $bankLine = null;
 
 	/**
+	 * @var string Entry currency (ISO code, e.g. CHF). Empty if unknown.
+	 */
+	private $currency = '';
+
+	/**
+	 * @var string Counterparty IBAN (creditor account for a debit, debtor
+	 *             account for a credit). Empty if not provided by the file.
+	 */
+	private $counterpartyIban = '';
+
+	/**
+	 * @var string Bank reference (AcctSvcrRef) when the file provided one
+	 */
+	private $bankReference = '';
+
+	/**
+	 * @var bool Whether the entry falls inside the requested period. Database
+	 *           entries are loaded with a few days of margin so the matcher's
+	 *           date tolerance can still reach them; the ones outside the period
+	 *           are only there to be matched, never to be listed on their own.
+	 */
+	private $inPeriod = true;
+
+	/**
 	 * Constructor
 	 *
 	 * @param float       $amount    Entry amount
@@ -79,6 +103,20 @@ class Camt053Entry
 		$this->name = $name;
 		$this->info = $info;
 		$this->hash = $hash ?? $this->generateHash();
+		// Remember whether the bank gave us its own reference (AcctSvcrRef): the
+		// hash may later be rewritten to keep form keys unique, but the reference
+		// is what identifies the movement across statement blocks.
+		$this->bankReference = ($hash !== null && $hash !== '') ? $hash : '';
+	}
+
+	/**
+	 * Bank reference (AcctSvcrRef) when the file provided one.
+	 *
+	 * @return string Empty when the entry hash is derived from its content
+	 */
+	public function getBankReference(): string
+	{
+		return $this->bankReference;
 	}
 
 	/**
@@ -95,7 +133,11 @@ class Camt053Entry
 		$info = $data['info'] ?? '';
 		$hash = $data['hash'] ?? null;
 
-		return new self($amount, $valueDate, $name, $info, $hash);
+		$entry = new self($amount, $valueDate, $name, $info, $hash);
+		$entry->setCurrency($data['currency'] ?? '');
+		$entry->setCounterpartyIban($data['counterparty_iban'] ?? '');
+
+		return $entry;
 	}
 
 	/**
@@ -110,7 +152,9 @@ class Camt053Entry
 			'value_date' => $this->valueDate,
 			'name' => $this->name,
 			'info' => $this->info,
-			'hash' => $this->hash
+			'hash' => $this->hash,
+			'currency' => $this->currency,
+			'counterparty_iban' => $this->counterpartyIban
 		);
 	}
 
@@ -269,6 +313,69 @@ class Camt053Entry
 	public function setBankLine(?object $bankLine): void
 	{
 		$this->bankLine = $bankLine;
+	}
+
+	/**
+	 * Get entry currency (ISO code).
+	 *
+	 * @return string
+	 */
+	public function getCurrency(): string
+	{
+		return $this->currency;
+	}
+
+	/**
+	 * Set entry currency (ISO code).
+	 *
+	 * @param string $currency
+	 * @return void
+	 */
+	public function setCurrency(string $currency): void
+	{
+		$this->currency = strtoupper(trim($currency));
+	}
+
+	/**
+	 * Get counterparty IBAN (no spaces).
+	 *
+	 * @return string
+	 */
+	public function getCounterpartyIban(): string
+	{
+		return $this->counterpartyIban;
+	}
+
+	/**
+	 * Set counterparty IBAN (spaces stripped, upper-cased).
+	 *
+	 * @param string $iban
+	 * @return void
+	 */
+	public function setCounterpartyIban(string $iban): void
+	{
+		$this->counterpartyIban = strtoupper(str_replace(' ', '', trim($iban)));
+	}
+
+	/**
+	 * Whether the entry belongs to the requested period.
+	 *
+	 * @return bool
+	 */
+	public function isInPeriod(): bool
+	{
+		return $this->inPeriod;
+	}
+
+	/**
+	 * Flag the entry as inside or outside the requested period.
+	 *
+	 * @param bool $inPeriod
+	 * @return void
+	 */
+	public function setInPeriod(bool $inPeriod): void
+	{
+		$this->inPeriod = $inPeriod;
 	}
 
 	/**

@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Test fixture for the payment-suggestion feature.
+  Entries are intentionally NOT present in Dolibarr (no bank lines) so they all
+  land as "unmatched file entries". Amounts/IBANs/currencies match the seeded
+  test data (see local-dev-test-env): POSTE_CH CHF CH0509000000100123456,
+  POSTE_EU EUR CH9300762011623852957, third party "CAMT Test Partner SA".
+-->
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.02">
+	<BkToCstmrStmt>
+		<GrpHdr>
+			<MsgId>STMT-PAYSUG-202606</MsgId>
+			<CreDtTm>2026-07-15T12:00:00</CreDtTm>
+		</GrpHdr>
+
+		<!-- ===================== POSTE_CH (CHF) ===================== -->
+		<Stmt>
+			<Id>STMT-CHF-001</Id>
+			<ElctrncSeqNb>1</ElctrncSeqNb>
+			<CreDtTm>2026-07-15T12:00:00</CreDtTm>
+			<Acct>
+				<Id>
+					<IBAN>CH0509000000100123456</IBAN>
+				</Id>
+				<Ccy>CHF</Ccy>
+			</Acct>
+			<Bal>
+				<Tp><CdOrPrtry><Cd>OPBD</Cd></CdOrPrtry></Tp>
+				<Amt Ccy="CHF">10000.00</Amt>
+				<CdtDbtInd>CRDT</CdtDbtInd>
+				<Dt><Dt>2026-06-01</Dt></Dt>
+			</Bal>
+
+			<!-- Credit 1234.56 -> unpaid customer invoice IN2606-0001 (CHF) -->
+			<Ntry>
+				<Amt Ccy="CHF">1234.56</Amt>
+				<CdtDbtInd>CRDT</CdtDbtInd>
+				<Sts>BOOK</Sts>
+				<BookgDt><Dt>2026-06-20</Dt></BookgDt>
+				<ValDt><Dt>2026-06-20</Dt></ValDt>
+				<AcctSvcrRef>CHF-CRDT-001</AcctSvcrRef>
+				<NtryDtls>
+					<TxDtls>
+						<RmtInf><Ustrd>Payment for IN2606-0001</Ustrd></RmtInf>
+						<RltdPties>
+							<Dbtr><Nm>CAMT Test Partner SA</Nm></Dbtr>
+						</RltdPties>
+					</TxDtls>
+				</NtryDtls>
+				<AddtlNtryInf>Customer invoice settlement</AddtlNtryInf>
+			</Ntry>
+
+			<!-- Debit 789.00 -> unpaid supplier invoice SI2606-0001 (CHF) -->
+			<Ntry>
+				<Amt Ccy="CHF">789.00</Amt>
+				<CdtDbtInd>DBIT</CdtDbtInd>
+				<Sts>BOOK</Sts>
+				<BookgDt><Dt>2026-06-20</Dt></BookgDt>
+				<ValDt><Dt>2026-06-20</Dt></ValDt>
+				<AcctSvcrRef>CHF-DBIT-001</AcctSvcrRef>
+				<NtryDtls>
+					<TxDtls>
+						<RmtInf><Ustrd>Supplier payment SI2606-0001</Ustrd></RmtInf>
+						<RltdPties>
+							<Cdtr><Nm>CAMT Test Partner SA</Nm></Cdtr>
+						</RltdPties>
+					</TxDtls>
+				</NtryDtls>
+				<AddtlNtryInf>Supplier invoice payment</AddtlNtryInf>
+			</Ntry>
+
+			<!-- Debit 250.00 -> unpaid expense report (CHF) -->
+			<Ntry>
+				<Amt Ccy="CHF">250.00</Amt>
+				<CdtDbtInd>DBIT</CdtDbtInd>
+				<Sts>BOOK</Sts>
+				<BookgDt><Dt>2026-06-21</Dt></BookgDt>
+				<ValDt><Dt>2026-06-21</Dt></ValDt>
+				<AcctSvcrRef>CHF-DBIT-002</AcctSvcrRef>
+				<NtryDtls>
+					<TxDtls>
+						<RmtInf><Ustrd>Expense reimbursement</Ustrd></RmtInf>
+						<RltdPties>
+							<Cdtr><Nm>Employee Admin</Nm></Cdtr>
+						</RltdPties>
+					</TxDtls>
+				</NtryDtls>
+				<AddtlNtryInf>Expense report payment</AddtlNtryInf>
+			</Ntry>
+
+			<!-- Debit 500.00 -> unpaid social charge (CHF) -->
+			<Ntry>
+				<Amt Ccy="CHF">500.00</Amt>
+				<CdtDbtInd>DBIT</CdtDbtInd>
+				<Sts>BOOK</Sts>
+				<BookgDt><Dt>2026-06-22</Dt></BookgDt>
+				<ValDt><Dt>2026-06-22</Dt></ValDt>
+				<AcctSvcrRef>CHF-DBIT-003</AcctSvcrRef>
+				<NtryDtls>
+					<TxDtls>
+						<RmtInf><Ustrd>Social charge URSSAF</Ustrd></RmtInf>
+						<RltdPties>
+							<Cdtr><Nm>URSSAF</Nm></Cdtr>
+						</RltdPties>
+					</TxDtls>
+				</NtryDtls>
+				<AddtlNtryInf>Social/fiscal charge payment</AddtlNtryInf>
+			</Ntry>
+
+			<!-- Debit 333.00 -> internal transfer to POSTE_EU (cross-currency CHF->EUR) -->
+			<Ntry>
+				<Amt Ccy="CHF">333.00</Amt>
+				<CdtDbtInd>DBIT</CdtDbtInd>
+				<Sts>BOOK</Sts>
+				<BookgDt><Dt>2026-06-23</Dt></BookgDt>
+				<ValDt><Dt>2026-06-23</Dt></ValDt>
+				<AcctSvcrRef>CHF-DBIT-004</AcctSvcrRef>
+				<NtryDtls>
+					<TxDtls>
+						<RmtInf><Ustrd>Internal transfer to EUR account</Ustrd></RmtInf>
+						<RltdPties>
+							<Cdtr><Nm>PostFinance EUR</Nm></Cdtr>
+							<CdtrAcct><Id><IBAN>CH9300762011623852957</IBAN></Id></CdtrAcct>
+						</RltdPties>
+					</TxDtls>
+				</NtryDtls>
+				<AddtlNtryInf>Transfer between own accounts</AddtlNtryInf>
+			</Ntry>
+		</Stmt>
+
+		<!-- ===================== POSTE_EU (EUR) ===================== -->
+		<Stmt>
+			<Id>STMT-EUR-001</Id>
+			<ElctrncSeqNb>1</ElctrncSeqNb>
+			<CreDtTm>2026-07-15T12:00:00</CreDtTm>
+			<Acct>
+				<Id>
+					<IBAN>CH9300762011623852957</IBAN>
+				</Id>
+				<Ccy>EUR</Ccy>
+			</Acct>
+			<Bal>
+				<Tp><CdOrPrtry><Cd>OPBD</Cd></CdOrPrtry></Tp>
+				<Amt Ccy="EUR">2000.00</Amt>
+				<CdtDbtInd>CRDT</CdtDbtInd>
+				<Dt><Dt>2026-06-01</Dt></Dt>
+			</Bal>
+
+			<!-- Credit 210.00 EUR -> unpaid EUR customer invoice IN2606-0002 (multicurrency_total_ttc) -->
+			<Ntry>
+				<Amt Ccy="EUR">210.00</Amt>
+				<CdtDbtInd>CRDT</CdtDbtInd>
+				<Sts>BOOK</Sts>
+				<BookgDt><Dt>2026-06-24</Dt></BookgDt>
+				<ValDt><Dt>2026-06-24</Dt></ValDt>
+				<AcctSvcrRef>EUR-CRDT-001</AcctSvcrRef>
+				<NtryDtls>
+					<TxDtls>
+						<RmtInf><Ustrd>Payment for IN2606-0002 (EUR)</Ustrd></RmtInf>
+						<RltdPties>
+							<Dbtr><Nm>CAMT Test Partner SA</Nm></Dbtr>
+						</RltdPties>
+					</TxDtls>
+				</NtryDtls>
+				<AddtlNtryInf>EUR customer invoice settlement</AddtlNtryInf>
+			</Ntry>
+		</Stmt>
+	</BkToCstmrStmt>
+</Document>

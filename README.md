@@ -17,9 +17,18 @@ Bank reconciliation module that allows importing bank statements in CAMT.053 for
 
 ### Prerequisites
 
-- Dolibarr >= 11.0
-- PHP >= 7.0
-- Bank module enabled in Dolibarr
+- Dolibarr >= 17.0 (the code relies on `isModEnabled()`, `getDolGlobalString()`,
+  `$user->hasRight()` and `GETPOSTINT()`; only Dolibarr 24 is actively tested)
+- PHP >= 7.4
+- Bank module enabled in Dolibarr (declared as a module dependency)
+- For the optional SFTP auto-fetch only: the PHP `ssh2` extension, the same one
+  Dolibarr core uses for its own SFTP support. The module bundles no third-party
+  library. Without the extension the manual upload works normally and the SFTP
+  configuration reports that the extension is missing.
+  Key authentication needs the private key in PEM format
+  (`ssh-keygen -p -m PEM -f <keyfile>`); the OpenSSH container format is refused
+  with an explicit message. Paste the matching public key in the configuration,
+  or leave it empty for an RSA key and it is derived from the private one.
 
 ### Module Installation
 
@@ -88,7 +97,6 @@ camt053readerandlink/
 │   ├── Camt053FileProcessor.class.php  # Secure XML parser
 │   ├── BankStatementMatcher.class.php  # Matching algorithm
 │   ├── DatabaseBankStatementLoader.class.php  # DB loading
-│   ├── BankEntryReconciler.class.php   # Reconciliation
 │   └── BankRelationshipLookup.class.php  # Third party lookup
 ├── core/modules/
 │   └── modCamt053ReaderAndLink.class.php  # Module descriptor
@@ -106,8 +114,7 @@ camt053readerandlink/
 │   └── fixtures/sample_camt053.xml     # Test file
 ├── index.php                           # Upload page
 ├── submit.php                          # Processing + comparison
-├── confirm.php                         # Reconciliation confirmation
-└── statements.php                      # Legacy classes
+└── confirm.php                         # Reconciliation confirmation
 ```
 
 ### Flow Diagram
@@ -182,13 +189,10 @@ Matching algorithm:
 
 #### `DatabaseBankStatementLoader`
 Loads entries from Dolibarr:
-- `loadStatements()`: Loads by date range
-- Queries `llx_bank` and `llx_bank_account`
-
-#### `BankEntryReconciler`
-Performs reconciliation:
-- `reconcile()`: Marks an entry as reconciled
-- Updates `rappro = 1` and `num_releve`
+- `loadStatements()`: Loads by date range, optionally widened *backwards* by a
+  day margin so the matcher's date tolerance can reach a line keyed a day early.
+  Lines from that margin are flagged out of period: matchable, never listed.
+- Queries `llx_bank` and `llx_bank_account`, scoped to the current entity
 
 ---
 

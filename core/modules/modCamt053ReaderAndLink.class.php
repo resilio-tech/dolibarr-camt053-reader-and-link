@@ -55,7 +55,7 @@ class modCamt053ReaderAndLink extends DolibarrModules
 
 		$this->editor_name = 'Slordef';
 		$this->editor_url = '';
-		$this->version = '2.0.1';
+		$this->version = '2.0.2-pre2';
 		$this->const_name = 'MAIN_MODULE_'.strtoupper($this->name);
 		$this->picto = 'fa-building-columns';
 
@@ -84,7 +84,8 @@ class modCamt053ReaderAndLink extends DolibarrModules
 
 		// Dependencies
 		$this->hidden = false;
-		$this->depends = array();
+		// Everything this module does targets bank accounts and bank lines.
+		$this->depends = array('modBanque');
 		$this->requiredby = array();
 		$this->conflictwith = array();
 
@@ -92,8 +93,17 @@ class modCamt053ReaderAndLink extends DolibarrModules
 		$this->langfiles = array("camt053readerandlink@camt053readerandlink");
 
 		// Prerequisites
-		$this->phpmin = array(7, 0);
-		$this->need_dolibarr_version = array(11, -3);
+		// PHP 7.4: the classes use `object` type hints (7.2) and the test matrix
+		// starts at 7.4, which is the oldest version actually exercised.
+		$this->phpmin = array(7, 4);
+		// The code calls isModEnabled(), getDolGlobalString(), $user->hasRight()
+		// and GETPOSTINT(), none of which exist in the versions previously
+		// declared as supported. 17 is a conservative floor; the only version the
+		// module is actually developed and run against is 24.
+		$this->need_dolibarr_version = array(17, 0);
+		// The SFTP auto-fetch needs ext-ssh2 (as Dolibarr core's own SFTP does).
+		// Not listed as a hard requirement: the manual upload, which is the main
+		// feature, works without it.
 		$this->need_javascript_ajax = 0;
 
 		// Activation warnings
@@ -118,7 +128,24 @@ class modCamt053ReaderAndLink extends DolibarrModules
 		$this->boxes = array();
 
 		// Cronjobs (List of cron jobs entries to add when module is enabled)
-		$this->cronjobs = array();
+		// Disabled by default: enable it from the scheduled jobs page once at least
+		// one SFTP account is configured. Daily run (PostFinance purges files after 9 days).
+		$this->cronjobs = array(
+			0 => array(
+				'label' => 'Fetch and reconcile CAMT.053 over SFTP',
+				'jobtype' => 'method',
+				'class' => '/camt053readerandlink/class/Camt053CronRunner.class.php',
+				'objectname' => 'Camt053CronRunner',
+				'method' => 'run',
+				'parameters' => '',
+				'comment' => 'Daily fetch of CAMT.053 from PostFinance MFTPF, auto-reconcile unique matches and report monthly file to Zulip',
+				'frequency' => 1,
+				'unitfrequency' => 86400,
+				'status' => 0,
+				'test' => 'isModEnabled("camt053readerandlink")',
+				'priority' => 50,
+			),
+		);
 
 		// Permissions provided by this module
 		$this->rights = array();

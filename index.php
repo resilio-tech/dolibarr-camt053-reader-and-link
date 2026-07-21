@@ -72,7 +72,9 @@ $form = new Form($db);
 llxHeader("", $langs->trans("Camt053ReaderAndLinkArea"), '', '', 0, 0, '', '', '', 'mod-camt053readerandlink page-index');
 
 print '<div class="fichecenter camt053readerandlink"><div class="fichethirdleft">';
-print '<form id="form" name="form" action="/custom/camt053readerandlink/submit.php" method="post" enctype="multipart/form-data">';
+// dol_buildpath, like every other link in the module: a hardcoded absolute path
+// posts to a 404 on any install not served from the web root.
+print '<form id="form" name="form" action="' . dol_buildpath('/custom/camt053readerandlink/submit.php', 1) . '" method="post" enctype="multipart/form-data">';
 //
 //print '<label for="bank_account_id">' . $langs->trans("Account") . '</label>';
 //print $form->select_comptes(0, 'bank_account_id', 0, '', 1, '', 0, 'maxwidth200 widthcentpercentminusx', 1);

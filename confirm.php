@@ -61,7 +61,7 @@ include_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/compta/bank/class/account.class.php';
 
 // Load module classes
-require_once __DIR__ . '/class/BankEntryReconciler.class.php';
+require_once __DIR__ . '/lib/camt053readerandlink.lib.php';
 
 // Load translation files required by the page
 $langs->loadLangs(array("camt053readerandlink@camt053readerandlink"));
@@ -70,21 +70,45 @@ $langs->loadLangs(array("camt053readerandlink@camt053readerandlink"));
 if (!isModEnabled('camt053readerandlink')) {
 	accessforbidden('Module not enabled');
 }
-if (!$user->hasRight('banque', 'modifier')) {
+// Writing num_releve and rappro on a bank line is a reconciliation, which
+// Dolibarr core gates on banque.consolidate (compta/bank/bankentries_list.php),
+// not on banque.modifier.
+if (!$user->hasRight('banque', 'consolidate')) {
 	accessforbidden();
+}
+// This page writes (num_releve + rappro) straight away, so it must carry the
+// same token check as the admin pages. Core blocks token-less POSTs at the
+// default MAIN_SECURITY_CSRF_WITH_TOKEN, but not on instances that lowered it.
+if (!camt053VerifCsrfToken()) {
+	accessforbidden($langs->trans('SecurityTokenError'));
 }
 
 llxHeader("", $langs->trans("Camt053ReaderAndLinkArea"), '', '', 0, 0, '', '', '', 'mod-camt053readerandlink page-index');
 
 print '<div class="fichecenter camt053readerandlink">';
 
-// Get linked entries from form
-$linked = GETPOST('linked', 'array');
+// Get linked entries from form. The explicit dropdown choices come first: when
+// one of them collides with an automatic link on the same bank line, the
+// duplicate guard below keeps whichever came first, and the user's decision must
+// win over a match the module made on its own.
+$linked = array();
 foreach ($_POST as $key => $value) {
+	// Only scalars: a field named "linked_x[]" would otherwise reach the (int)
+	// cast below as an array, which PHP evaluates to 1 and would reconcile bank
+	// line 1. Entry references come from the bank, so the key is not trusted.
+	if (!is_scalar($value)) {
+		continue;
+	}
 	if (preg_match('/^linked_(.+)$/', $key, $matches)) {
 		$hash = $matches[1];
-		$linked[$hash] = $value;
+		$linked[$hash] = (string) $value;
 	}
+}
+foreach (GETPOST('linked', 'array') as $hash => $value) {
+	if (!is_scalar($value) || isset($linked[$hash])) {
+		continue;
+	}
+	$linked[$hash] = (string) $value;
 }
 $date_start = GETPOST('date_start', 'alphanohtml');
 $date_end = GETPOST('date_end', 'alphanohtml');
@@ -96,7 +120,12 @@ $upload_file = GETPOST('upload_file', 'alpha');
 if (!empty($upload_file)) {
 	$realUploadFile = realpath($upload_file);
 	$allowedDir = realpath(DOL_DATA_ROOT . '/camt053readerandlink');
-	if ($realUploadFile === false || strpos($realUploadFile, $allowedDir) !== 0) {
+	// realpath() returns false when the directory does not exist yet, and
+	// strpos($x, false) matches everything: without the explicit check the guard
+	// would wave any path through. The trailing separator keeps a sibling
+	// directory such as "camt053readerandlink_evil" from passing the prefix test.
+	if ($realUploadFile === false || $allowedDir === false
+		|| strpos($realUploadFile, $allowedDir . DIRECTORY_SEPARATOR) !== 0) {
 		dol_syslog('CAMT053: Path traversal attempt detected: ' . $upload_file, LOG_WARNING);
 		$upload_file = '';
 	}
@@ -121,7 +150,6 @@ print '<td class="right">'.$langs->trans('Amount').'</td>';
 print '</tr>';
 
 $bank_account = new Account($db);
-$reconciler = new BankEntryReconciler($db, $user);
 
 // Counters and errors to give visible feedback instead of failing silently
 $reconcileSuccess = 0;
@@ -131,21 +159,37 @@ $reconcileErrors = array();
 // after fetch() so it is known even if the reconciliation itself later fails.
 $linkedAccountIds = array();
 
-// An empty statement reference makes update_conciliation() fail when BANK_STATEMENT_REGEX_RULE is set
-if (empty($date_concil)) {
-	dol_syslog('CAMT053: Empty statement reference (num_releve) computed from date_end=' . $date_end . ' - reconciliation may fail if BANK_STATEMENT_REGEX_RULE is set', LOG_WARNING);
+// Without a statement reference every update_conciliation() call fails once
+// BANK_STATEMENT_REGEX_RULE is set, and each failure leaves an unclosed
+// transaction behind (core opens one before validating). Stop before the loop
+// rather than iterating over a guaranteed failure.
+if (empty($date_concil) && !empty($linked)) {
+	dol_syslog('CAMT053: Empty statement reference (num_releve) computed from date_end=' . $date_end . ' - aborting', LOG_ERR);
+	setEventMessages($langs->trans('Camt053EmptyStatementReference'), null, 'errors');
+	$linked = array();
 }
 
 dol_syslog('CAMT053: Starting reconciliation of ' . count($linked) . ' linked entry(ies), num_releve=' . $date_concil, LOG_DEBUG);
 
 try {
 	// Process each linked entry
+	$processedLineIds = array();
 	foreach ($linked as $key => $link) {
 		if (empty($link) || $link == 0) {
 			continue;
 		}
 
 		$bankLineId = (int) $link;
+
+		// Two file entries can be pointed at the same bank line through the
+		// multi-match dropdowns. Reconciling it twice would report two successes
+		// while one entry silently stays unreconciled.
+		if (isset($processedLineIds[$bankLineId])) {
+			dol_syslog('CAMT053: Bank line rowid=' . $bankLineId . ' selected more than once, ignoring the duplicate', LOG_WARNING);
+			$reconcileErrors[] = $langs->trans('Camt053DuplicateBankLineSelected', $bankLineId);
+			continue;
+		}
+		$processedLineIds[$bankLineId] = true;
 		$obj = new AccountLine($db);
 		$result = $obj->fetch($bankLineId);
 
@@ -209,7 +253,8 @@ try {
 			$name .= ' - ' . dol_escape_htmltag($bank_links[1]['label']);
 		}
 
-		$name = '<a href="' . DOL_URL_ROOT . '/compta/bank/line.php?rowid=' . ((int)$obj->id) . '&save_lastsearch_values=1" title="' . dol_escape_htmltag($name, 1) . '" class="classfortooltip" target="_blank">' . img_picto('', $obj->picto) . ' ' . $obj->id . ' ' . $name . '</a>';
+		$lineUrl = DOL_URL_ROOT . '/compta/bank/line.php?rowid=' . ((int) $obj->id) . '&save_lastsearch_values=1';
+		$name = '<a href="' . dol_escape_htmltag($lineUrl) . '" title="' . dol_escape_htmltag($name, 1) . '" class="classfortooltip" target="_blank" rel="noopener noreferrer">' . img_picto('', $obj->picto) . ' ' . $obj->id . ' ' . $name . '</a>';
 
 		print '<tr>';
 		print '<td>' . $name . '</td>';

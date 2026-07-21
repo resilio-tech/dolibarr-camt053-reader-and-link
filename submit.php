@@ -62,11 +62,129 @@ require_once DOL_DOCUMENT_ROOT.'/compta/bank/class/account.class.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
 
 // Load module classes
-require_once __DIR__ . '/statements.php';
 require_once __DIR__ . '/class/Camt053FileProcessor.class.php';
 require_once __DIR__ . '/class/DatabaseBankStatementLoader.class.php';
 require_once __DIR__ . '/class/BankStatementMatcher.class.php';
 require_once __DIR__ . '/class/BankRelationshipLookup.class.php';
+require_once __DIR__ . '/class/PaymentSuggestionFinder.class.php';
+require_once __DIR__ . '/class/InternalTransferDetector.class.php';
+
+/**
+ * Derive the reconciliation period from the entries a CAMT.053 file carries.
+ *
+ * Mirrors ReconciliationService::dateRange() so the interactive and the headless
+ * paths agree on the period, and therefore on the statement number computed from
+ * its end date. Falls back to the previous month when the file has no usable
+ * entry date.
+ *
+ * @param Camt053FileProcessor $fileProcessor Parsed file
+ * @return array{0:string,1:string} [start, end] in d/m/Y
+ */
+function camt053_entries_date_range($fileProcessor)
+{
+	$min = null;
+	$max = null;
+
+	// Resolved accounts only, exactly like ReconciliationService: an IBAN that
+	// matches no Dolibarr account contributes nothing to the reconciliation, and
+	// letting its dates widen the window drags unrelated bank lines into the
+	// results as "unlinked".
+	foreach ($fileProcessor->getStatementsByAccountId() as $statement) {
+		foreach ($statement->getEntries() as $entry) {
+			// Pin the time: createFromFormat() would otherwise stamp "now", which
+			// makes two same-day entries compare unequal.
+			$d = DateTime::createFromFormat('Y-m-d H:i:s', $entry->getValueDate() . ' 00:00:00');
+			if ($d === false) {
+				continue;
+			}
+			if ($min === null || $d < $min) {
+				$min = clone $d;
+			}
+			if ($max === null || $d > $max) {
+				$max = clone $d;
+			}
+		}
+	}
+
+	if ($min === null || $max === null) {
+		$creationDate = $fileProcessor->getCreationDate();
+		try {
+			$d = $creationDate ? new DateTime($creationDate) : new DateTime();
+		} catch (Exception $e) {
+			$d = new DateTime();
+		}
+		$d->modify('first day of previous month');
+
+		return array($d->format('01/m/Y'), $d->format('t/m/Y'));
+	}
+
+	return array($min->format('d/m/Y'), $max->format('d/m/Y'));
+}
+
+/**
+ * Render the action links (prefilled payment or internal transfer) offered for
+ * a file entry that has no counterpart in Dolibarr.
+ *
+ * @param Camt053Entry             $entry     Unmatched file entry
+ * @param int                      $entity    Bank account entity
+ * @param int                      $accountId Bank account the statement belongs to
+ * @param PaymentSuggestionFinder  $finder    Payment suggestion finder
+ * @param InternalTransferDetector $detector  Internal transfer detector
+ * @param Translate                $langs     Language object
+ * @return string HTML (empty when nothing is suggested)
+ */
+function camt053_render_suggestions($entry, $entity, $accountId, $finder, $detector, $langs)
+{
+	$out = array();
+
+	// Internal transfer: the counterparty is one of the company's own accounts.
+	$transfer = $detector->detect($entry, (int) $accountId, (int) $entity);
+	if ($transfer !== null) {
+		$label = $langs->trans('Camt053SuggestInternalTransfer', dol_escape_htmltag($transfer['counterparty_ref']));
+		$out[] = '<a href="' . dol_escape_htmltag($detector->confirmUrl($transfer)) . '">'
+			. img_picto('', 'bank_account', 'class="paddingright"') . $label . '</a>';
+	}
+
+	// Unpaid documents of the same amount and currency.
+	$labelKeys = array(
+		'customer_invoice' => 'Camt053SuggestPayCustomerInvoice',
+		'supplier_invoice' => 'Camt053SuggestPaySupplierInvoice',
+		'expense_report' => 'Camt053SuggestPayExpenseReport',
+		'social_charge' => 'Camt053SuggestPaySocialCharge',
+	);
+	$pictos = array(
+		'customer_invoice' => 'bill',
+		'supplier_invoice' => 'supplier_invoice',
+		'expense_report' => 'trip',
+		'social_charge' => 'payment',
+	);
+
+	$suggestions = $finder->findForEntry($entry, (int) $entity, (int) $accountId);
+	foreach ($suggestions['links'] as $link) {
+		if ($link['kind'] === 'pay') {
+			$label = $langs->trans($labelKeys[$link['type']], dol_escape_htmltag($link['ref']));
+			$out[] = '<a href="' . dol_escape_htmltag($link['url']) . '" target="_blank" rel="noopener noreferrer">'
+				. img_picto('', $pictos[$link['type']], 'class="paddingright"') . $label . '</a>';
+		} else {
+			// Several documents share this amount: let the user pick which one to pay.
+			$options = '<option value="">'
+				. dol_escape_htmltag($langs->trans('Camt053SuggestChoose', (int) $link['count']))
+				. '</option>';
+			foreach ($link['options'] as $o) {
+				$text = $o['ref'] . ' - ' . $o['label']
+					. ' (' . price($o['amount'], 0, $langs, 1, -1, -1, $o['currency']) . ')';
+				$options .= '<option value="' . dol_escape_htmltag($o['url']) . '">'
+					. dol_escape_htmltag($text) . '</option>';
+			}
+			$out[] = img_picto('', $pictos[$link['type']], 'class="paddingright"')
+				. '<select class="flat maxwidth200onsmartphone"'
+				. ' onchange="if(this.value){window.open(this.value,\'_blank\');this.selectedIndex=0;}">'
+				. $options . '</select>';
+		}
+	}
+
+	return implode('<br />', $out);
+}
 
 // Load translation files required by the page
 $langs->loadLangs(array(
@@ -171,18 +289,14 @@ if ($action == 'upload') {
 			$structure = $fileProcessor->getStructure();
 		}
 
-		// Get date range
+		// Get date range. It is derived from the entries the file actually
+		// carries, exactly like the headless path (ReconciliationService), so a
+		// weekly or daily statement is compared against its own days instead of a
+		// whole calendar month. Falling back to the previous month of the creation
+		// date, as this page used to do unconditionally, sent every non-monthly
+		// statement against a window it has no entry in.
 		if (empty($date_start) || empty($date_end)) {
-			$creationDate = $fileProcessor->getCreationDate();
-			if ($creationDate) {
-				$d = new DateTime($creationDate);
-			} else {
-				$d = new DateTime();
-			}
-			// Base on previous month
-			$d->modify('first day of previous month');
-			$date_start = $d->format('01/m/Y');
-			$date_end = $d->format('t/m/Y');
+			list($date_start, $date_end) = camt053_entries_date_range($fileProcessor);
 		}
 
 		// Validate date format
@@ -190,10 +304,21 @@ if ($action == 'upload') {
 			throw new Exception('Invalid date format. Use dd/mm/yyyy');
 		}
 
-		// Load database statements
-		$dbStatements = $dbLoader->loadStatements($date_start, $date_end);
+		// Load database statements. The window is widened by the matcher's date
+		// tolerance: a Dolibarr line dated one day off the CAMT booking date must
+		// be loaded, otherwise the tolerance can never reach it.
+		$dbStatements = $dbLoader->loadStatements($date_start, $date_end, null, $matcher->getDateTolerance());
 		if ($dbLoader->getError()) {
 			throw new Exception($dbLoader->getError());
+		}
+
+		// Warn about statements whose IBAN matches no bank account in the current
+		// entity: their entries are dropped (getStatementsByAccountId keeps only
+		// resolved accounts), so reconciliation must not silently ignore them.
+		foreach ($fileProcessor->getStatements() as $stmt) {
+			if ($stmt->getAccountId() === null && $stmt->getEntryCount() > 0) {
+				setEventMessages($langs->trans('Camt053IbanNotInCurrentEntity', $stmt->getIban()), null, 'warnings');
+			}
 		}
 
 		// Get file statements indexed by account ID
@@ -214,6 +339,14 @@ if ($action == 'upload') {
 				$hasEntriesToReconcile = true;
 				break;
 			}
+			// File entries with no counterpart in Dolibarr carry payment/transfer
+			// suggestions, so the results page must still be shown for them.
+			foreach ($results['unlinkeds'] as $u) {
+				if (is_object($u) && method_exists($u, 'isFromFile') && $u->isFromFile()) {
+					$hasEntriesToReconcile = true;
+					break 2;
+				}
+			}
 		}
 
 		// If nothing to reconcile, prepare redirect to bank statement page
@@ -224,10 +357,8 @@ if ($action == 'upload') {
 			setEventMessages($langs->trans('AllEntriesReconciled'), null, 'mesgs');
 		}
 	} catch (Throwable $e) {
+		// Throwable already covers Error and Exception; no narrower catch below.
 		dol_syslog('CAMT053: Error processing file - ' . $e->getMessage(), LOG_ERR);
-		$processError = $e->getMessage();
-	} catch (TypeError $e) {
-		dol_syslog('CAMT053: Type error processing file - ' . $e->getMessage(), LOG_ERR);
 		$processError = $e->getMessage();
 	}
 }
@@ -267,6 +398,9 @@ if (empty($banks) && empty($processError)) {
 }
 if (!empty($banks)) {
 	print '<form id="form" name="form" action="'.dol_buildpath('/custom/camt053readerandlink/confirm.php', 1).'" method="post">';
+
+		$suggestionFinder = new PaymentSuggestionFinder($db);
+		$transferDetector = new InternalTransferDetector($db);
 
 		foreach ($banks as $accountId => $bank) {
 			$results = $bank['results'];
@@ -311,7 +445,11 @@ if (!empty($banks)) {
 				print '<td>' . dol_escape_htmltag($entry['value_date']) . '</td>';
 				print '<td>' . dol_escape_htmltag($entry['name']) . '<br /><span class="info">' . dol_escape_htmltag($entry['info']) . '</span></td>';
 				print '<td><div class="statement_link_linked">' . $langs->trans('WillBeConciliated') . '</div></td>';
-				print '<td>' . $name . '<input type="hidden" name="linked[' . dol_escape_htmltag($n_obj['file']->getHash()) . ']" value="' . ((int) $o->rowid) . '" /></td>';
+				// The field key must be unique across the whole form, which spans
+				// every account of the file: two accounts can carry an identical
+				// movement, and hashes are only deduplicated within a statement.
+				$fieldKey = ((int) $accountId) . '-' . $n_obj['file']->getHash();
+				print '<td>' . $name . '<input type="hidden" name="linked[' . dol_escape_htmltag($fieldKey) . ']" value="' . ((int) $o->rowid) . '" /></td>';
 				print '</tr>';
 			}
 
@@ -335,9 +473,16 @@ if (!empty($banks)) {
 					$n = dol_escape_htmltag($dbEntry['name']);
 					$a = number_format($dbEntry['amount'], 2);
 					$d = dol_escape_htmltag($dbEntry['value_date']);
-					$array[$id] = '(' . $id . ') ' . $n . '<br />' . $a . '<br />' . $d;
+					// Prepend the related document (invoice ref + third party) so
+					// same-amount candidates can be told apart in the dropdown.
+					$doc = '';
+					$relation = $relationLookup->getRelation((int) $id);
+					if ($relation !== null && !empty($relation['ref'])) {
+						$doc = dol_escape_htmltag(trim($relation['ref'] . ' - ' . $relation['label'])) . '<br />';
+					}
+					$array[$id] = '(' . $id . ') ' . $doc . $n . '<br />' . $a . '<br />' . $d;
 				}
-				print $form->selectMassAction('', $array, 1, 'linked_' . dol_escape_htmltag($ntry_hash));
+				print $form->selectMassAction('', $array, 1, 'linked_' . dol_escape_htmltag(((int) $accountId) . '-' . $ntry_hash));
 				print '</td>';
 				print '</tr>';
 			}
@@ -356,7 +501,12 @@ if (!empty($banks)) {
 				print '<td>' . dol_escape_htmltag($entry['value_date']) . '</td>';
 				print '<td>' . $name . '<br /><span class="info">' . dol_escape_htmltag($entry['info']) . '</span></td>';
 				print '<td><div class="statement_link_unlinked">' . $langs->trans('WillNotBeConciliated') . '</div></td>';
-				print '<td></td>';
+				// Account::fetch does not load entity; the page runs in the current
+				// entity context, which is the one the bank account belongs to.
+				$suggestionHtml = $n_obj->isFromFile()
+					? camt053_render_suggestions($n_obj, (int) $conf->entity, (int) $accountId, $suggestionFinder, $transferDetector, $langs)
+					: '';
+				print '<td>' . $suggestionHtml . '</td>';
 				print '</tr>';
 			}
 
