@@ -75,7 +75,7 @@ $modulepart = GETPOST('modulepart', 'aZ09');
  */
 
 if ($action == 'update_zulip') {
-	if (!verifCsrfToken()) {
+	if (!camt053VerifCsrfToken()) {
 		setEventMessages($langs->trans("SecurityTokenError"), null, 'errors');
 	} else {
 		dolibarr_set_const($db, 'CAMT053_ZULIP_SITE', GETPOST('zulip_site', 'alphanohtml'), 'chaine', 0, '', $conf->entity);

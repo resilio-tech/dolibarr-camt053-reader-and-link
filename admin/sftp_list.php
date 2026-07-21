@@ -69,7 +69,7 @@ $cardurl = dol_buildpath('/camt053readerandlink/admin/sftp_card.php', 1);
  */
 
 if ($action == 'testconn' && $id > 0 && $user->admin) {
-	if (!verifCsrfToken()) {
+	if (!camt053VerifCsrfToken()) {
 		setEventMessages($langs->trans("SecurityTokenError"), null, 'errors');
 	} else {
 		$object = new Camt053SftpConfig($db);
@@ -96,7 +96,7 @@ if ($action == 'testconn' && $id > 0 && $user->admin) {
 }
 
 if ($action == 'confirm_delete' && $id > 0 && $user->admin) {
-	if (!verifCsrfToken()) {
+	if (!camt053VerifCsrfToken()) {
 		setEventMessages($langs->trans("SecurityTokenError"), null, 'errors');
 	} else {
 		$object = new Camt053SftpConfig($db);

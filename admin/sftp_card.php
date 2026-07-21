@@ -83,7 +83,7 @@ if (($action == 'add' || $action == 'update') && $user->admin) {
 		exit;
 	}
 
-	if (!verifCsrfToken()) {
+	if (!camt053VerifCsrfToken()) {
 		setEventMessages($langs->trans("SecurityTokenError"), null, 'errors');
 	} else {
 		// On edit, keep the existing secrets when the corresponding field is left empty.

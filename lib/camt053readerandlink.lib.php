@@ -62,7 +62,7 @@ function camt053readerandlinkAdminPrepareHead()
  *
  * @return bool  True if the submitted token is valid.
  */
-function verifCsrfToken()
+function camt053VerifCsrfToken()
 {
 	$sessiontoken = empty($_SESSION['token']) ? '' : $_SESSION['token'];
 	return (GETPOSTISSET('token') && GETPOST('token', 'alpha') === $sessiontoken);
