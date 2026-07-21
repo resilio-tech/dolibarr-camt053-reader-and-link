@@ -26,6 +26,20 @@ use PHPUnit\Framework\TestCase;
 
 require_once dirname(__FILE__) . '/../../class/DatabaseBankStatementLoader.class.php';
 
+if (!class_exists('Account')) {
+	/**
+	 * Stand-in for Dolibarr's Account. The loader instantiates it only to call
+	 * get_url() per row; the tests below return no row, so it stays empty.
+	 * Declared at file scope because PHP forbids nesting a class in a method.
+	 */
+	class Account
+	{
+		public function __construct($db = null)
+		{
+		}
+	}
+}
+
 /**
  * Database mock recording the SQL it receives and returning no row.
  */
@@ -82,16 +96,6 @@ class DatabaseBankStatementLoaderTest extends TestCase
 			function getEntity($element = '', $shared = 1, $currentobject = null)
 			{
 				return '1';
-			}
-		}
-		if (!class_exists('Account')) {
-			// The loader instantiates Account only to call get_url() per row; no
-			// row is returned here, so an empty stub is enough.
-			class Account
-			{
-				public function __construct($db = null)
-				{
-				}
 			}
 		}
 	}
