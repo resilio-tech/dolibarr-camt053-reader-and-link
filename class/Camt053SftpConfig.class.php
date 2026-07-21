@@ -260,9 +260,13 @@ class Camt053SftpConfig
 	 */
 	public function fetch(int $id): int
 	{
+		// Scoped like fetchAll(): a config belonging to another entity must never
+		// be readable, let alone usable to open an SFTP session with its
+		// credentials.
 		$sql = "SELECT " . $this->fieldList();
 		$sql .= " FROM " . MAIN_DB_PREFIX . self::TABLE;
 		$sql .= " WHERE rowid = " . ((int) $id);
+		$sql .= " AND entity IN (" . getEntity(self::TABLE) . ")";
 
 		$resql = $this->db->query($sql);
 		if (!$resql) {
@@ -272,6 +276,7 @@ class Camt053SftpConfig
 
 		$obj = $this->db->fetch_object($resql);
 		if (!$obj) {
+			$this->error = 'SFTP configuration not found: ' . ((int) $id);
 			return 0;
 		}
 
