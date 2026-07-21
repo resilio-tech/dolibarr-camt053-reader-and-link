@@ -27,6 +27,7 @@ require_once DOL_DOCUMENT_ROOT . '/core/lib/files.lib.php';
 require_once DOL_DOCUMENT_ROOT . '/compta/bank/class/account.class.php';
 require_once __DIR__ . '/Camt053FileOutcome.class.php';
 require_once __DIR__ . '/Camt053SafeFile.class.php';
+require_once __DIR__ . '/Camt053ArchivePath.class.php';
 require_once __DIR__ . '/Camt053SftpConfig.class.php';
 require_once __DIR__ . '/Camt053ProcessedFile.class.php';
 require_once __DIR__ . '/SftpFileTransport.class.php';
@@ -308,15 +309,15 @@ class Camt053CronRunner
 	private function archiveUnresolved(Camt053SftpConfig $config, string $name, string $content): bool
 	{
 		$targetDir = DOL_DATA_ROOT . '/camt053readerandlink/unresolved/' . dol_sanitizeFileName($config->ref);
-		// Banks that publish a fixed remote name (camt053.xml) would otherwise
-		// have the previous day's copy answer for today's: the content hash makes
-		// the path unique per payload, and identical content idempotent.
-		$targetFile = $targetDir . '/' . substr(hash('sha256', $content), 0, 12) . '-' . dol_sanitizeFileName($name);
 
 		if (!is_dir($targetDir)) {
 			dol_mkdir($targetDir);
 		}
-		if (file_exists($targetFile)) {
+
+		$target = Camt053ArchivePath::resolve($targetDir, dol_sanitizeFileName($name), $content);
+		$targetFile = $target['path'];
+
+		if ($target['exists']) {
 			return true;
 		}
 		if (!Camt053SafeFile::write($targetFile, $content)) {
@@ -352,21 +353,29 @@ class Camt053CronRunner
 				continue;
 			}
 
+			// Counted before the fetch: an account that resolved from an IBAN but
+			// cannot be loaded is still something we owed a copy of.
+			$attempted++;
+
 			$object = new Account($this->db);
 			if ($object->fetch($id) <= 0) {
 				continue;
 			}
 
-			$attempted++;
-
-			$safe = dol_sanitizeFileName($name);
 			$targetDir = $conf->bank->dir_output . '/' . $id . '/statement/' . dol_sanitizeFileName($account['num_releve']);
-			$targetFile = $targetDir . '/' . $safe;
 
 			if (!is_dir($targetDir)) {
 				dol_mkdir($targetDir);
 			}
-			if (file_exists($targetFile)) {
+
+			// Resolved by content: banks reuse one remote name for every
+			// statement, and a same-named copy of another day must not be taken
+			// for this one, or the remote original is deleted for nothing.
+			$target = Camt053ArchivePath::resolve($targetDir, dol_sanitizeFileName($name), $content);
+			$targetFile = $target['path'];
+			$safe = basename($targetFile);
+
+			if ($target['exists']) {
 				$archived++;
 				continue;
 			}

@@ -39,11 +39,15 @@ class Camt053SshPublicKeyTest extends TestCase
 	 */
 	private function generateKey(string $passphrase = ''): array
 	{
-		$resource = openssl_pkey_new(array(
+		$resource = @openssl_pkey_new(array(
 			'private_key_bits' => 2048,
 			'private_key_type' => OPENSSL_KEYTYPE_RSA,
 		));
-		$this->assertNotFalse($resource, 'OpenSSL must be able to generate a key');
+		if ($resource === false) {
+			// Generating a key needs an openssl.cnf; reading one (what the tested
+			// code does) does not. Rather than fail on a build without it, say so.
+			$this->markTestSkipped('OpenSSL cannot generate a key here: ' . openssl_error_string());
+		}
 
 		openssl_pkey_export($resource, $pem, $passphrase !== '' ? $passphrase : null);
 
@@ -152,7 +156,14 @@ class Camt053SshPublicKeyTest extends TestCase
 			"-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaA==\n-----END OPENSSH PRIVATE KEY-----\n"
 		));
 
-		list($pem) = $this->generateKey();
-		$this->assertFalse(Camt053SshPublicKey::isOpenSshFormat($pem));
+		// Literal headers, so this case never depends on being able to generate
+		// a key: it is the one that turns a cryptic auth failure into advice.
+		$this->assertFalse(Camt053SshPublicKey::isOpenSshFormat(
+			"-----BEGIN RSA PRIVATE KEY-----\nMIIEow==\n-----END RSA PRIVATE KEY-----\n"
+		));
+		$this->assertFalse(Camt053SshPublicKey::isOpenSshFormat(
+			"-----BEGIN ENCRYPTED PRIVATE KEY-----\nMIIFHDBO==\n-----END ENCRYPTED PRIVATE KEY-----\n"
+		));
+		$this->assertFalse(Camt053SshPublicKey::isOpenSshFormat(''));
 	}
 }
