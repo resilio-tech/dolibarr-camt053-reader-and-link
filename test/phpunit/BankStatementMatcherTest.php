@@ -601,6 +601,88 @@ class BankStatementMatcherTest extends TestCase
 	}
 
 	/**
+	 * The multi-match branch claims its line too: when a second identical entry
+	 * follows, it must not auto-link to the line the first one just took.
+	 *
+	 * @return void
+	 */
+	public function testMultiMatchResolvedToOneLineClaimsIt(): void
+	{
+		$fileStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$fileStatement->setIsFromFile(true);
+		$fileStatement->createEntry(-50.00, '2024-02-01', 'Frais');
+		$fileStatement->createEntry(-50.00, '2024-02-01', 'Frais');
+
+		$dbStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$dbStatement->setIsFromFile(false);
+		// One reconciled and one open line: the first entry sees two candidates
+		// and resolves to the only open one.
+		$done = $dbStatement->createEntry(-50.00, '2024-02-01', 'Frais');
+		$done->setBankLine($this->createMockBankLine(1, 1));
+		$open = $dbStatement->createEntry(-50.00, '2024-02-01', 'Frais');
+		$open->setBankLine($this->createMockBankLine(2, 0));
+
+		$results = $this->matcher->compare($fileStatement, $dbStatement);
+
+		$this->assertCount(1, $results['linkeds'], 'Line 2 may only be taken once');
+		$this->assertEquals(2, $results['linkeds'][0]['db']->getBankLine()->rowid);
+		$this->assertCount(1, $results['already_linked']);
+		$this->assertEquals(1, $results['already_linked'][0]['db']->getBankLine()->rowid);
+	}
+
+	/**
+	 * Re-importing an ambiguous statement whose candidates are all reconciled
+	 * reports it as done instead of showing an empty dropdown.
+	 *
+	 * @return void
+	 */
+	public function testAllCandidatesReconciledReportsAlreadyLinked(): void
+	{
+		$fileStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$fileStatement->setIsFromFile(true);
+		$fileStatement->createEntry(-50.00, '2024-02-01', 'Frais');
+
+		$dbStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$dbStatement->setIsFromFile(false);
+		foreach (array(1, 2) as $rowid) {
+			$done = $dbStatement->createEntry(-50.00, '2024-02-01', 'Frais');
+			$done->setBankLine($this->createMockBankLine($rowid, 1));
+		}
+
+		$results = $this->matcher->compare($fileStatement, $dbStatement);
+
+		$this->assertCount(0, $results['multiples'], 'No empty dropdown');
+		$this->assertCount(0, $results['linkeds']);
+		$this->assertCount(2, $results['already_linked'], 'The entry plus the untouched second line');
+	}
+
+	/**
+	 * One reconciled bank line answers for one entry: a second identical entry
+	 * stays visible as unmatched instead of being reported reconciled too, which
+	 * also inflated the counters of the headless report.
+	 *
+	 * @return void
+	 */
+	public function testReconciledLineIsNotReportedForTwoEntries(): void
+	{
+		$fileStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$fileStatement->setIsFromFile(true);
+		$fileStatement->createEntry(-50.00, '2024-02-01', 'Frais');
+		$fileStatement->createEntry(-50.00, '2024-02-01', 'Frais');
+
+		$dbStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$dbStatement->setIsFromFile(false);
+		$done = $dbStatement->createEntry(-50.00, '2024-02-01', 'Frais');
+		$done->setBankLine($this->createMockBankLine(1, 1));
+
+		$results = $this->matcher->compare($fileStatement, $dbStatement);
+
+		$this->assertCount(1, $results['already_linked']);
+		$this->assertCount(1, $results['unlinkeds'], 'The second entry has no counterpart');
+		$this->assertTrue($results['unlinkeds'][0]->isFromFile());
+	}
+
+	/**
 	 * An out-of-period line already reconciled to another statement must not
 	 * absorb a file entry: doing so would mask a missing payment behind an
 	 * "already reconciled" row and drop its payment suggestion.

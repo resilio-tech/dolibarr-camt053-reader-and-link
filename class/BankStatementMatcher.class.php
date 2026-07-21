@@ -117,11 +117,15 @@ class BankStatementMatcher
 				$bankLine = $dbEntry->getBankLine();
 
 				if ($bankLine && $bankLine->rappro == 1) {
-					// Already reconciled
+					// Already reconciled. Claimed too: one bank line answers for
+					// one statement entry, so a second identical entry must show
+					// up as unmatched instead of being reported reconciled as
+					// well, which also inflated the cron report's counters.
 					$alreadyLinked[] = array(
 						'file' => $fileEntry,
 						'db' => $dbEntry
 					);
+					$claimedDbEntries[spl_object_id($dbEntry)] = true;
 				} else {
 					// Link them
 					$linked[] = array(
@@ -145,6 +149,7 @@ class BankStatementMatcher
 						'file' => $fileEntry,
 						'db' => $matches[0]
 					);
+					$claimedDbEntries[spl_object_id($matches[0])] = true;
 				} elseif (count($nonReconciledMatches) === 1) {
 					// Only one non-reconciled match
 					$linked[] = array(
