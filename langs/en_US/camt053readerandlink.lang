@@ -116,3 +116,4 @@ Camt053SftpTestConnectOk = Connected to %s:%s successfully.
 Camt053SftpTestListOk = Remote directory '%s' listed: %s file(s) found.
 Camt053SftpTestListFailed = Connected to %s:%s, but listing directory '%s' failed: %s
 Camt053SftpTestFailed = Connection to %s:%s failed: %s
+Camt053DuplicateBankLineSelected = Bank line #%s was selected for several statement entries; the duplicate was ignored.

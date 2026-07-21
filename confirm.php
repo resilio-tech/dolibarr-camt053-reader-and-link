@@ -62,6 +62,7 @@ require_once DOL_DOCUMENT_ROOT.'/compta/bank/class/account.class.php';
 
 // Load module classes
 require_once __DIR__ . '/class/BankEntryReconciler.class.php';
+require_once __DIR__ . '/lib/camt053readerandlink.lib.php';
 
 // Load translation files required by the page
 $langs->loadLangs(array("camt053readerandlink@camt053readerandlink"));
@@ -75,6 +76,12 @@ if (!isModEnabled('camt053readerandlink')) {
 // not on banque.modifier.
 if (!$user->hasRight('banque', 'consolidate')) {
 	accessforbidden();
+}
+// This page writes (num_releve + rappro) straight away, so it must carry the
+// same token check as the admin pages. Core blocks token-less POSTs at the
+// default MAIN_SECURITY_CSRF_WITH_TOKEN, but not on instances that lowered it.
+if (!camt053VerifCsrfToken()) {
+	accessforbidden($langs->trans('SecurityTokenError'));
 }
 
 llxHeader("", $langs->trans("Camt053ReaderAndLinkArea"), '', '', 0, 0, '', '', '', 'mod-camt053readerandlink page-index');
@@ -143,12 +150,23 @@ dol_syslog('CAMT053: Starting reconciliation of ' . count($linked) . ' linked en
 
 try {
 	// Process each linked entry
+	$processedLineIds = array();
 	foreach ($linked as $key => $link) {
 		if (empty($link) || $link == 0) {
 			continue;
 		}
 
 		$bankLineId = (int) $link;
+
+		// Two file entries can be pointed at the same bank line through the
+		// multi-match dropdowns. Reconciling it twice would report two successes
+		// while one entry silently stays unreconciled.
+		if (isset($processedLineIds[$bankLineId])) {
+			dol_syslog('CAMT053: Bank line rowid=' . $bankLineId . ' selected more than once, ignoring the duplicate', LOG_WARNING);
+			$reconcileErrors[] = $langs->trans('Camt053DuplicateBankLineSelected', $bankLineId);
+			continue;
+		}
+		$processedLineIds[$bankLineId] = true;
 		$obj = new AccountLine($db);
 		$result = $obj->fetch($bankLineId);
 
