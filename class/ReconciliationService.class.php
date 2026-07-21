@@ -100,11 +100,11 @@ class ReconciliationService
 			return $summary;
 		}
 
-		// Derive the date window from the file entries (expanded by the tolerance).
+		// Derive the date window from the file entries.
 		list($startDate, $endDate) = $this->dateRange($fileStatements);
 
 		$dbLoader = new DatabaseBankStatementLoader($this->db, $this->langs);
-		$dbStatements = $dbLoader->loadStatements($startDate, $endDate);
+		$dbStatements = $dbLoader->loadStatements($startDate, $endDate, null, $this->dateTolerance);
 
 		$matcher = new BankStatementMatcher($this->dateTolerance);
 		$banks = $matcher->compareMultiple($fileStatements, $dbStatements, $dbLoader);
@@ -236,7 +236,11 @@ class ReconciliationService
 	}
 
 	/**
-	 * Derive the [start, end] date window covering all file entries (± tolerance).
+	 * Derive the [start, end] date window covering all file entries.
+	 *
+	 * The window is the period itself: the loader widens it by the date
+	 * tolerance on its own and flags the extra days out of period, so lines
+	 * from the margin are matched without being reported as unmatched.
 	 *
 	 * @param array<int, Camt053Statement> $fileStatements File statements
 	 * @return array{0: DateTime, 1: DateTime}
@@ -266,10 +270,6 @@ class ReconciliationService
 			$min = (clone $now)->modify('first day of previous month');
 			$max = (clone $now)->modify('last day of this month');
 		}
-
-		$tolerance = max(0, $this->dateTolerance);
-		$min->modify('-' . $tolerance . ' day');
-		$max->modify('+' . $tolerance . ' day');
 
 		return array($min, $max);
 	}
