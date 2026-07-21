@@ -62,13 +62,60 @@ require_once DOL_DOCUMENT_ROOT.'/compta/bank/class/account.class.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
 
 // Load module classes
-require_once __DIR__ . '/statements.php';
 require_once __DIR__ . '/class/Camt053FileProcessor.class.php';
 require_once __DIR__ . '/class/DatabaseBankStatementLoader.class.php';
 require_once __DIR__ . '/class/BankStatementMatcher.class.php';
 require_once __DIR__ . '/class/BankRelationshipLookup.class.php';
 require_once __DIR__ . '/class/PaymentSuggestionFinder.class.php';
 require_once __DIR__ . '/class/InternalTransferDetector.class.php';
+
+/**
+ * Derive the reconciliation period from the entries a CAMT.053 file carries.
+ *
+ * Mirrors ReconciliationService::dateRange() so the interactive and the headless
+ * paths agree on the period, and therefore on the statement number computed from
+ * its end date. Falls back to the previous month when the file has no usable
+ * entry date.
+ *
+ * @param Camt053FileProcessor $fileProcessor Parsed file
+ * @return array{0:string,1:string} [start, end] in d/m/Y
+ */
+function camt053_entries_date_range($fileProcessor)
+{
+	$min = null;
+	$max = null;
+
+	foreach ($fileProcessor->getStatements() as $statement) {
+		foreach ($statement->getEntries() as $entry) {
+			// Pin the time: createFromFormat() would otherwise stamp "now", which
+			// makes two same-day entries compare unequal.
+			$d = DateTime::createFromFormat('Y-m-d H:i:s', $entry->getValueDate() . ' 00:00:00');
+			if ($d === false) {
+				continue;
+			}
+			if ($min === null || $d < $min) {
+				$min = clone $d;
+			}
+			if ($max === null || $d > $max) {
+				$max = clone $d;
+			}
+		}
+	}
+
+	if ($min === null || $max === null) {
+		$creationDate = $fileProcessor->getCreationDate();
+		try {
+			$d = $creationDate ? new DateTime($creationDate) : new DateTime();
+		} catch (Exception $e) {
+			$d = new DateTime();
+		}
+		$d->modify('first day of previous month');
+
+		return array($d->format('01/m/Y'), $d->format('t/m/Y'));
+	}
+
+	return array($min->format('d/m/Y'), $max->format('d/m/Y'));
+}
 
 /**
  * Render the action links (prefilled payment or internal transfer) offered for
@@ -238,18 +285,14 @@ if ($action == 'upload') {
 			$structure = $fileProcessor->getStructure();
 		}
 
-		// Get date range
+		// Get date range. It is derived from the entries the file actually
+		// carries, exactly like the headless path (ReconciliationService), so a
+		// weekly or daily statement is compared against its own days instead of a
+		// whole calendar month. Falling back to the previous month of the creation
+		// date, as this page used to do unconditionally, sent every non-monthly
+		// statement against a window it has no entry in.
 		if (empty($date_start) || empty($date_end)) {
-			$creationDate = $fileProcessor->getCreationDate();
-			if ($creationDate) {
-				$d = new DateTime($creationDate);
-			} else {
-				$d = new DateTime();
-			}
-			// Base on previous month
-			$d->modify('first day of previous month');
-			$date_start = $d->format('01/m/Y');
-			$date_end = $d->format('t/m/Y');
+			list($date_start, $date_end) = camt053_entries_date_range($fileProcessor);
 		}
 
 		// Validate date format
