@@ -161,6 +161,19 @@ class Camt053CronRunner
 				continue;
 			}
 
+			// The file parsed, but if no IBAN resolved to a Dolibarr account then
+			// archiveForSummary() writes nothing to disk. Marking it processed
+			// would make the next run skip it and delete it, destroying the only
+			// copy of a statement nobody has ever seen. Leave it untouched so it
+			// is retried once the bank account exists.
+			if (empty($summary['accounts'])) {
+				$counters['errors']++;
+				$ibans = implode(', ', array_keys($summary['unresolved_ibans'] ?? array()));
+				$this->error .= '[' . $config->ref . '] ' . $name . ': no bank account matches ' . $ibans . ', file kept on the server; ';
+				dol_syslog('CAMT053 cron: ' . $name . ' matches no bank account (' . $ibans . '), keeping the remote file', LOG_ERR);
+				continue;
+			}
+
 			$counters['files']++;
 			$counters['auto'] += $summary['totals']['auto'];
 			$counters['ambiguous'] += $summary['totals']['ambiguous'];
