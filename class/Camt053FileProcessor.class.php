@@ -516,7 +516,7 @@ class Camt053FileProcessor
 	{
 		$result = array();
 		$seenReferences = array();
-		foreach ($this->statements as $statement) {
+		foreach ($this->statements as $blockIndex => $statement) {
 			$accountId = $statement->getAccountId();
 			if ($accountId === null) {
 				continue;
@@ -534,15 +534,19 @@ class Camt053FileProcessor
 
 			foreach ($statement->getEntries() as $entry) {
 				// Overlapping blocks re-report the same movement. The bank
-				// reference identifies it, so a repeat is dropped rather than
-				// added under a rewritten hash, which would show up as a phantom
-				// unmatched entry inviting a duplicate payment.
+				// reference identifies it, so a repeat coming from another block
+				// is dropped rather than added under a rewritten hash, which would
+				// show up as a phantom unmatched entry inviting a duplicate
+				// payment. Inside one block a repeated reference is a second real
+				// movement (split or collective bookings do reuse it) and must be
+				// kept: the block index is what tells the two cases apart.
 				$reference = $entry->getBankReference();
 				if ($reference !== '') {
-					if (isset($seenReferences[$accountId][$reference])) {
+					if (isset($seenReferences[$accountId][$reference])
+						&& $seenReferences[$accountId][$reference] !== $blockIndex) {
 						continue;
 					}
-					$seenReferences[$accountId][$reference] = true;
+					$seenReferences[$accountId][$reference] = $blockIndex;
 				}
 				$result[$accountId]->addEntry($entry);
 			}
