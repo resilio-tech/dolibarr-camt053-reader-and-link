@@ -84,7 +84,8 @@ class modCamt053ReaderAndLink extends DolibarrModules
 
 		// Dependencies
 		$this->hidden = false;
-		$this->depends = array();
+		// Everything this module does targets bank accounts and bank lines.
+		$this->depends = array('modBanque');
 		$this->requiredby = array();
 		$this->conflictwith = array();
 
@@ -92,8 +93,14 @@ class modCamt053ReaderAndLink extends DolibarrModules
 		$this->langfiles = array("camt053readerandlink@camt053readerandlink");
 
 		// Prerequisites
-		$this->phpmin = array(7, 0);
-		$this->need_dolibarr_version = array(11, -3);
+		// PHP 7.4: the classes use `object` type hints (7.2) and the test matrix
+		// starts at 7.4, which is the oldest version actually exercised.
+		$this->phpmin = array(7, 4);
+		// The code calls isModEnabled(), getDolGlobalString(), $user->hasRight()
+		// and GETPOSTINT(), none of which exist in the versions previously
+		// declared as supported. 17 is a conservative floor; the only version the
+		// module is actually developed and run against is 24.
+		$this->need_dolibarr_version = array(17, 0);
 		$this->need_javascript_ajax = 0;
 
 		// Activation warnings
