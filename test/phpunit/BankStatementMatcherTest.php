@@ -507,6 +507,57 @@ class BankStatementMatcherTest extends TestCase
 	}
 
 	/**
+	 * An out-of-period line already reconciled to another statement must not
+	 * absorb a file entry: doing so would mask a missing payment behind an
+	 * "already reconciled" row and drop its payment suggestion.
+	 *
+	 * @return void
+	 */
+	public function testOutOfPeriodReconciledDbEntryDoesNotAbsorbFileEntry(): void
+	{
+		$fileStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$fileStatement->setIsFromFile(true);
+		$fileStatement->createEntry(-1200.00, '2024-02-01', 'Loyer');
+
+		$dbStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$dbStatement->setIsFromFile(false);
+		// Last month's rent, already reconciled to January's statement.
+		$previousMonth = $dbStatement->createEntry(-1200.00, '2024-01-31', 'Loyer');
+		$previousMonth->setBankLine($this->createMockBankLine(123, 1));
+		$previousMonth->setInPeriod(false);
+
+		$results = $this->matcher->compare($fileStatement, $dbStatement);
+
+		$this->assertCount(0, $results['already_linked'], 'The file entry must not be reported as reconciled');
+		$this->assertCount(0, $results['linkeds']);
+		$this->assertCount(1, $results['unlinkeds'], 'The file entry stays unmatched so it keeps its payment suggestion');
+		$this->assertTrue($results['unlinkeds'][0]->isFromFile());
+	}
+
+	/**
+	 * The same line, not yet reconciled, is still a legitimate candidate: that
+	 * is the whole point of loading the margin.
+	 *
+	 * @return void
+	 */
+	public function testOutOfPeriodUnreconciledDbEntryStillMatches(): void
+	{
+		$fileStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$fileStatement->setIsFromFile(true);
+		$fileStatement->createEntry(-1200.00, '2024-02-01', 'Loyer');
+
+		$dbStatement = new Camt053Statement('BE71 0961 2345 6769', 1);
+		$dbStatement->setIsFromFile(false);
+		$previousMonth = $dbStatement->createEntry(-1200.00, '2024-01-31', 'Loyer');
+		$previousMonth->setBankLine($this->createMockBankLine(123, 0));
+		$previousMonth->setInPeriod(false);
+
+		$results = $this->matcher->compare($fileStatement, $dbStatement);
+
+		$this->assertCount(1, $results['linkeds']);
+	}
+
+	/**
 	 * An unmatched database entry from that same margin is not listed: it lies
 	 * outside the statement the user is reconciling.
 	 *

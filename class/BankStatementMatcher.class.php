@@ -255,6 +255,16 @@ class BankStatementMatcher
 		}
 
 		foreach ($dbEntries as $dbEntry) {
+			// An entry from outside the period that is already reconciled belongs
+			// to another statement. Letting it match would hide a genuinely
+			// missing payment behind an "already reconciled" row, and rob the file
+			// entry of its payment suggestion. Recurring amounts near a period
+			// boundary (rent, salaries, subscriptions) hit this every month.
+			$dbBankLine = $dbEntry->getBankLine();
+			if (!$dbEntry->isInPeriod() && $dbBankLine && $dbBankLine->rappro == 1) {
+				continue;
+			}
+
 			$dbAmount = $this->formatAmount($dbEntry->getAmount());
 
 			// Amount must match exactly
