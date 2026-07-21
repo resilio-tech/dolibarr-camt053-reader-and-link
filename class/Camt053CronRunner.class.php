@@ -161,26 +161,33 @@ class Camt053CronRunner
 				continue;
 			}
 
-			// The file parsed, but if no IBAN resolved to a Dolibarr account then
-			// archiveForSummary() writes nothing to disk. Marking it processed
-			// would make the next run skip it and delete it, destroying the only
-			// copy of a statement nobody has ever seen. Leave it untouched so it
-			// is retried once the bank account exists.
-			if (empty($summary['accounts'])) {
-				$counters['errors']++;
-				$ibans = implode(', ', array_keys($summary['unresolved_ibans'] ?? array()));
-				$this->error .= '[' . $config->ref . '] ' . $name . ': no bank account matches ' . $ibans . ', file kept on the server; ';
-				dol_syslog('CAMT053 cron: ' . $name . ' matches no bank account (' . $ibans . '), keeping the remote file', LOG_ERR);
-				continue;
-			}
-
 			$counters['files']++;
 			$counters['auto'] += $summary['totals']['auto'];
 			$counters['ambiguous'] += $summary['totals']['ambiguous'];
 			$counters['unmatched'] += $summary['totals']['unmatched'];
 			$counters['errors'] += $summary['totals']['errors'];
 
+			// Whatever matched is reconciled and archived by now.
 			$this->archiveForSummary($name, $content, $summary);
+
+			// But a statement whose IBAN resolves to no Dolibarr account is data
+			// nobody will ever see: archiveForSummary() only writes the accounts
+			// it matched, and unresolved IBANs surface nowhere outside the monthly
+			// Zulip report. Marking such a file processed would make the next run
+			// skip it and delete it, destroying the only copy. Leave it on the
+			// server so it is retried once the account exists, and say so on
+			// every run. Re-reconciling the accounts that did match is a no-op.
+			$unresolved = $summary['unresolved_ibans'] ?? array();
+			if (empty($summary['accounts']) || !empty($unresolved)) {
+				$counters['errors']++;
+				$reason = !empty($unresolved)
+					? 'no bank account matches ' . implode(', ', array_keys($unresolved))
+					: 'no statement carries a usable IBAN';
+				$this->error .= '[' . $config->ref . '] ' . $name . ': ' . $reason . ', file kept on the server; ';
+				dol_syslog('CAMT053 cron: ' . $name . ' - ' . $reason . ', keeping the remote file', LOG_ERR);
+				continue;
+			}
+
 			$this->recordProcessed($processedTracker, $config, $name, $hash, $summary, $isMonthly);
 			$this->postDownloadCleanup($transport, $config, $name);
 
