@@ -70,7 +70,10 @@ $langs->loadLangs(array("camt053readerandlink@camt053readerandlink"));
 if (!isModEnabled('camt053readerandlink')) {
 	accessforbidden('Module not enabled');
 }
-if (!$user->hasRight('banque', 'modifier')) {
+// Writing num_releve and rappro on a bank line is a reconciliation, which
+// Dolibarr core gates on banque.consolidate (compta/bank/bankentries_list.php),
+// not on banque.modifier.
+if (!$user->hasRight('banque', 'consolidate')) {
 	accessforbidden();
 }
 
