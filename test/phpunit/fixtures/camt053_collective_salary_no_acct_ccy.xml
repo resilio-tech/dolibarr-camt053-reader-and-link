@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.02">
+	<BkToCstmrStmt>
+		<GrpHdr>
+			<MsgId>STMT202601003</MsgId>
+			<CreDtTm>2026-01-31T12:00:00</CreDtTm>
+		</GrpHdr>
+		<Stmt>
+			<Id>STMT003</Id>
+			<ElctrncSeqNb>1</ElctrncSeqNb>
+			<CreDtTm>2026-01-31T12:00:00</CreDtTm>
+			<!-- No Acct/Ccy: the currency lives only in the group entry Amt@Ccy, so
+			     split sub-entries must inherit the group currency. -->
+			<Acct>
+				<Id>
+					<IBAN>CH9300762011623852957</IBAN>
+				</Id>
+			</Acct>
+			<Ntry>
+				<Amt Ccy="CHF">11000.00</Amt>
+				<CdtDbtInd>DBIT</CdtDbtInd>
+				<Sts>BOOK</Sts>
+				<ValDt>
+					<Dt>2026-01-25</Dt>
+				</ValDt>
+				<AcctSvcrRef>SALARYRUN022026</AcctSvcrRef>
+				<NtryDtls>
+					<Btch>
+						<NbOfTxs>2</NbOfTxs>
+					</Btch>
+					<TxDtls>
+						<Refs>
+							<EndToEndId>SAL-2026-01-DAVE</EndToEndId>
+						</Refs>
+						<Amt Ccy="CHF">6000.00</Amt>
+						<CdtDbtInd>DBIT</CdtDbtInd>
+						<RltdPties>
+							<Cdtr>
+								<Nm>Dave Rossi</Nm>
+							</Cdtr>
+						</RltdPties>
+					</TxDtls>
+					<TxDtls>
+						<Refs>
+							<EndToEndId>SAL-2026-01-ERIN</EndToEndId>
+						</Refs>
+						<Amt Ccy="CHF">5000.00</Amt>
+						<CdtDbtInd>DBIT</CdtDbtInd>
+						<RltdPties>
+							<Cdtr>
+								<Nm>Erin Keller</Nm>
+							</Cdtr>
+						</RltdPties>
+					</TxDtls>
+				</NtryDtls>
+			</Ntry>
+		</Stmt>
+	</BkToCstmrStmt>
+</Document>

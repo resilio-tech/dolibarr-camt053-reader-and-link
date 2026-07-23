@@ -297,14 +297,158 @@ class Camt053FileProcessor
 			}
 
 			foreach ($entries as $entry) {
-				$camt053Entry = $this->extractEntry($entry, $statementCcy, $iban);
-				if ($camt053Entry !== null) {
+				foreach ($this->extractEntriesFromNtry($entry, $statementCcy, $iban) as $camt053Entry) {
 					$statement->addEntry($camt053Entry);
 				}
 			}
 		}
 
 		return $statement;
+	}
+
+	/**
+	 * Extract one or more entries from a single <Ntry>.
+	 *
+	 * A collective (batch) booking carries the group total in <Ntry><Amt> and the
+	 * individual movements in <NtryDtls> as several <TxDtls>, each with its own
+	 * <Amt>. Banks book a salary run this way: one debit for the whole transfer,
+	 * one <TxDtls> per employee. Dolibarr, on the other hand, records one bank
+	 * line per salary, so the collective entry must be split into one sub-entry
+	 * per transaction for the 1:1 matcher to reconcile each line; left whole, the
+	 * group total matches no single line and stays unreconciled.
+	 *
+	 * A non-collective entry (0 or 1 detailed transaction) is returned unchanged.
+	 * The split is only kept when the per-transaction amounts reconstruct the
+	 * group total; otherwise (partial detail, missing amounts) the entry is left
+	 * whole so its total can still be listed and reconciled or suggested.
+	 *
+	 * @param array  $entry        <Ntry> structure
+	 * @param string $statementCcy Statement-level currency (fallback)
+	 * @param string $ownIban      Statement account IBAN (to exclude from counterparty)
+	 * @return Camt053Entry[]
+	 */
+	private function extractEntriesFromNtry(array $entry, string $statementCcy, string $ownIban): array
+	{
+		$txList = $this->getArrayValue($entry, array('NtryDtls', 'TxDtls'));
+
+		// Normalise to a list of TxDtls: a single <TxDtls> is an associative array,
+		// several come back numerically indexed.
+		if (is_array($txList) && isset($txList[0])) {
+			$transactions = $txList;
+		} elseif (is_array($txList) && !empty($txList)) {
+			$transactions = array($txList);
+		} else {
+			$transactions = array();
+		}
+
+		// Only a genuine collective booking (2+ detailed transactions) is split.
+		if (count($transactions) >= 2) {
+			$expanded = $this->expandCollectiveEntry($entry, $transactions, $statementCcy, $ownIban);
+			if ($expanded !== null) {
+				return $expanded;
+			}
+		}
+
+		$single = $this->extractEntry($entry, $statementCcy, $ownIban);
+		return $single !== null ? array($single) : array();
+	}
+
+	/**
+	 * Split a collective <Ntry> into one entry per <TxDtls>.
+	 *
+	 * Each transaction is turned into a synthetic single-transaction <Ntry> so the
+	 * existing extractEntry() handles the name, remittance info, counterparty and
+	 * currency exactly as it does for a normal entry. The entry-level value date is
+	 * inherited by every transaction (TxDtls rarely carries its own), and the
+	 * per-transaction bank reference (Refs) keys the sub-entry so cross-block dedup
+	 * and the reconciliation form stay stable.
+	 *
+	 * @param array  $entry        <Ntry> structure
+	 * @param array  $transactions List of <TxDtls> structures (2 or more)
+	 * @param string $statementCcy Statement-level currency (fallback)
+	 * @param string $ownIban      Statement account IBAN
+	 * @return Camt053Entry[]|null Sub-entries, or null when the split is unreliable
+	 */
+	private function expandCollectiveEntry(array $entry, array $transactions, string $statementCcy, string $ownIban): ?array
+	{
+		$entryType = isset($entry['CdtDbtInd']) ? (string) $entry['CdtDbtInd'] : '';
+		$entryTotal = (isset($entry['Amt']) && is_scalar($entry['Amt'])) ? abs((float) $entry['Amt']) : 0.0;
+
+		// Currency to inherit: the group entry keeps its Amt@Ccy in entryCurrencyByRef
+		// (keyed by the group <AcctSvcrRef>). Sub-entries are rekeyed to their own
+		// per-transaction reference, so that lookup would miss and leave them with an
+		// empty currency when the statement itself carries no Acct/Ccy. Resolve the
+		// group currency once here and pass it as the sub-entry fallback.
+		$groupRef = (isset($entry['AcctSvcrRef']) && is_string($entry['AcctSvcrRef'])) ? $entry['AcctSvcrRef'] : '';
+		$groupCcy = ($groupRef !== '' && isset($this->entryCurrencyByRef[$groupRef]))
+			? $this->entryCurrencyByRef[$groupRef]
+			: $statementCcy;
+
+		$subEntries = array();
+		$signedSum = 0.0;
+		foreach ($transactions as $tx) {
+			// A transaction without its own amount cannot be reconciled on its own;
+			// give up on the split and keep the entry whole.
+			if (!is_array($tx) || !isset($tx['Amt']) || !is_scalar($tx['Amt'])) {
+				return null;
+			}
+
+			// Build a synthetic <Ntry> holding just this transaction.
+			$pseudo = array(
+				'Amt' => $tx['Amt'],
+				'CdtDbtInd' => isset($tx['CdtDbtInd']) ? $tx['CdtDbtInd'] : $entryType,
+				'NtryDtls' => array('TxDtls' => $tx),
+			);
+			if (isset($entry['ValDt'])) {
+				$pseudo['ValDt'] = $entry['ValDt'];
+			}
+			if (isset($entry['BookgDt'])) {
+				$pseudo['BookgDt'] = $entry['BookgDt'];
+			}
+			$reference = $this->transactionReference($tx);
+			if ($reference !== '') {
+				$pseudo['AcctSvcrRef'] = $reference;
+			}
+
+			$subEntry = $this->extractEntry($pseudo, $groupCcy, $ownIban);
+			if ($subEntry === null) {
+				return null;
+			}
+			$signedSum += $subEntry->getAmount();
+			$subEntries[] = $subEntry;
+		}
+
+		// Guard: the detailed lines must reconstruct the group total. When they do
+		// not (mixed signs the bank netted, partial detail), the split is unreliable
+		// and the caller keeps the entry whole.
+		if ($entryTotal > 0 && abs(abs($signedSum) - $entryTotal) > 0.01) {
+			return null;
+		}
+
+		return $subEntries;
+	}
+
+	/**
+	 * First usable transaction reference from a <TxDtls><Refs> block.
+	 *
+	 * @param array $tx <TxDtls> structure
+	 * @return string Reference, or empty string when none is present
+	 */
+	private function transactionReference(array $tx): string
+	{
+		$paths = array(
+			array('Refs', 'AcctSvcrRef'),
+			array('Refs', 'EndToEndId'),
+			array('Refs', 'InstrId'),
+			array('Refs', 'TxId'),
+		);
+		foreach ($paths as $path) {
+			$value = $this->getArrayValue($tx, $path);
+			if (is_string($value) && $value !== '') {
+				return $value;
+			}
+		}
+		return '';
 	}
 
 	/**
@@ -351,8 +495,12 @@ class Camt053FileProcessor
 		$hash = $this->getArrayValue($entry, array('AcctSvcrRef'));
 		$hash = (is_string($hash) && $hash !== '') ? $hash : null;
 
-		// Determine type name for party lookup
-		$typeNm = ($type === 'DBIT') ? 'Dbtr' : 'Cdtr';
+		// Counterparty party order for the name lookup. For a debit the beneficiary
+		// is the creditor, for a credit the payer is the debtor, matching the ISO
+		// orientation used for the counterparty IBAN below. The opposite tag is a
+		// fallback so a file that fills only the account-owner side still yields a
+		// name (as some banks do for outgoing payments).
+		$partyOrder = ($type === 'DBIT') ? array('Cdtr', 'Dbtr') : array('Dbtr', 'Cdtr');
 
 		// Build name from various fields
 		$name = '';
@@ -366,9 +514,19 @@ class Camt053FileProcessor
 			$name .= $name1;
 		}
 
-		// Try related party name
-		$name2 = $this->getArrayValue($entry, array('NtryDtls', 'TxDtls', 'RltdPties', $typeNm, 'Nm'));
-		if (!empty($name2)) {
+		// Try related party name (ISO-correct counterparty first, then the other tag).
+		// A self-closed <Nm/> comes back as an empty array from the SimpleXML round
+		// trip, so only a non-empty string is accepted (concatenating an array would
+		// raise an "Array to string conversion" warning).
+		$name2 = '';
+		foreach ($partyOrder as $partyTag) {
+			$candidate = $this->getArrayValue($entry, array('NtryDtls', 'TxDtls', 'RltdPties', $partyTag, 'Nm'));
+			if (is_string($candidate) && $candidate !== '') {
+				$name2 = $candidate;
+				break;
+			}
+		}
+		if ($name2 !== '') {
 			$name .= (!empty($name) ? '<br />' : '') . $name2;
 		}
 

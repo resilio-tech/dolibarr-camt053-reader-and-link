@@ -7,6 +7,8 @@
 - Payment and internal transfer suggestions for unmatched CAMT.053 entries
 
 ### Bug Fixes
+- Split a collective (batch) CAMT.053 booking into one entry per `<TxDtls>` so a grouped salary transfer (one bank debit, one detail line per employee) reconciles against Dolibarr's individual salary bank lines instead of matching nothing. The split is only applied when the detailed amounts reconstruct the group total, otherwise the entry is kept whole
+- Read the counterparty name from the ISO-correct related party (creditor for a debit, debtor for a credit, as the counterparty IBAN already did), falling back to the other tag, so an outgoing payment now shows the beneficiary instead of the account owner
 - Scope the bank account IBAN lookup to the current entity so a file imported for the wrong entity can no longer reconcile foreign entries (#7)
 - Show the related invoice reference and third party in the multi-match reconciliation dropdown (#8)
 - Prefill foreign-currency invoice payments in the `multicurrency_amount` field instead of the company-currency field (#9)
@@ -29,6 +31,7 @@
 - Fix a duplicate `env:` key that made the build workflow file invalid, which silently stopped every workflow run on the repository
 
 ### Tests
+- `Camt053FileProcessorTest.php` - splitting a collective salary booking into per-transaction entries, and keeping the entry whole when the detail is partial
 - `PaymentSuggestionFinderTest.php` - payment link building and currency handling
 - `EntityScopeSqlTest.php` - entity scoping of the IBAN and bank-line queries
 - `BankRelationshipLookupTest.php` - related document lookup for the reconciliation dropdown

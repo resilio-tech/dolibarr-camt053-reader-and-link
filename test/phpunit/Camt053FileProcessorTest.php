@@ -828,4 +828,102 @@ class Camt053FileProcessorTest extends TestCase
 		$entry = $entries[0];
 		$this->assertEquals('CREDIT001', $entry->getHash());
 	}
+
+	/**
+	 * A collective salary transfer (one debit, several TxDtls) is split into one
+	 * entry per transaction so each matches its own Dolibarr bank line.
+	 *
+	 * @return void
+	 */
+	public function testCollectiveSalaryIsSplitPerTransaction(): void
+	{
+		$processor = new Camt053FileProcessor($this->mockDb);
+		$processor->parseFile($this->fixturesPath . 'camt053_collective_salary.xml');
+
+		$entries = $processor->getStatements()[0]->getEntries();
+
+		$this->assertCount(3, $entries);
+
+		$amounts = array_map(static function ($e) {
+			return $e->getAmount();
+		}, $entries);
+		sort($amounts);
+		$this->assertEqualsWithDelta(array(-6000.0, -5000.0, -4000.0), $amounts, 0.001);
+
+		foreach ($entries as $entry) {
+			$this->assertTrue($entry->isDebit());
+			$this->assertSame('2026-01-25', $entry->getValueDate());
+			$this->assertSame('CHF', $entry->getCurrency());
+		}
+	}
+
+	/**
+	 * Each split sub-entry keeps its own per-transaction reference and counterparty
+	 * so the reconciliation form and cross-block dedup stay stable.
+	 *
+	 * @return void
+	 */
+	public function testCollectiveSalarySubEntriesCarryTheirOwnReference(): void
+	{
+		$processor = new Camt053FileProcessor($this->mockDb);
+		$processor->parseFile($this->fixturesPath . 'camt053_collective_salary.xml');
+
+		$entries = $processor->getStatements()[0]->getEntries();
+
+		$references = array_map(static function ($e) {
+			return $e->getBankReference();
+		}, $entries);
+		sort($references);
+		$this->assertSame(
+			array('SAL-2026-01-ALICE', 'SAL-2026-01-BOB', 'SAL-2026-01-CAROL'),
+			$references
+		);
+
+		// Names come from each transaction's own creditor, not the group.
+		$names = array_map(static function ($e) {
+			return $e->getName();
+		}, $entries);
+		$joined = implode(' | ', $names);
+		$this->assertStringContainsString('Alice Dupont', $joined);
+		$this->assertStringContainsString('Bob Martin', $joined);
+		$this->assertStringContainsString('Carol Meier', $joined);
+	}
+
+	/**
+	 * Split sub-entries inherit the group entry currency (Amt@Ccy) even when the
+	 * statement carries no Acct/Ccy: the per-transaction reference would otherwise
+	 * miss the currency map keyed by the group AcctSvcrRef.
+	 *
+	 * @return void
+	 */
+	public function testCollectiveSalarySubEntriesInheritGroupCurrency(): void
+	{
+		$processor = new Camt053FileProcessor($this->mockDb);
+		$processor->parseFile($this->fixturesPath . 'camt053_collective_salary_no_acct_ccy.xml');
+
+		$entries = $processor->getStatements()[0]->getEntries();
+
+		$this->assertCount(2, $entries);
+		foreach ($entries as $entry) {
+			$this->assertSame('CHF', $entry->getCurrency());
+		}
+	}
+
+	/**
+	 * When the detailed transactions do not reconstruct the group total, the split
+	 * is rejected and the entry is kept whole so the total can still be reconciled.
+	 *
+	 * @return void
+	 */
+	public function testCollectiveEntryKeptWholeWhenDetailIsPartial(): void
+	{
+		$processor = new Camt053FileProcessor($this->mockDb);
+		$processor->parseFile($this->fixturesPath . 'camt053_collective_partial.xml');
+
+		$entries = $processor->getStatements()[0]->getEntries();
+
+		$this->assertCount(1, $entries);
+		$this->assertEqualsWithDelta(-15000.0, $entries[0]->getAmount(), 0.001);
+		$this->assertSame('PARTIALRUN012026', $entries[0]->getHash());
+	}
 }

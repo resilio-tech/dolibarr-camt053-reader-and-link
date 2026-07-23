@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.02">
+	<BkToCstmrStmt>
+		<GrpHdr>
+			<MsgId>STMT202601001</MsgId>
+			<CreDtTm>2026-01-31T12:00:00</CreDtTm>
+		</GrpHdr>
+		<Stmt>
+			<Id>STMT001</Id>
+			<ElctrncSeqNb>1</ElctrncSeqNb>
+			<CreDtTm>2026-01-31T12:00:00</CreDtTm>
+			<Acct>
+				<Id>
+					<IBAN>CH9300762011623852957</IBAN>
+				</Id>
+				<Ccy>CHF</Ccy>
+			</Acct>
+			<!-- Collective salary transfer: one debit for the whole run, one
+			     TxDtls per employee. -->
+			<Ntry>
+				<Amt Ccy="CHF">15000.00</Amt>
+				<CdtDbtInd>DBIT</CdtDbtInd>
+				<Sts>BOOK</Sts>
+				<BookgDt>
+					<Dt>2026-01-25</Dt>
+				</BookgDt>
+				<ValDt>
+					<Dt>2026-01-25</Dt>
+				</ValDt>
+				<AcctSvcrRef>SALARYRUN012026</AcctSvcrRef>
+				<BkTxCd>
+					<Domn>
+						<Cd>PMNT</Cd>
+						<Fmly>
+							<Cd>ICDT</Cd>
+							<SubFmlyCd>SALA</SubFmlyCd>
+						</Fmly>
+					</Domn>
+				</BkTxCd>
+				<NtryDtls>
+					<Btch>
+						<NbOfTxs>3</NbOfTxs>
+						<TtlAmt Ccy="CHF">15000.00</TtlAmt>
+					</Btch>
+					<TxDtls>
+						<Refs>
+							<EndToEndId>SAL-2026-01-ALICE</EndToEndId>
+						</Refs>
+						<Amt Ccy="CHF">6000.00</Amt>
+						<CdtDbtInd>DBIT</CdtDbtInd>
+						<RmtInf>
+							<Ustrd>Salary January 2026</Ustrd>
+						</RmtInf>
+						<RltdPties>
+							<Cdtr>
+								<Nm>Alice Dupont</Nm>
+							</Cdtr>
+							<CdtrAcct>
+								<Id>
+									<IBAN>CH5604835012345678009</IBAN>
+								</Id>
+							</CdtrAcct>
+						</RltdPties>
+					</TxDtls>
+					<TxDtls>
+						<Refs>
+							<EndToEndId>SAL-2026-01-BOB</EndToEndId>
+						</Refs>
+						<Amt Ccy="CHF">5000.00</Amt>
+						<CdtDbtInd>DBIT</CdtDbtInd>
+						<RmtInf>
+							<Ustrd>Salary January 2026</Ustrd>
+						</RmtInf>
+						<RltdPties>
+							<Cdtr>
+								<Nm>Bob Martin</Nm>
+							</Cdtr>
+							<CdtrAcct>
+								<Id>
+									<IBAN>CH5604835012345678010</IBAN>
+								</Id>
+							</CdtrAcct>
+						</RltdPties>
+					</TxDtls>
+					<TxDtls>
+						<Refs>
+							<EndToEndId>SAL-2026-01-CAROL</EndToEndId>
+						</Refs>
+						<Amt Ccy="CHF">4000.00</Amt>
+						<CdtDbtInd>DBIT</CdtDbtInd>
+						<RmtInf>
+							<Ustrd>Salary January 2026</Ustrd>
+						</RmtInf>
+						<RltdPties>
+							<Cdtr>
+								<Nm>Carol Meier</Nm>
+							</Cdtr>
+							<CdtrAcct>
+								<Id>
+									<IBAN>CH5604835012345678011</IBAN>
+								</Id>
+							</CdtrAcct>
+						</RltdPties>
+					</TxDtls>
+				</NtryDtls>
+				<AddtlNtryInf>Monthly salary run</AddtlNtryInf>
+			</Ntry>
+		</Stmt>
+	</BkToCstmrStmt>
+</Document>
