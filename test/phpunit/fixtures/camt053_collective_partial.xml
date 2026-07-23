@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.02">
+	<BkToCstmrStmt>
+		<GrpHdr>
+			<MsgId>STMT202601002</MsgId>
+			<CreDtTm>2026-01-31T12:00:00</CreDtTm>
+		</GrpHdr>
+		<Stmt>
+			<Id>STMT002</Id>
+			<ElctrncSeqNb>1</ElctrncSeqNb>
+			<CreDtTm>2026-01-31T12:00:00</CreDtTm>
+			<Acct>
+				<Id>
+					<IBAN>CH9300762011623852957</IBAN>
+				</Id>
+				<Ccy>CHF</Ccy>
+			</Acct>
+			<!-- Collective booking whose detailed transactions (6000 + 5000) do not
+			     reconstruct the group total (15000): the split must be rejected and
+			     the entry kept whole so the total can still be reconciled. -->
+			<Ntry>
+				<Amt Ccy="CHF">15000.00</Amt>
+				<CdtDbtInd>DBIT</CdtDbtInd>
+				<Sts>BOOK</Sts>
+				<ValDt>
+					<Dt>2026-01-25</Dt>
+				</ValDt>
+				<AcctSvcrRef>PARTIALRUN012026</AcctSvcrRef>
+				<NtryDtls>
+					<Btch>
+						<NbOfTxs>3</NbOfTxs>
+						<TtlAmt Ccy="CHF">15000.00</TtlAmt>
+					</Btch>
+					<TxDtls>
+						<Amt Ccy="CHF">6000.00</Amt>
+						<CdtDbtInd>DBIT</CdtDbtInd>
+					</TxDtls>
+					<TxDtls>
+						<Amt Ccy="CHF">5000.00</Amt>
+						<CdtDbtInd>DBIT</CdtDbtInd>
+					</TxDtls>
+				</NtryDtls>
+				<AddtlNtryInf>Monthly salary run (partial detail)</AddtlNtryInf>
+			</Ntry>
+		</Stmt>
+	</BkToCstmrStmt>
+</Document>
