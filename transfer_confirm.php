@@ -88,7 +88,7 @@ if ($fromId <= 0 || $toId <= 0 || $fromId === $toId) {
 	// Account::fetch does not load entity; verify both accounts belong to an
 	// allowed entity directly (prevents crafting a cross-entity transfer URL).
 	$sqlEnt = "SELECT rowid FROM ".MAIN_DB_PREFIX."bank_account";
-	$sqlEnt .= " WHERE entity IN (".getEntity('bank_account').")";
+	$sqlEnt .= " WHERE entity IN (".getEntity('bank_account', 0).")";
 	$sqlEnt .= " AND rowid IN (".((int) $fromId).", ".((int) $toId).")";
 	$resEnt = $db->query($sqlEnt);
 	if (!$resEnt || $db->num_rows($resEnt) < 2) {

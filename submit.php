@@ -224,7 +224,7 @@ $file = !empty($_FILES['file']) ? $_FILES['file'] : null;
 
 // Secure directory creation using Dolibarr function
 $dir = DOL_DATA_ROOT . '/camt053readerandlink/' . ((int) $conf->entity);
-if (!file_exists($dir)) {
+if (!is_dir($dir)) {
 	dol_mkdir($dir);
 }
 
