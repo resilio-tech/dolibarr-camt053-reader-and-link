@@ -308,9 +308,7 @@ class Camt053CronRunner
 	 */
 	private function archiveUnresolved(Camt053SftpConfig $config, string $name, string $content): bool
 	{
-		global $conf;
-
-		$targetDir = DOL_DATA_ROOT . '/camt053readerandlink/' . ((int) $conf->entity) . '/unresolved/' . dol_sanitizeFileName($config->ref);
+		$targetDir = DOL_DATA_ROOT . '/camt053readerandlink/' . ((int) $config->entity) . '/unresolved/' . dol_sanitizeFileName($config->ref);
 
 		if (!is_dir($targetDir)) {
 			dol_mkdir($targetDir);

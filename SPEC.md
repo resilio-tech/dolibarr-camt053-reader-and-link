@@ -39,7 +39,9 @@ Consequences:
   entity and the browsing entity are always the same one.
 - Uploaded files and cron leftovers are stored under
   `DOL_DATA_ROOT/camt053readerandlink/<entity>/`, never in a directory shared by
-  several entities.
+  several entities. The cron takes that entity from the SFTP config it is
+  processing, not from `$conf->entity`, since `fetchAll()` follows the sharing
+  configured for the config table.
 - The module is activated per entity. Its menu entry lives in `llx_menu` with
   `entity = $conf->entity`, so it must be enabled from each entity that needs it.
 
