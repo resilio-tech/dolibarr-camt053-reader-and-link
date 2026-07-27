@@ -308,7 +308,7 @@ class Camt053CronRunner
 	 */
 	private function archiveUnresolved(Camt053SftpConfig $config, string $name, string $content): bool
 	{
-		$targetDir = DOL_DATA_ROOT . '/camt053readerandlink/unresolved/' . dol_sanitizeFileName($config->ref);
+		$targetDir = DOL_DATA_ROOT . '/camt053readerandlink/' . ((int) $config->entity) . '/unresolved/' . dol_sanitizeFileName($config->ref);
 
 		if (!is_dir($targetDir)) {
 			dol_mkdir($targetDir);
@@ -541,7 +541,7 @@ class Camt053CronRunner
 	private function formatReport(Camt053SftpConfig $config, array $monthlySummaries): string
 	{
 		$lines = array();
-		$lines[] = '**CAMT.053 monthly reconciliation — ' . ($config->label ?: $config->ref) . '**';
+		$lines[] = '**CAMT.053 monthly reconciliation: ' . ($config->label ?: $config->ref) . '**';
 
 		foreach ($monthlySummaries as $name => $summary) {
 			$lines[] = '';
@@ -553,7 +553,7 @@ class Camt053CronRunner
 
 			foreach ($summary['accounts'] as $account) {
 				$lines[] = '';
-				$lines[] = 'Account `' . $account['iban'] . '` — statement ' . $account['num_releve'];
+				$lines[] = 'Account `' . $account['iban'] . '`, statement ' . $account['num_releve'];
 				$lines[] = ':white_check_mark: Auto-reconciled: ' . count($account['auto']);
 				$lines[] = ':warning: Ambiguous (manual): ' . count($account['ambiguous']);
 				$lines = array_merge($lines, $this->formatEntryList($account['ambiguous']));
@@ -596,7 +596,7 @@ class Camt053CronRunner
 				break;
 			}
 			$amount = number_format((float) $entry['amount'], 2);
-			$lines[] = '  - ' . $amount . ' on ' . $entry['date'] . ' — ' . dol_trunc((string) $entry['name'], 60);
+			$lines[] = '  - ' . $amount . ' on ' . $entry['date'] . ': ' . dol_trunc((string) $entry['name'], 60);
 			$i++;
 		}
 		return $lines;

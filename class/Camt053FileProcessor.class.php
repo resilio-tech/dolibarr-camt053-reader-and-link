@@ -587,12 +587,10 @@ class Camt053FileProcessor
 		$ibanNoSpace = str_replace(' ', '', $iban);
 		$ibanWithSpace = $this->formatIban($iban);
 
-		// Restrict to accounts visible in the current entity: an IBAN belonging to
-		// another entity's account must not be treated as a reconcilable account.
 		$sql = "SELECT rowid FROM " . MAIN_DB_PREFIX . "bank_account ";
 		$sql .= "WHERE (iban_prefix = '" . $this->db->escape($ibanWithSpace) . "' ";
 		$sql .= "OR iban_prefix = '" . $this->db->escape($ibanNoSpace) . "') ";
-		$sql .= "AND entity IN (" . getEntity('bank_account') . ")";
+		$sql .= "AND entity IN (" . getEntity('bank_account', 0) . ")";
 
 		$resql = $this->db->query($sql);
 		if ($resql) {

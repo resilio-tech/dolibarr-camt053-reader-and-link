@@ -112,7 +112,7 @@ class EntityScopeSqlTest extends TestCase
 		if (!function_exists('getEntity')) {
 			function getEntity($element = '', $shared = 1, $currentobject = null)
 			{
-				return '1';
+				return $shared ? '1,2' : '1';
 			}
 		}
 	}
@@ -137,7 +137,7 @@ class EntityScopeSqlTest extends TestCase
 
 		$this->assertNull($result, 'No account row -> null');
 		$this->assertNotEmpty($db->queries, 'The lookup must reach the database');
-		$this->assertStringContainsString('entity IN (', $db->lastSql());
+		$this->assertStringContainsString('entity IN (1)', $db->lastSql());
 	}
 
 	/**
@@ -157,7 +157,7 @@ class EntityScopeSqlTest extends TestCase
 		$result = $loader->getAccountIdByIban('CH0509000000100123456');
 
 		$this->assertNull($result);
-		$this->assertStringContainsString('entity IN (', $db->lastSql());
+		$this->assertStringContainsString('entity IN (1)', $db->lastSql());
 	}
 
 	/**
@@ -179,12 +179,12 @@ class EntityScopeSqlTest extends TestCase
 
 		$this->assertNotEmpty($db->queries);
 		$this->assertStringContainsString('bank_account', $db->queries[0]);
-		$this->assertStringContainsString('entity IN (', $db->queries[0]);
+		$this->assertStringContainsString('entity IN (1)', $db->queries[0]);
 	}
 
 	/**
-	 * Every relationship lookup is scoped: a bank line, an invoice and a supplier
-	 * invoice from another entity must never surface in the reconciliation list.
+	 * The bank line of a relationship lookup is restricted to the current entity,
+	 * while the invoices keep the multicompany sharing configured for them.
 	 *
 	 * @runInSeparateProcess
 	 * @preserveGlobalState disabled
@@ -199,9 +199,9 @@ class EntityScopeSqlTest extends TestCase
 
 		$this->assertNull($lookup->getRelation(100));
 		$this->assertCount(3, $db->queries, 'customer invoice, supplier invoice, bank line');
-		foreach ($db->queries as $sql) {
-			$this->assertStringContainsString('entity IN (', $sql);
-		}
+		$this->assertStringContainsString('f.entity IN (1,2)', $db->queries[0]);
+		$this->assertStringContainsString('f.entity IN (1,2)', $db->queries[1]);
+		$this->assertStringContainsString('ba.entity IN (1)', $db->queries[2]);
 	}
 
 	/**
@@ -222,6 +222,6 @@ class EntityScopeSqlTest extends TestCase
 		$bank = $loader->getDbBank(5);
 
 		$this->assertSame(5, (int) $bank->rowid);
-		$this->assertStringContainsString('entity IN (', $db->lastSql());
+		$this->assertStringContainsString('entity IN (1)', $db->lastSql());
 	}
 }

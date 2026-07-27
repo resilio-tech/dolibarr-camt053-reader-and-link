@@ -223,8 +223,8 @@ $date_end = GETPOST('date_end', 'alpha');
 $file = !empty($_FILES['file']) ? $_FILES['file'] : null;
 
 // Secure directory creation using Dolibarr function
-$dir = DOL_DATA_ROOT . '/camt053readerandlink';
-if (!file_exists($dir)) {
+$dir = DOL_DATA_ROOT . '/camt053readerandlink/' . ((int) $conf->entity);
+if (!is_dir($dir)) {
 	dol_mkdir($dir);
 }
 
@@ -501,8 +501,6 @@ if (!empty($banks)) {
 				print '<td>' . dol_escape_htmltag($entry['value_date']) . '</td>';
 				print '<td>' . $name . '<br /><span class="info">' . dol_escape_htmltag($entry['info']) . '</span></td>';
 				print '<td><div class="statement_link_unlinked">' . $langs->trans('WillNotBeConciliated') . '</div></td>';
-				// Account::fetch does not load entity; the page runs in the current
-				// entity context, which is the one the bank account belongs to.
 				$suggestionHtml = $n_obj->isFromFile()
 					? camt053_render_suggestions($n_obj, (int) $conf->entity, (int) $accountId, $suggestionFinder, $transferDetector, $langs)
 					: '';

@@ -119,7 +119,7 @@ $upload_file = GETPOST('upload_file', 'alpha');
 // Validate upload_file path to prevent path traversal
 if (!empty($upload_file)) {
 	$realUploadFile = realpath($upload_file);
-	$allowedDir = realpath(DOL_DATA_ROOT . '/camt053readerandlink');
+	$allowedDir = realpath(DOL_DATA_ROOT . '/camt053readerandlink/' . ((int) $conf->entity));
 	// realpath() returns false when the directory does not exist yet, and
 	// strpos($x, false) matches everything: without the explicit check the guard
 	// would wave any path through. The trailing separator keeps a sibling
@@ -300,8 +300,6 @@ try {
 		$file = basename($upload_file);
 		$sanitizedFilename = dol_sanitizeFileName($file);
 
-		// Same directory the bank statement page reads (see account_statement_prepare_head()
-		// in core/lib/bank.lib.php and compta/bank/account_statement_document.php)
 		$targetDir = $conf->bank->dir_output . '/' . $id . '/statement/' . dol_sanitizeFileName($numref);
 		$targetFile = $targetDir . '/' . $sanitizedFilename;
 
