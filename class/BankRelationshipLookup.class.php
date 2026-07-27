@@ -176,11 +176,10 @@ class BankRelationshipLookup
 	 */
 	private function getBankLine(int $lineId): ?object
 	{
-		// Scoped through the bank account, like every other bank-line query here.
 		$sql = "SELECT b.rowid, b.label FROM " . MAIN_DB_PREFIX . "bank AS b";
 		$sql .= " INNER JOIN " . MAIN_DB_PREFIX . "bank_account AS ba ON ba.rowid = b.fk_account";
 		$sql .= " WHERE b.rowid = " . ((int) $lineId);
-		$sql .= " AND ba.entity IN (" . getEntity('bank_account') . ")";
+		$sql .= " AND ba.entity IN (" . getEntity('bank_account', 0) . ")";
 
 		$resql = $this->db->query($sql);
 		if ($resql) {

@@ -112,7 +112,7 @@ class EntityScopeSqlTest extends TestCase
 		if (!function_exists('getEntity')) {
 			function getEntity($element = '', $shared = 1, $currentobject = null)
 			{
-				return '1';
+				return $shared ? '1,2' : '1';
 			}
 		}
 	}
@@ -137,7 +137,7 @@ class EntityScopeSqlTest extends TestCase
 
 		$this->assertNull($result, 'No account row -> null');
 		$this->assertNotEmpty($db->queries, 'The lookup must reach the database');
-		$this->assertStringContainsString('entity IN (', $db->lastSql());
+		$this->assertStringContainsString('entity IN (1)', $db->lastSql());
 	}
 
 	/**
@@ -157,7 +157,7 @@ class EntityScopeSqlTest extends TestCase
 		$result = $loader->getAccountIdByIban('CH0509000000100123456');
 
 		$this->assertNull($result);
-		$this->assertStringContainsString('entity IN (', $db->lastSql());
+		$this->assertStringContainsString('entity IN (1)', $db->lastSql());
 	}
 
 	/**
@@ -179,7 +179,7 @@ class EntityScopeSqlTest extends TestCase
 
 		$this->assertNotEmpty($db->queries);
 		$this->assertStringContainsString('bank_account', $db->queries[0]);
-		$this->assertStringContainsString('entity IN (', $db->queries[0]);
+		$this->assertStringContainsString('entity IN (1)', $db->queries[0]);
 	}
 
 	/**
@@ -202,6 +202,7 @@ class EntityScopeSqlTest extends TestCase
 		foreach ($db->queries as $sql) {
 			$this->assertStringContainsString('entity IN (', $sql);
 		}
+		$this->assertStringContainsString('ba.entity IN (1)', $db->lastSql());
 	}
 
 	/**
@@ -222,6 +223,6 @@ class EntityScopeSqlTest extends TestCase
 		$bank = $loader->getDbBank(5);
 
 		$this->assertSame(5, (int) $bank->rowid);
-		$this->assertStringContainsString('entity IN (', $db->lastSql());
+		$this->assertStringContainsString('entity IN (1)', $db->lastSql());
 	}
 }

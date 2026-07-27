@@ -96,13 +96,11 @@ class DatabaseBankStatementLoader
 		$loadStartStr = $this->shiftDate($startDateStr, -$dayMargin);
 		$loadEndStr = $endDateStr;
 
-		// Build secure SQL query. Join bank_account to keep entries scoped to the
-		// current entity: a bank line from another entity must never be matched.
 		$sql = "SELECT b.rowid FROM " . MAIN_DB_PREFIX . "bank AS b ";
 		$sql .= "INNER JOIN " . MAIN_DB_PREFIX . "bank_account AS ba ON ba.rowid = b.fk_account ";
 		$sql .= "WHERE b.datev >= DATE('" . $this->db->escape($loadStartStr) . "') ";
 		$sql .= "AND b.datev <= DATE('" . $this->db->escape($loadEndStr) . "') ";
-		$sql .= "AND ba.entity IN (" . getEntity('bank_account') . ") ";
+		$sql .= "AND ba.entity IN (" . getEntity('bank_account', 0) . ") ";
 
 		if ($accountId !== null) {
 			$sql .= "AND b.fk_account = " . ((int) $accountId) . " ";
@@ -176,7 +174,7 @@ class DatabaseBankStatementLoader
 	{
 		$sql = "SELECT rowid, iban_prefix FROM " . MAIN_DB_PREFIX . "bank_account ";
 		$sql .= "WHERE rowid = " . ((int) $bankId);
-		$sql .= " AND entity IN (" . getEntity('bank_account') . ")";
+		$sql .= " AND entity IN (" . getEntity('bank_account', 0) . ")";
 
 		$resql = $this->db->query($sql);
 		if (!$resql) {
@@ -210,7 +208,7 @@ class DatabaseBankStatementLoader
 		$sql = "SELECT rowid FROM " . MAIN_DB_PREFIX . "bank_account ";
 		$sql .= "WHERE (iban_prefix = '" . $this->db->escape($ibanWithSpace) . "' ";
 		$sql .= "OR iban_prefix = '" . $this->db->escape($ibanNoSpace) . "') ";
-		$sql .= "AND entity IN (" . getEntity('bank_account') . ")";
+		$sql .= "AND entity IN (" . getEntity('bank_account', 0) . ")";
 
 		$resql = $this->db->query($sql);
 		if ($resql) {
