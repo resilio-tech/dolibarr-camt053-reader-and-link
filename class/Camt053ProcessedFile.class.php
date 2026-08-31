@@ -59,6 +59,9 @@ class Camt053ProcessedFile
 	/** @var string|null Statement reference (YYYYMM) */
 	public $num_releve;
 
+	/** @var string|null Where the file was archived, so it can be reopened later */
+	public $archived_path;
+
 	/** @var int 1 if this is the monthly statement file */
 	public $is_monthly = 0;
 
@@ -125,7 +128,7 @@ class Camt053ProcessedFile
 
 		$sql = "INSERT INTO " . MAIN_DB_PREFIX . self::TABLE . " (";
 		$sql .= "entity, fk_config, filename, file_hash, fk_bank_account, num_releve,";
-		$sql .= " is_monthly, nb_auto, nb_ambiguous, nb_unmatched, status, error,";
+		$sql .= " archived_path, is_monthly, nb_auto, nb_ambiguous, nb_unmatched, status, error,";
 		$sql .= " date_processed, date_creation";
 		$sql .= ") VALUES (";
 		$sql .= ((int) $this->entity);
@@ -134,6 +137,7 @@ class Camt053ProcessedFile
 		$sql .= ", '" . $this->db->escape($this->file_hash) . "'";
 		$sql .= ", " . ($this->fk_bank_account ? (int) $this->fk_bank_account : 'NULL');
 		$sql .= ", " . ($this->num_releve ? "'" . $this->db->escape($this->num_releve) . "'" : 'NULL');
+		$sql .= ", " . ($this->archived_path ? "'" . $this->db->escape($this->archived_path) . "'" : 'NULL');
 		$sql .= ", " . ((int) $this->is_monthly);
 		$sql .= ", " . ((int) $this->nb_auto);
 		$sql .= ", " . ((int) $this->nb_ambiguous);
@@ -151,6 +155,54 @@ class Camt053ProcessedFile
 
 		$this->id = (int) $this->db->last_insert_id(MAIN_DB_PREFIX . self::TABLE);
 		return $this->id;
+	}
+
+	/**
+	 * Load a processed-file record of the current entity.
+	 *
+	 * Scoped like every other read in this module: a tracking row of another
+	 * entity must not be reachable, since it points at an archived statement.
+	 *
+	 * @param int $id Row id
+	 * @return int 1 when loaded, 0 when not found, -1 on error
+	 */
+	public function fetch(int $id): int
+	{
+		$sql = "SELECT rowid, entity, fk_config, filename, file_hash, fk_bank_account,";
+		$sql .= " num_releve, archived_path, is_monthly, nb_auto, nb_ambiguous, nb_unmatched,";
+		$sql .= " status, error";
+		$sql .= " FROM " . MAIN_DB_PREFIX . self::TABLE;
+		$sql .= " WHERE rowid = " . ((int) $id);
+		$sql .= " AND entity = " . ((int) $this->entity);
+
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			$this->error = 'Database error: ' . $this->db->lasterror();
+			return -1;
+		}
+
+		$obj = $this->db->fetch_object($resql);
+		if (!$obj) {
+			$this->error = 'Processed file not found: ' . ((int) $id);
+			return 0;
+		}
+
+		$this->id = (int) $obj->rowid;
+		$this->entity = (int) $obj->entity;
+		$this->fk_config = (int) $obj->fk_config;
+		$this->filename = $obj->filename;
+		$this->file_hash = $obj->file_hash;
+		$this->fk_bank_account = $obj->fk_bank_account !== null ? (int) $obj->fk_bank_account : null;
+		$this->num_releve = $obj->num_releve;
+		$this->archived_path = $obj->archived_path;
+		$this->is_monthly = (int) $obj->is_monthly;
+		$this->nb_auto = (int) $obj->nb_auto;
+		$this->nb_ambiguous = (int) $obj->nb_ambiguous;
+		$this->nb_unmatched = (int) $obj->nb_unmatched;
+		$this->status = $obj->status;
+		$this->error_detail = $obj->error;
+
+		return 1;
 	}
 
 	/**

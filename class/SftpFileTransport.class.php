@@ -230,33 +230,110 @@ class SftpFileTransport
 	 */
 	public function listFiles(?string $pattern = null): ?array
 	{
-		if (!$this->ensureConnected()) {
-			return null;
-		}
-
-		$dir = $this->config->remote_dir;
-		$names = @scandir($this->streamPath($dir));
-		if ($names === false) {
-			$this->error = 'Unable to list remote directory: ' . $dir;
+		$entries = $this->listEntries(1, PHP_INT_MAX, false);
+		if ($entries === null) {
 			return null;
 		}
 
 		$files = array();
-		foreach ($names as $name) {
-			if ($name === '.' || $name === '..') {
+		foreach ($entries as $entry) {
+			if ($entry['is_dir']) {
 				continue;
 			}
-			if (is_dir($this->streamPath(rtrim($dir, '/') . '/' . $name))) {
+			if ($pattern !== null && $pattern !== '' && !preg_match($pattern, $entry['name'])) {
 				continue;
 			}
-			if ($pattern !== null && $pattern !== '' && !preg_match($pattern, $name)) {
-				continue;
-			}
-			$files[] = $name;
+			$files[] = $entry['name'];
 		}
 
 		sort($files);
 		return $files;
+	}
+
+	/**
+	 * List the remote directory, walking into subdirectories.
+	 *
+	 * Only the root level is ever downloaded by the cron. The deeper levels are
+	 * reported so whoever configures an account can see what the bank actually
+	 * delivers, including a layout the module cannot reach.
+	 *
+	 * @param int  $maxDepth     Directory levels to walk (1 = the configured directory only)
+	 * @param int  $maxEntries   Hard cap on the number of entries collected
+	 * @param bool $withMetadata Read size and modification date, one extra round trip per file
+	 * @return array<int, array{path:string,name:string,depth:int,is_dir:bool,size:int,mtime:int}>|null
+	 *         Entries, or null when the configured directory itself cannot be read
+	 */
+	public function listEntries(int $maxDepth = 2, int $maxEntries = 500, bool $withMetadata = true): ?array
+	{
+		if (!$this->ensureConnected()) {
+			return null;
+		}
+
+		$entries = array();
+		if (!$this->walk('', $maxDepth, $maxEntries, $withMetadata, $entries)) {
+			return null;
+		}
+
+		return $entries;
+	}
+
+	/**
+	 * Collect one directory level, then recurse while there is depth left.
+	 *
+	 * @param string $relative     Path relative to the configured directory ('' for the root)
+	 * @param int    $depthLeft    Levels still allowed below this one
+	 * @param int    $maxEntries   Hard cap on the number of entries collected
+	 * @param bool   $withMetadata Read size and modification date
+	 * @param array  $entries      Accumulator, appended in place
+	 * @return bool False only when the configured directory itself cannot be read
+	 */
+	private function walk(string $relative, int $depthLeft, int $maxEntries, bool $withMetadata, array &$entries): bool
+	{
+		$root = rtrim($this->config->remote_dir, '/');
+		$dir = $root . ($relative !== '' ? '/' . $relative : '');
+
+		$names = @scandir($this->streamPath($dir));
+		if ($names === false) {
+			if ($relative === '') {
+				$this->error = 'Unable to list remote directory: ' . $dir;
+				return false;
+			}
+			// An unreadable subdirectory says something about the layout and must
+			// not hide the levels that did answer.
+			return true;
+		}
+
+		sort($names);
+		$depth = ($relative === '') ? 0 : substr_count($relative, '/') + 1;
+
+		foreach ($names as $name) {
+			if ($name === '.' || $name === '..') {
+				continue;
+			}
+			if (count($entries) >= $maxEntries) {
+				return true;
+			}
+
+			$path = ($relative !== '' ? $relative . '/' : '') . $name;
+			$full = $this->streamPath($root . '/' . $path);
+			$isDir = is_dir($full);
+			$stat = ($withMetadata && !$isDir) ? @stat($full) : false;
+
+			$entries[] = array(
+				'path' => $path,
+				'name' => $name,
+				'depth' => $depth,
+				'is_dir' => $isDir,
+				'size' => ($stat !== false && isset($stat['size'])) ? (int) $stat['size'] : 0,
+				'mtime' => ($stat !== false && isset($stat['mtime'])) ? (int) $stat['mtime'] : 0,
+			);
+
+			if ($isDir && $depthLeft > 1) {
+				$this->walk($path, $depthLeft - 1, $maxEntries, $withMetadata, $entries);
+			}
+		}
+
+		return true;
 	}
 
 	/**

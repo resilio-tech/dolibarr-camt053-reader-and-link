@@ -118,7 +118,6 @@ if (($action == 'add' || $action == 'update') && $user->admin) {
 		$object->daily_pattern = GETPOST('daily_pattern', 'restricthtml');
 		$object->monthly_pattern = GETPOST('monthly_pattern', 'restricthtml');
 		$object->post_download_action = (GETPOST('post_download_action', 'alpha') == 'leave') ? 'leave' : 'delete';
-		$object->fk_default_bank_account = GETPOSTINT('fk_default_bank_account') ? GETPOSTINT('fk_default_bank_account') : null;
 
 		if ($action == 'add') {
 			$result = $object->create($user);
@@ -229,10 +228,6 @@ print '<td><input type="text" name="monthly_pattern" class="minwidth300" value="
 // Post download action
 print '<tr><td>'.$langs->trans("Camt053SftpPostAction").'</td>';
 print '<td>'.$form->selectarray('post_download_action', array('delete' => $langs->trans("Camt053SftpPostDelete"), 'leave' => $langs->trans("Camt053SftpPostLeave")), $object->post_download_action, 0, 0, 0, '', 0, 0, 0, '', 'minwidth200').'</td></tr>';
-
-// Default bank account
-print '<tr><td>'.$langs->trans("Camt053SftpDefaultAccount").'</td>';
-print '<td>'.$form->select_comptes((int) $object->fk_default_bank_account, 'fk_default_bank_account', 0, '', 1, '', 0, '', 1).' <span class="opacitymedium">'.$langs->trans("Camt053SftpDefaultAccountHelp").'</span></td></tr>';
 
 print '</table>';
 

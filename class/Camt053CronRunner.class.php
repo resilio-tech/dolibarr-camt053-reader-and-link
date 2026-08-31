@@ -25,6 +25,7 @@
 
 require_once DOL_DOCUMENT_ROOT . '/core/lib/files.lib.php';
 require_once DOL_DOCUMENT_ROOT . '/compta/bank/class/account.class.php';
+require_once __DIR__ . '/../lib/camt053readerandlink.lib.php';
 require_once __DIR__ . '/Camt053FileOutcome.class.php';
 require_once __DIR__ . '/Camt053SafeFile.class.php';
 require_once __DIR__ . '/Camt053ArchivePath.class.php';
@@ -122,20 +123,33 @@ class Camt053CronRunner
 			return $config->ref . ': ' . $msg;
 		}
 
+		$targets = $this->targetedFiles($config, $files);
+
+		if (!camt053SftpFetchEnabled()) {
+			$transport->disconnect();
+			foreach ($targets as $target) {
+				dol_syslog('CAMT053 cron: download disabled, leaving ' . $target['name'] . ' on the server', LOG_INFO);
+			}
+			$status = sprintf(
+				'download disabled: %d file(s) on the server, %d targeted by the patterns',
+				count($files), count($targets)
+			);
+			$config->recordRun($status);
+
+			return $config->ref . ': ' . $status;
+		}
+
 		$service = new ReconciliationService($this->db, $user, $langs, 1);
 		$processedTracker = new Camt053ProcessedFile($this->db);
 
-		$counters = array('files' => 0, 'skipped' => 0, 'auto' => 0, 'ambiguous' => 0, 'unmatched' => 0, 'errors' => 0);
+		$counters = array('files' => 0, 'skipped' => 0, 'auto' => 0, 'ambiguous' => 0, 'unmatched' => 0, 'pending' => 0, 'errors' => 0);
 		$monthlySummaries = array();
+		$monthlyRecordIds = array();
+		$unresolvedFiles = array();
 
-		foreach ($files as $name) {
-			$isDaily = $this->matchesPattern($config->daily_pattern, $name);
-			$isMonthly = $this->matchesPattern($config->monthly_pattern, $name);
-
-			// When patterns are configured, ignore files that match neither.
-			if ((!empty($config->daily_pattern) || !empty($config->monthly_pattern)) && !$isDaily && !$isMonthly) {
-				continue;
-			}
+		foreach ($targets as $target) {
+			$name = $target['name'];
+			$isMonthly = $target['monthly'];
 
 			$content = $transport->getContent($name);
 			if ($content === null) {
@@ -168,6 +182,7 @@ class Camt053CronRunner
 			$counters['auto'] += $summary['totals']['auto'];
 			$counters['ambiguous'] += $summary['totals']['ambiguous'];
 			$counters['unmatched'] += $summary['totals']['unmatched'];
+			$counters['pending'] += (int) $summary['pending'];
 			$counters['errors'] += $summary['totals']['errors'];
 
 			// Whatever matched is reconciled and archived by now. Capture the
@@ -181,7 +196,7 @@ class Camt053CronRunner
 			// Nothing landed on disk although there was something to write (full
 			// or unwritable bank document directory): the remote copy is the only
 			// one left and must stay, whatever the reconciliation achieved.
-			if (!$archived) {
+			if (!$archived['ok']) {
 				$this->error .= '[' . $config->ref . '] ' . $name . ': archiving failed, file kept on the server; ';
 				dol_syslog('CAMT053 cron: could not archive ' . $name . ' anywhere, keeping the remote file', LOG_ERR);
 				$counters['errors']++;
@@ -195,11 +210,18 @@ class Camt053CronRunner
 			// closed account), so pinning the file to the server would re-download,
 			// re-parse and re-error it on every run forever, pinning the job to
 			// "failed" and drowning any genuine failure.
+			$archivedPaths = $archived['paths'];
+
 			$reason = Camt053FileOutcome::unresolvedReason($summary);
 			if ($reason !== '') {
 				$counters['errors']++;
+				$unresolvedFiles[$name] = array(
+					'reason' => $reason,
+					'ibans' => $summary['unresolved_ibans'],
+				);
 
-				if (!$this->archiveUnresolved($config, $name, $content)) {
+				$unresolvedPath = $this->archiveUnresolved($config, $name, $content);
+				if ($unresolvedPath === null) {
 					// Nothing was written locally: the remote copy is the only one
 					// left, so it must stay until the archive succeeds.
 					$this->error .= '[' . $config->ref . '] ' . $name . ': ' . $reason
@@ -208,27 +230,67 @@ class Camt053CronRunner
 					continue;
 				}
 
+				if (empty($archivedPaths)) {
+					$archivedPaths = array(0 => $unresolvedPath);
+				}
+
 				$this->error .= '[' . $config->ref . '] ' . $name . ': ' . $reason . '; ';
 				dol_syslog('CAMT053 cron: ' . $name . ' - ' . $reason . ', raw file archived locally', LOG_WARNING);
 			}
 
-			$this->recordProcessed($processedTracker, $config, $name, $hash, $summary, $isMonthly, $reason);
+			$recordId = $this->recordProcessed($processedTracker, $config, $name, $hash, $summary, $isMonthly, $reason, $archivedPaths);
+			if ($isMonthly && $recordId > 0) {
+				$monthlyRecordIds[$name] = $recordId;
+			}
+
 			$this->postDownloadCleanup($transport, $config, $name);
 		}
 
 		$transport->disconnect();
 
+		if (!empty($unresolvedFiles)) {
+			$this->alertUnresolvedStatements($config, $unresolvedFiles);
+		}
+
 		if (!empty($monthlySummaries)) {
-			$this->sendMonthlyReport($config, $monthlySummaries);
+			$this->sendMonthlyReport($config, $monthlySummaries, $monthlyRecordIds);
 		}
 
 		$status = sprintf(
-			'%d file(s), %d auto, %d ambiguous, %d unmatched, %d skipped, %d error(s)',
-			$counters['files'], $counters['auto'], $counters['ambiguous'], $counters['unmatched'], $counters['skipped'], $counters['errors']
+			'%d file(s), %d auto, %d ambiguous, %d unmatched, %d pending (intraday), %d skipped, %d error(s)',
+			$counters['files'], $counters['auto'], $counters['ambiguous'], $counters['unmatched'],
+			$counters['pending'], $counters['skipped'], $counters['errors']
 		);
 		$config->recordRun($status);
 
 		return $config->ref . ': ' . $status;
+	}
+
+	/**
+	 * Keep, out of a remote listing, the files the configured patterns target.
+	 * With no pattern at all every file is taken.
+	 *
+	 * @param Camt053SftpConfig $config Config being processed
+	 * @param string[]          $files  Remote file names
+	 * @return array<int,array{name:string,monthly:bool}>
+	 */
+	private function targetedFiles(Camt053SftpConfig $config, array $files): array
+	{
+		$hasPattern = (!empty($config->daily_pattern) || !empty($config->monthly_pattern));
+		$targets = array();
+
+		foreach ($files as $name) {
+			$isDaily = camt053MatchesFilePattern($config->daily_pattern, $name);
+			$isMonthly = camt053MatchesFilePattern($config->monthly_pattern, $name);
+
+			if ($hasPattern && !$isDaily && !$isMonthly) {
+				continue;
+			}
+
+			$targets[] = array('name' => $name, 'monthly' => $isMonthly);
+		}
+
+		return $targets;
 	}
 
 	/**
@@ -247,6 +309,8 @@ class Camt053CronRunner
 			'error' => null,
 			'accounts' => array(),
 			'unresolved_ibans' => array(),
+			'intraday' => false,
+			'pending' => 0,
 			'totals' => array('auto' => 0, 'ambiguous' => 0, 'unmatched' => 0, 'errors' => 0),
 		);
 
@@ -285,6 +349,9 @@ class Camt053CronRunner
 				$merged['unresolved_ibans'][$iban] = ($merged['unresolved_ibans'][$iban] ?? 0) + $count;
 			}
 
+			$merged['intraday'] = $merged['intraday'] || !empty($summary['intraday']);
+			$merged['pending'] += (int) $summary['pending'];
+
 			foreach (array('auto', 'ambiguous', 'unmatched', 'errors') as $k) {
 				$merged['totals'][$k] += $summary['totals'][$k];
 			}
@@ -304,9 +371,9 @@ class Camt053CronRunner
 	 * @param Camt053SftpConfig $config  Config the file came from
 	 * @param string            $name    Remote file name
 	 * @param string            $content Raw file content
-	 * @return bool True when a copy exists on disk afterwards
+	 * @return string|null Path of the copy on disk, null when nothing was written
 	 */
-	private function archiveUnresolved(Camt053SftpConfig $config, string $name, string $content): bool
+	private function archiveUnresolved(Camt053SftpConfig $config, string $name, string $content): ?string
 	{
 		$targetDir = DOL_DATA_ROOT . '/camt053readerandlink/' . ((int) $config->entity) . '/unresolved/' . dol_sanitizeFileName($config->ref);
 
@@ -318,16 +385,16 @@ class Camt053CronRunner
 		$targetFile = $target['path'];
 
 		if ($target['exists']) {
-			return true;
+			return $targetFile;
 		}
 		if (!Camt053SafeFile::write($targetFile, $content)) {
 			dol_syslog('CAMT053 cron: failed to archive unresolved file to ' . $targetFile, LOG_ERR);
-			return false;
+			return null;
 		}
 
 		dol_syslog('CAMT053 cron: unresolved statement archived to ' . $targetFile, LOG_WARNING);
 
-		return true;
+		return $targetFile;
 	}
 
 	/**
@@ -336,16 +403,18 @@ class Camt053CronRunner
 	 * @param string $name    File name
 	 * @param string $content Raw content
 	 * @param array  $summary Merged summary
-	 * @return bool False when there was something to archive and not a single
-	 *              copy landed: the caller must then keep the remote file, which
-	 *              is the only one left.
+	 * @return array{ok:bool,paths:array<int,string>} ok is false when there was
+	 *         something to archive and not a single copy landed: the caller must
+	 *         then keep the remote file, which is the only one left. paths holds
+	 *         where each account's copy went, so the statement can be reopened.
 	 */
-	private function archiveForSummary(string $name, string $content, array $summary): bool
+	private function archiveForSummary(string $name, string $content, array $summary): array
 	{
 		global $conf;
 
 		$attempted = 0;
 		$archived = 0;
+		$paths = array();
 
 		foreach ($summary['accounts'] as $accountId => $account) {
 			$id = (int) $accountId;
@@ -377,6 +446,7 @@ class Camt053CronRunner
 
 			if ($target['exists']) {
 				$archived++;
+				$paths[$id] = $targetFile;
 				continue;
 			}
 			if (!Camt053SafeFile::write($targetFile, $content)) {
@@ -385,6 +455,7 @@ class Camt053CronRunner
 			}
 
 			$archived++;
+			$paths[$id] = $targetFile;
 
 			$resindex = addFileIntoDatabaseIndex($targetDir, $safe, $name, 'uploaded', 1, $object);
 			if ($resindex < 0) {
@@ -392,7 +463,7 @@ class Camt053CronRunner
 			}
 		}
 
-		return ($attempted === 0 || $archived > 0);
+		return array('ok' => ($attempted === 0 || $archived > 0), 'paths' => $paths);
 	}
 
 	/**
@@ -406,9 +477,12 @@ class Camt053CronRunner
 	 * @param bool                 $isMonthly Whether this is the monthly file
 	 * @param string               $reason    What the file failed to attach to an
 	 *                                        account, empty when it all resolved
-	 * @return void
+	 * @param array                $archivedPaths Where the file was archived, keyed
+	 *                                        by account id, so the statement can be
+	 *                                        reopened from a link
+	 * @return int Row id, 0 when the row could not be written
 	 */
-	private function recordProcessed(Camt053ProcessedFile $tracker, Camt053SftpConfig $config, string $name, string $hash, array $summary, bool $isMonthly, string $reason = ''): void
+	private function recordProcessed(Camt053ProcessedFile $tracker, Camt053SftpConfig $config, string $name, string $hash, array $summary, bool $isMonthly, string $reason = '', array $archivedPaths = array()): int
 	{
 		$firstAccount = null;
 		foreach ($summary['accounts'] as $account) {
@@ -416,12 +490,19 @@ class Camt053CronRunner
 			break;
 		}
 
+		// The row points at the copy filed under the account it records, so the
+		// link opens the statement of that account. Any copy will do otherwise:
+		// they all hold the same content.
+		$accountId = $firstAccount ? (int) $firstAccount['account_id'] : 0;
+		$archivedPath = $archivedPaths[$accountId] ?? (reset($archivedPaths) ?: null);
+
 		$record = new Camt053ProcessedFile($this->db);
 		$record->fk_config = (int) $config->id;
 		$record->filename = $name;
 		$record->file_hash = $hash;
 		$record->fk_bank_account = $firstAccount ? (int) $firstAccount['account_id'] : null;
 		$record->num_releve = $firstAccount ? $firstAccount['num_releve'] : null;
+		$record->archived_path = $archivedPath;
 		$record->is_monthly = $isMonthly ? 1 : 0;
 		$record->nb_auto = (int) $summary['totals']['auto'];
 		$record->nb_ambiguous = (int) $summary['totals']['ambiguous'];
@@ -433,9 +514,13 @@ class Camt053CronRunner
 		$details = array_filter(array($reason, $this->collectErrorDetail($summary)));
 		$record->error_detail = !empty($details) ? implode(' | ', $details) : null;
 
-		if ($record->create() < 0) {
+		$recordId = $record->create();
+		if ($recordId < 0) {
 			dol_syslog('CAMT053 cron: failed to record processed file ' . $name . ' - ' . $record->getError(), LOG_ERR);
+			return 0;
 		}
+
+		return (int) $recordId;
 	}
 
 	/**
@@ -481,9 +566,10 @@ class Camt053CronRunner
 	 *
 	 * @param Camt053SftpConfig $config           Config
 	 * @param array             $monthlySummaries Summaries keyed by file name
+	 * @param array             $recordIds        Tracking row ids keyed by file name
 	 * @return void
 	 */
-	private function sendMonthlyReport(Camt053SftpConfig $config, array $monthlySummaries): void
+	private function sendMonthlyReport(Camt053SftpConfig $config, array $monthlySummaries, array $recordIds = array()): void
 	{
 		$notifier = ZulipNotifier::fromConf();
 		if ($notifier === null) {
@@ -491,12 +577,9 @@ class Camt053CronRunner
 			return;
 		}
 
-		$content = $this->formatReport($config, $monthlySummaries);
+		$content = $this->formatReport($config, $monthlySummaries, $recordIds);
 		$stream = getDolGlobalString('CAMT053_ZULIP_STREAM');
-		$topic = getDolGlobalString('CAMT053_ZULIP_TOPIC');
-		if ($topic === '') {
-			$topic = 'CAMT.053 ' . $config->ref;
-		}
+		$topic = $this->zulipTopic($config);
 
 		if (!$notifier->sendStream($stream, $topic, $content)) {
 			dol_syslog('CAMT053 cron: Zulip report failed - ' . $notifier->getError(), LOG_ERR);
@@ -519,10 +602,7 @@ class Camt053CronRunner
 		}
 
 		$stream = getDolGlobalString('CAMT053_ZULIP_STREAM');
-		$topic = getDolGlobalString('CAMT053_ZULIP_TOPIC');
-		if ($topic === '') {
-			$topic = 'CAMT.053 ' . $config->ref;
-		}
+		$topic = $this->zulipTopic($config);
 
 		$content = ":warning: **CAMT.053 SFTP connection failed** for `" . $config->ref . "` (" . $config->host . ")\n";
 		$content .= '> ' . ($detail ?: 'unknown error') . "\n";
@@ -532,13 +612,68 @@ class Camt053CronRunner
 	}
 
 	/**
+	 * Send a Zulip alert for the statements that resolved to no bank account.
+	 *
+	 * Without this the only trace is a syslog line and a tracking row nobody
+	 * reads, and the entries stay unbooked until someone happens to notice. The
+	 * monthly report covers the monthly file alone, so a daily one carrying an
+	 * unknown IBAN would never reach anyone.
+	 *
+	 * @param Camt053SftpConfig $config          Config
+	 * @param array             $unresolvedFiles Reason and IBANs, keyed by file name
+	 * @return void
+	 */
+	private function alertUnresolvedStatements(Camt053SftpConfig $config, array $unresolvedFiles): void
+	{
+		$notifier = ZulipNotifier::fromConf();
+		if ($notifier === null) {
+			dol_syslog('CAMT053 cron: unresolved statements but Zulip is not configured', LOG_WARNING);
+			return;
+		}
+
+		$lines = array();
+		$lines[] = ':grey_question: **CAMT.053 statements attached to no bank account** for `' . $config->ref . '`';
+		$lines[] = '';
+
+		foreach ($unresolvedFiles as $name => $detail) {
+			$lines[] = '- `' . $name . '`: ' . $detail['reason'];
+			foreach (($detail['ibans'] ?? array()) as $iban => $count) {
+				$lines[] = '  - `' . $iban . '` (' . $count . ' entries)';
+			}
+		}
+
+		$lines[] = '';
+		$lines[] = '_Nothing was reconciled for these. The raw files are kept under'
+			. ' `camt053readerandlink/' . ((int) $config->entity) . '/unresolved/' . $config->ref . '`._';
+
+		if (!$notifier->sendStream(getDolGlobalString('CAMT053_ZULIP_STREAM'), $this->zulipTopic($config), implode("\n", $lines))) {
+			dol_syslog('CAMT053 cron: unresolved statement alert failed - ' . $notifier->getError(), LOG_ERR);
+			$this->error .= '[' . $config->ref . '] Zulip unresolved alert failed; ';
+		}
+	}
+
+	/**
+	 * Zulip topic to post under for a config.
+	 *
+	 * @param Camt053SftpConfig $config Config
+	 * @return string
+	 */
+	private function zulipTopic(Camt053SftpConfig $config): string
+	{
+		$topic = getDolGlobalString('CAMT053_ZULIP_TOPIC');
+
+		return ($topic !== '') ? $topic : 'CAMT.053 ' . $config->ref;
+	}
+
+	/**
 	 * Format the Zulip Markdown report.
 	 *
 	 * @param Camt053SftpConfig $config           Config
 	 * @param array             $monthlySummaries Summaries keyed by file name
+	 * @param array             $recordIds        Tracking row ids keyed by file name
 	 * @return string
 	 */
-	private function formatReport(Camt053SftpConfig $config, array $monthlySummaries): string
+	private function formatReport(Camt053SftpConfig $config, array $monthlySummaries, array $recordIds = array()): string
 	{
 		$lines = array();
 		$lines[] = '**CAMT.053 monthly reconciliation: ' . ($config->label ?: $config->ref) . '**';
@@ -554,6 +689,18 @@ class Camt053CronRunner
 			foreach ($summary['accounts'] as $account) {
 				$lines[] = '';
 				$lines[] = 'Account `' . $account['iban'] . '`, statement ' . $account['num_releve'];
+
+				// The whole point of the report: whoever reads it lands straight on
+				// the entries that still need a human, instead of re-uploading the
+				// file by hand to find them.
+				$needsAction = count($account['ambiguous']) + count($account['unmatched']);
+				$url = $this->statementUrl($recordIds[$name] ?? 0, (int) $account['account_id']);
+				if ($url !== '' && $needsAction > 0) {
+					$lines[] = '[Open the ' . $needsAction . ' entries to review](' . $url . ')';
+				} elseif ($url !== '') {
+					$lines[] = '[Open the reconciliation screen](' . $url . ')';
+				}
+
 				$lines[] = ':white_check_mark: Auto-reconciled: ' . count($account['auto']);
 				$lines[] = ':warning: Ambiguous (manual): ' . count($account['ambiguous']);
 				$lines = array_merge($lines, $this->formatEntryList($account['ambiguous']));
@@ -580,6 +727,23 @@ class Camt053CronRunner
 	}
 
 	/**
+	 * Absolute URL of the reconciliation screen for one archived statement.
+	 *
+	 * @param int $recordId  Tracking row id
+	 * @param int $accountId Bank account id
+	 * @return string Empty when the file was not recorded, so no link is offered
+	 */
+	private function statementUrl(int $recordId, int $accountId): string
+	{
+		if ($recordId <= 0) {
+			return '';
+		}
+
+		return dol_buildpath('/camt053readerandlink/statement.php', 2)
+			. '?id=' . $recordId . '&account=' . $accountId;
+	}
+
+	/**
 	 * Format a short bullet list of entries for the report (capped).
 	 *
 	 * @param array $entries Entry info rows
@@ -600,30 +764,5 @@ class Camt053CronRunner
 			$i++;
 		}
 		return $lines;
-	}
-
-	/**
-	 * Whether a file name matches a configured PCRE pattern.
-	 *
-	 * @param string|null $pattern Pattern (with delimiters) or null
-	 * @param string      $name    File name
-	 * @return bool
-	 */
-	private function matchesPattern(?string $pattern, string $name): bool
-	{
-		if (empty($pattern)) {
-			return false;
-		}
-
-		$result = @preg_match($pattern, $name);
-		if ($result === false) {
-			// An invalid admin-supplied regex would otherwise silently make the
-			// cron skip every file, with nothing in the log to explain why.
-			// preg_last_error_msg() is PHP 8.0+, the module supports 7.4.
-			dol_syslog('CAMT053: invalid file pattern ' . $pattern . ' (preg error ' . preg_last_error() . ')', LOG_ERR);
-			return false;
-		}
-
-		return (bool) $result;
 	}
 }

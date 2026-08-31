@@ -5,6 +5,12 @@
 ### New Features
 - SFTP auto-fetch of CAMT.053 files (PostFinance MFTPF), headless reconciliation and Zulip report
 - Payment and internal transfer suggestions for unmatched CAMT.053 entries
+- CAMT.052 intraday reports are read alongside CAMT.053 statements. Only entries the bank has booked are reconciled: a pending one can still be dropped, and the count of those left out is reported instead of being silently lost
+- The scheduled job now runs every 12 hours, so the intraday report is picked up twice a day and the monthly statement within 12 hours of its delivery. This seeds new installations only, an existing job keeps the frequency stored in its own row
+- `statement.php` reopens the reconciliation screen for a statement the job already fetched, with the entries needing a human first. The monthly Zulip report links straight to it, per bank account, so a finance user no longer has to re-upload the file by hand to find what to review
+- Drop the fallback bank account from the SFTP configuration. The bank account is always resolved from the IBAN the file carries, because one SFTP directory delivers the files of several accounts, so booking an unresolved statement onto a preset account would file it under the wrong one. An IBAN matching no account is reported to Zulip and the raw file is kept under `unresolved/`
+- Downloading is now a setting, off by default: until an administrator turns it on in the module setup, the scheduled job still logs in and lists the remote directory, reporting how many files the patterns target, but downloads nothing, records nothing and deletes nothing. The connection test details the remote layout either way, so the patterns can be validated against a live server before a single file is taken
+- The SFTP connection test now reports what the server actually holds: every entry with its size and date, subdirectories included, and for each file whether the scheduled job downloads it, ignores it because it matches no pattern, or cannot reach it because it sits in a subdirectory
 
 ### Bug Fixes
 - Split a collective (batch) CAMT.053 booking into one entry per `<TxDtls>` so a grouped salary transfer (one bank debit, one detail line per employee) reconciles against Dolibarr's individual salary bank lines instead of matching nothing. The split is only applied when the detailed amounts reconstruct the group total, otherwise the entry is kept whole
@@ -13,6 +19,7 @@
 - Show the related invoice reference and third party in the multi-match reconciliation dropdown (#8)
 - Prefill foreign-currency invoice payments in the `multicurrency_amount` field instead of the company-currency field (#9)
 - Harden SFTP secret handling and cron parse-failure safety
+- Alert Zulip when a fetched statement resolves to no bank account. Only the monthly report ever mentioned an unresolved IBAN, so a daily file carrying one left its entries unbooked with nothing but a syslog line
 - Open the supplier invoice payment page with `action=create`, without which it showed no form
 - Preselect the statement bank account on every prefilled payment page
 - Load Dolibarr bank lines with a backward margin equal to the matcher date tolerance, so a line keyed a day early (typically a manually entered salary or various payment) is matched instead of being ignored. Lines from that margin are matchable but never listed, an in-period line always wins over one from the margin, and a margin line already reconciled to another statement can no longer absorb an entry
@@ -37,6 +44,10 @@
 - `BankRelationshipLookupTest.php` - related document lookup for the reconciliation dropdown
 - `DatabaseBankStatementLoaderTest.php` - date window and in/out-of-period flagging
 - `Camt053StatementTest.php` - entry hash uniqueness
+- `Camt053FileProcessorTest.php` - CAMT.052 root detection, booked-only filtering and the pending count
+- `EntityScopeSqlTest.php` - entity scoping of the processed-file lookup behind the reconciliation link
+- `FilePatternTest.php` - the file pattern selection shared by the cron and the connection test
+- `FetchSwitchTest.php` - downloading stays off until the setting is explicitly turned on
 
 ## 2.0.1 (2024)
 

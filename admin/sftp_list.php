@@ -69,6 +69,11 @@ $cardurl = dol_buildpath('/camt053readerandlink/admin/sftp_card.php', 1);
  */
 
 if ($action == 'testconn' && $id > 0 && $user->admin) {
+	// Walking two levels is enough to tell a flat delivery directory from a
+	// nested one, which is all the test has to answer.
+	$testMaxDepth = 2;
+	$testMaxEntries = 500;
+
 	if (!camt053VerifCsrfToken()) {
 		setEventMessages($langs->trans("SecurityTokenError"), null, 'errors');
 	} else {
@@ -80,18 +85,44 @@ if ($action == 'testconn' && $id > 0 && $user->admin) {
 			$host = dol_escape_htmltag($object->host);
 			$port = dol_escape_htmltag($object->port);
 			$remoteDir = dol_escape_htmltag($object->remote_dir);
+
+			$report = array(
+				'ref' => $object->ref,
+				'host' => $object->host,
+				'port' => (int) $object->port,
+				'username' => $object->username,
+				'auth_type' => $object->auth_type,
+				'remote_dir' => $object->remote_dir,
+				'daily_pattern' => (string) $object->daily_pattern,
+				'monthly_pattern' => (string) $object->monthly_pattern,
+				'post_download_action' => $object->post_download_action,
+				'connected' => false,
+				'error' => '',
+				'entries' => array(),
+				'truncated' => false,
+			);
+
 			if ($transport->connect()) {
-				$files = $transport->listFiles();
-				if ($files === null) {
+				$report['connected'] = true;
+				$entries = $transport->listEntries($testMaxDepth, $testMaxEntries);
+				if ($entries === null) {
+					$report['error'] = (string) $transport->getError();
 					setEventMessages($langs->trans("Camt053SftpTestListFailed", $host, $port, $remoteDir, dol_escape_htmltag($transport->getError())), null, 'warnings');
 				} else {
+					$report['entries'] = $entries;
+					$report['truncated'] = (count($entries) >= $testMaxEntries);
 					setEventMessages($langs->trans("Camt053SftpTestConnectOk", $host, $port), null, 'mesgs');
-					setEventMessages($langs->trans("Camt053SftpTestListOk", $remoteDir, count($files)), null, 'mesgs');
 				}
 				$transport->disconnect();
 			} else {
+				$report['error'] = (string) $transport->getError();
 				setEventMessages($langs->trans("Camt053SftpTestFailed", $host, $port, dol_escape_htmltag($transport->getError())), null, 'errors');
 			}
+
+			// Carried over the redirect rather than rendered here: reloading the
+			// page must not open a second SSH session, since a repeated failure
+			// is what locks a PostFinance account.
+			$_SESSION['camt053_test_report'] = $report;
 		} else {
 			setEventMessages($object->getError(), null, 'errors');
 		}
@@ -117,6 +148,121 @@ if ($action == 'confirm_delete' && $id > 0 && $user->admin) {
 	exit;
 }
 
+/**
+ * Print what the connection test found on the server.
+ *
+ * The listing is the point: several accounts land in the same directory, so the
+ * only way to write patterns that pick the right files is to see the names the
+ * bank actually delivers, and to see which of them the cron would take.
+ *
+ * @param array     $report Report built by the testconn action
+ * @param Translate $langs  Language object
+ * @return void
+ */
+function camt053PrintTestReport(array $report, $langs)
+{
+	print '<div class="div-table-responsive-no-min">';
+	print '<table class="noborder centpercent">';
+	print '<tr class="liste_titre"><th colspan="5">'.$langs->trans("Camt053SftpTestReport", dol_escape_htmltag($report['ref'])).'</th></tr>';
+
+	$target = dol_escape_htmltag($report['username']).'@'.dol_escape_htmltag($report['host']).':'.((int) $report['port']);
+	print '<tr class="oddeven"><td class="titlefield">'.$langs->trans("Camt053SftpTestTarget").'</td>';
+	print '<td colspan="4">'.$target.' ('.dol_escape_htmltag($report['auth_type']).') - '.dol_escape_htmltag($report['remote_dir']).'</td></tr>';
+
+	$postAction = ($report['post_download_action'] === 'leave') ? "Camt053SftpPostLeave" : "Camt053SftpPostDelete";
+	print '<tr class="oddeven"><td>'.$langs->trans("Camt053SftpPostAction").'</td>';
+	print '<td colspan="4">'.$langs->trans($postAction).'</td></tr>';
+
+	if (!$report['connected'] || $report['error'] !== '') {
+		print '<tr class="oddeven"><td>'.$langs->trans("Error").'</td>';
+		print '<td colspan="4"><span class="error">'.dol_escape_htmltag($report['error']).'</span></td></tr>';
+	}
+
+	print '</table>';
+	print '</div>';
+
+	if (!$report['connected'] || $report['error'] !== '') {
+		print '<br>';
+		return;
+	}
+
+	$hasPattern = ($report['daily_pattern'] !== '' || $report['monthly_pattern'] !== '');
+	$files = 0;
+	$taken = 0;
+	$dirs = 0;
+	$nested = 0;
+
+	print '<div class="div-table-responsive">';
+	print '<table class="noborder centpercent">';
+	print '<tr class="liste_titre">';
+	print '<th>'.$langs->trans("Camt053SftpTestEntry").'</th>';
+	print '<th class="center">'.$langs->trans("Type").'</th>';
+	print '<th class="right">'.$langs->trans("Size").'</th>';
+	print '<th>'.$langs->trans("DateModification").'</th>';
+	print '<th>'.$langs->trans("Camt053SftpTestCronAction").'</th>';
+	print '</tr>';
+
+	if (empty($report['entries'])) {
+		print '<tr class="oddeven"><td colspan="5" class="opacitymedium center">'.$langs->trans("Camt053SftpTestEmptyDir").'</td></tr>';
+	}
+
+	foreach ($report['entries'] as $entry) {
+		if ($entry['is_dir']) {
+			$dirs++;
+			$verdict = '<span class="opacitymedium">'.$langs->trans("Camt053SftpTestCronSkipsDir").'</span>';
+		} elseif ($entry['depth'] > 0) {
+			$nested++;
+			$verdict = '<span class="warning">'.$langs->trans("Camt053SftpTestCronOutOfReach").'</span>';
+		} else {
+			$files++;
+			$isDaily = camt053MatchesFilePattern($report['daily_pattern'], $entry['name']);
+			$isMonthly = camt053MatchesFilePattern($report['monthly_pattern'], $entry['name']);
+			if ($isDaily && $isMonthly) {
+				$taken++;
+				$verdict = $langs->trans("Camt053SftpTestCronDailyAndMonthly");
+			} elseif ($isDaily) {
+				$taken++;
+				$verdict = $langs->trans("Camt053SftpTestCronDaily");
+			} elseif ($isMonthly) {
+				$taken++;
+				$verdict = $langs->trans("Camt053SftpTestCronMonthly");
+			} elseif (!$hasPattern) {
+				$taken++;
+				$verdict = '<span class="warning">'.$langs->trans("Camt053SftpTestCronNoPattern").'</span>';
+			} else {
+				$verdict = '<span class="opacitymedium">'.$langs->trans("Camt053SftpTestCronIgnored").'</span>';
+			}
+		}
+
+		print '<tr class="oddeven">';
+		print '<td>'.str_repeat('&nbsp;&nbsp;&nbsp;&nbsp;', (int) $entry['depth']).dol_escape_htmltag($entry['path']).'</td>';
+		print '<td class="center">'.($entry['is_dir'] ? img_picto('', 'folder').' '.$langs->trans("Camt053SftpTestTypeDir") : $langs->trans("Camt053SftpTestTypeFile")).'</td>';
+		print '<td class="right">'.($entry['is_dir'] ? '' : dol_print_size((int) $entry['size'], 1, 1)).'</td>';
+		print '<td>'.(!empty($entry['mtime']) ? dol_print_date((int) $entry['mtime'], 'dayhour') : '').'</td>';
+		print '<td>'.$verdict.'</td>';
+		print '</tr>';
+	}
+
+	print '</table>';
+	print '</div>';
+
+	print '<div class="opacitymedium" style="margin-top:6px">';
+	print $langs->trans("Camt053SftpTestCounts", $files, $taken, $dirs);
+	print '</div>';
+
+	if ($nested > 0) {
+		print '<div class="warning">'.$langs->trans("Camt053SftpTestNestedWarning").'</div>';
+	}
+	if (!$hasPattern && $files > 0) {
+		print '<div class="warning">'.$langs->trans("Camt053SftpTestNoPatternWarning").'</div>';
+	}
+	if (!empty($report['truncated'])) {
+		print '<div class="opacitymedium">'.$langs->trans("Camt053SftpTestTruncated", count($report['entries'])).'</div>';
+	}
+
+	print '<br>';
+}
+
 /*
  * View
  */
@@ -136,6 +282,18 @@ $head = camt053readerandlinkAdminPrepareHead();
 print dol_get_fiche_head($head, 'sftp', $langs->trans($page_name), -1, "camt053readerandlink@camt053readerandlink");
 
 print '<span class="opacitymedium">'.$langs->trans("Camt053SftpAccountsHelp").'</span><br><br>';
+
+if (!camt053SftpFetchEnabled()) {
+	$setupurl = dol_buildpath('/camt053readerandlink/admin/setup.php', 1);
+	print '<div class="warning">'.$langs->trans("Camt053FetchDisabledWarning");
+	print ' <a href="'.dol_escape_htmltag($setupurl).'">'.$langs->trans("Camt053ReaderAndLinkSetup").'</a></div><br>';
+}
+
+if (!empty($_SESSION['camt053_test_report'])) {
+	$report = $_SESSION['camt053_test_report'];
+	unset($_SESSION['camt053_test_report']);
+	camt053PrintTestReport($report, $langs);
+}
 
 // Delete confirmation
 if ($action == 'delete' && $id > 0) {

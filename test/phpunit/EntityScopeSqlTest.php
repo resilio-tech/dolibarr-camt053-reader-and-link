@@ -30,6 +30,7 @@ require_once dirname(__FILE__) . '/../../class/Camt053Statement.class.php';
 require_once dirname(__FILE__) . '/../../class/Camt053FileProcessor.class.php';
 require_once dirname(__FILE__) . '/../../class/DatabaseBankStatementLoader.class.php';
 require_once dirname(__FILE__) . '/../../class/BankRelationshipLookup.class.php';
+require_once dirname(__FILE__) . '/../../class/Camt053ProcessedFile.class.php';
 
 if (!class_exists('Account')) {
 	/**
@@ -223,5 +224,25 @@ class EntityScopeSqlTest extends TestCase
 
 		$this->assertSame(5, (int) $bank->rowid);
 		$this->assertStringContainsString('entity IN (1)', $db->lastSql());
+	}
+
+	/**
+	 * Reopening an archived statement reads a tracking row that points at a file
+	 * on disk, so the row itself must not be reachable from another entity.
+	 *
+	 * @runInSeparateProcess
+	 * @preserveGlobalState disabled
+	 * @return void
+	 */
+	public function testProcessedFileFetchIsEntityScoped(): void
+	{
+		$this->defineDolibarrStubs();
+
+		$db = new RecordingDb(true, false);
+		$record = new Camt053ProcessedFile($db);
+
+		$this->assertSame(0, $record->fetch(42));
+		$this->assertStringContainsString('rowid = 42', $db->lastSql());
+		$this->assertStringContainsString('entity = 1', $db->lastSql());
 	}
 }

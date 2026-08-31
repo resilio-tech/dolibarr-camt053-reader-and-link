@@ -74,6 +74,16 @@ $modulepart = GETPOST('modulepart', 'aZ09');
  * Actions
  */
 
+if ($action == 'update_fetch') {
+	if (!camt053VerifCsrfToken()) {
+		setEventMessages($langs->trans("SecurityTokenError"), null, 'errors');
+	} else {
+		$enabled = GETPOST('sftp_fetch_enabled', 'int') ? '1' : '0';
+		dolibarr_set_const($db, 'CAMT053_SFTP_FETCH_ENABLED', $enabled, 'chaine', 0, '', $conf->entity);
+		setEventMessages($langs->trans("RecordSaved"), null, 'mesgs');
+	}
+}
+
 if ($action == 'update_zulip') {
 	if (!camt053VerifCsrfToken()) {
 		setEventMessages($langs->trans("SecurityTokenError"), null, 'errors');
@@ -114,6 +124,28 @@ print dol_get_fiche_head($head, 'settings', $langs->trans($page_name), -1, "camt
 
 // Setup page info
 echo '<span class="opacitymedium">'.$langs->trans("Camt053ReaderAndLinkSetupPage").'</span><br><br>';
+
+// Automatic SFTP fetch
+print '<form method="POST" action="'.$_SERVER["PHP_SELF"].'">';
+print '<input type="hidden" name="token" value="'.newToken().'">';
+print '<input type="hidden" name="action" value="update_fetch">';
+
+print load_fiche_titre($langs->trans("Camt053FetchSetup"), '', '');
+print '<span class="opacitymedium">'.$langs->trans("Camt053FetchSetupHelp").'</span><br><br>';
+
+print '<table class="noborder centpercent">';
+print '<tr class="liste_titre"><td class="titlefield">'.$langs->trans("Parameter").'</td><td>'.$langs->trans("Value").'</td></tr>';
+
+print '<tr class="oddeven"><td>'.$langs->trans("Camt053FetchEnabled").'</td>';
+print '<td>'.$form->selectyesno('sftp_fetch_enabled', camt053SftpFetchEnabled() ? 1 : 0, 1).'</td></tr>';
+
+print '</table>';
+print '<div class="center" style="margin-top:10px">';
+print '<input type="submit" class="button" value="'.$langs->trans("Save").'">';
+print '</div>';
+print '</form>';
+
+print '<br>';
 
 // Zulip report configuration
 print '<form method="POST" action="'.$_SERVER["PHP_SELF"].'">';

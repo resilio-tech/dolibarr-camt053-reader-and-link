@@ -87,6 +87,11 @@ class ReconciliationService
 			return $summary;
 		}
 
+		// An intraday report (camt.052) reaches here with its pending entries
+		// already dropped by the parser. Carry the count so the caller can say so.
+		$summary['intraday'] = $fileProcessor->isIntradayReport();
+		$summary['pending'] = $fileProcessor->getPendingEntryCount();
+
 		// Statements whose IBAN could not be matched to a Dolibarr account: report, never reconcile.
 		foreach ($fileProcessor->getStatements() as $statement) {
 			if ($statement->getAccountId() === null) {
@@ -304,6 +309,8 @@ class ReconciliationService
 			'error' => null,
 			'accounts' => array(),
 			'unresolved_ibans' => array(),
+			'intraday' => false,
+			'pending' => 0,
 			'totals' => array('auto' => 0, 'ambiguous' => 0, 'unmatched' => 0, 'errors' => 0),
 		);
 	}

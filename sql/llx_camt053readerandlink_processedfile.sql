@@ -21,6 +21,7 @@ CREATE TABLE llx_camt053readerandlink_processedfile(
 	file_hash				varchar(64) NOT NULL,
 	fk_bank_account			integer,
 	num_releve				varchar(50),
+	archived_path			varchar(512),
 	is_monthly				smallint DEFAULT 0 NOT NULL,
 	nb_auto					integer DEFAULT 0 NOT NULL,
 	nb_ambiguous			integer DEFAULT 0 NOT NULL,

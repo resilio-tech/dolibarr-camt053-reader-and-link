@@ -93,9 +93,6 @@ class Camt053SftpConfig
 	/** @var string Action after a successful download: 'delete' or 'leave' */
 	public $post_download_action = 'delete';
 
-	/** @var int|null Fallback Dolibarr bank account when the IBAN cannot be resolved */
-	public $fk_default_bank_account;
-
 	/** @var int|null Last run timestamp */
 	public $last_run;
 
@@ -180,7 +177,7 @@ class Camt053SftpConfig
 		$sql .= "entity, ref, label, active, host, port, username, auth_type,";
 		$sql .= " private_key, public_key, private_key_passphrase, password, remote_dir,";
 		$sql .= " daily_pattern, monthly_pattern, post_download_action,";
-		$sql .= " fk_default_bank_account, date_creation, fk_user_creat";
+		$sql .= " date_creation, fk_user_creat";
 		$sql .= ") VALUES (";
 		$sql .= ((int) $this->entity);
 		$sql .= ", " . $this->quote($this->ref);
@@ -198,7 +195,6 @@ class Camt053SftpConfig
 		$sql .= ", " . $this->quote($this->daily_pattern);
 		$sql .= ", " . $this->quote($this->monthly_pattern);
 		$sql .= ", " . $this->quote($this->post_download_action);
-		$sql .= ", " . ($this->fk_default_bank_account ? (int) $this->fk_default_bank_account : 'NULL');
 		$sql .= ", '" . $this->db->idate($now) . "'";
 		$sql .= ", " . ($this->fk_user_creat ? (int) $this->fk_user_creat : 'NULL');
 		$sql .= ")";
@@ -246,7 +242,6 @@ class Camt053SftpConfig
 		$sql .= ", daily_pattern = " . $this->quote($this->daily_pattern);
 		$sql .= ", monthly_pattern = " . $this->quote($this->monthly_pattern);
 		$sql .= ", post_download_action = " . $this->quote($this->post_download_action);
-		$sql .= ", fk_default_bank_account = " . ($this->fk_default_bank_account ? (int) $this->fk_default_bank_account : 'NULL');
 		$sql .= ", fk_user_modif = " . ($this->fk_user_modif ? (int) $this->fk_user_modif : 'NULL');
 		$sql .= " WHERE rowid = " . ((int) $this->id);
 		$sql .= " AND entity IN (" . getEntity(self::TABLE) . ")";
@@ -398,7 +393,7 @@ class Camt053SftpConfig
 		return "rowid, entity, ref, label, active, host, port, username, auth_type,"
 			. " private_key, public_key, private_key_passphrase, password, remote_dir,"
 			. " daily_pattern, monthly_pattern, post_download_action,"
-			. " fk_default_bank_account, last_run, last_status, date_creation,"
+			. " last_run, last_status, date_creation,"
 			. " fk_user_creat, fk_user_modif";
 	}
 
@@ -428,7 +423,6 @@ class Camt053SftpConfig
 		$this->daily_pattern = $obj->daily_pattern;
 		$this->monthly_pattern = $obj->monthly_pattern;
 		$this->post_download_action = $obj->post_download_action;
-		$this->fk_default_bank_account = $obj->fk_default_bank_account !== null ? (int) $obj->fk_default_bank_account : null;
 		$this->last_run = !empty($obj->last_run) ? $this->db->jdate($obj->last_run) : null;
 		$this->last_status = $obj->last_status;
 		$this->date_creation = !empty($obj->date_creation) ? $this->db->jdate($obj->date_creation) : null;

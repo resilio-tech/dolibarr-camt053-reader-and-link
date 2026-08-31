@@ -791,7 +791,7 @@ class Camt053FileProcessorTest extends TestCase
 		$result = $processor->parseStructure($invalidStructure);
 
 		$this->assertFalse($result);
-		$this->assertStringContainsString('Invalid CAMT.053 structure', $processor->getError());
+		$this->assertStringContainsString('Invalid CAMT structure', $processor->getError());
 	}
 
 	/**
@@ -827,6 +827,72 @@ class Camt053FileProcessorTest extends TestCase
 		// First entry should have hash from AcctSvcrRef
 		$entry = $entries[0];
 		$this->assertEquals('CREDIT001', $entry->getHash());
+	}
+
+	/**
+	 * A camt.052 intraday report parses under its own root, which carries the
+	 * same Acct and Ntry blocks as a camt.053 statement.
+	 *
+	 * @return void
+	 */
+	public function testIntradayReportIsRecognised(): void
+	{
+		$processor = new Camt053FileProcessor($this->mockDb);
+
+		$this->assertTrue($processor->parseFile($this->fixturesPath . 'camt052_intraday.xml'));
+		$this->assertTrue($processor->isIntradayReport());
+		$this->assertSame('CH93 0076 2011 6238 5295 7', $processor->getStatements()[0]->getIban());
+	}
+
+	/**
+	 * Only booked entries survive an intraday report: a pending movement can
+	 * still be dropped by the bank, so reconciling it would tie a Dolibarr line
+	 * to something that may never exist. Both status spellings are handled.
+	 *
+	 * @return void
+	 */
+	public function testIntradayReportKeepsOnlyBookedEntries(): void
+	{
+		$processor = new Camt053FileProcessor($this->mockDb);
+		$processor->parseFile($this->fixturesPath . 'camt052_intraday.xml');
+
+		$entries = $processor->getStatements()[0]->getEntries();
+
+		$amounts = array_map(static function ($e) {
+			return $e->getAmount();
+		}, $entries);
+		sort($amounts);
+		$this->assertEqualsWithDelta(array(-340.5, 1200.0), $amounts, 0.001);
+	}
+
+	/**
+	 * The dropped entries are counted, so the caller can report them instead of
+	 * losing them silently.
+	 *
+	 * @return void
+	 */
+	public function testIntradayReportCountsThePendingEntriesItDrops(): void
+	{
+		$processor = new Camt053FileProcessor($this->mockDb);
+		$processor->parseFile($this->fixturesPath . 'camt052_intraday.xml');
+
+		$this->assertSame(2, $processor->getPendingEntryCount());
+	}
+
+	/**
+	 * A camt.053 statement keeps every entry and is never reported as intraday,
+	 * whatever its entries carry as a status.
+	 *
+	 * @return void
+	 */
+	public function testStatementIsNotTreatedAsIntraday(): void
+	{
+		$processor = new Camt053FileProcessor($this->mockDb);
+		$processor->parseFile($this->fixturesPath . 'camt053_collective_partial.xml');
+
+		$this->assertFalse($processor->isIntradayReport());
+		$this->assertSame(0, $processor->getPendingEntryCount());
+		$this->assertCount(1, $processor->getStatements()[0]->getEntries());
 	}
 
 	/**

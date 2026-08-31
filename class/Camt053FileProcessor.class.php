@@ -18,7 +18,8 @@
 /**
  * \file       class/Camt053FileProcessor.class.php
  * \ingroup    camt053readerandlink
- * \brief      Secure XML parser for CAMT.053 files with XXE protection
+ * \brief      Secure XML parser for CAMT.053 statements and CAMT.052 intraday
+ *             reports, with XXE protection
  */
 
 require_once __DIR__ . '/Camt053Entry.class.php';
@@ -27,7 +28,7 @@ require_once __DIR__ . '/Camt053Statement.class.php';
 /**
  * Class Camt053FileProcessor
  *
- * Securely parses CAMT.053 XML files with XXE protection.
+ * Securely parses CAMT.053 and CAMT.052 XML files with XXE protection.
  */
 class Camt053FileProcessor
 {
@@ -57,6 +58,27 @@ class Camt053FileProcessor
 	 *      captured directly from SimpleXML and looked up here during extraction.
 	 */
 	private $entryCurrencyByRef = array();
+
+	/**
+	 * @var array<string,string> Document roots this parser reads, and the tag
+	 *      holding one account inside each. camt.053 delivers final statements,
+	 *      camt.052 the intraday report, and both carry the same Acct and Ntry
+	 *      building blocks below that root.
+	 */
+	private static $documentRoots = array(
+		'BkToCstmrStmt' => 'Stmt',
+		'BkToCstmrAcctRpt' => 'Rpt',
+	);
+
+	/**
+	 * @var string Root tag of the parsed document, empty before a parse
+	 */
+	private $documentRoot = '';
+
+	/**
+	 * @var int Entries left out of an intraday report because they are not booked
+	 */
+	private $pendingEntryCount = 0;
 
 	/**
 	 * Constructor
@@ -204,9 +226,20 @@ class Camt053FileProcessor
 			throw new Exception('No XML structure to process');
 		}
 
-		$stmts = $this->getArrayValue($this->structure, array('BkToCstmrStmt', 'Stmt'));
+		$this->documentRoot = '';
+		$this->pendingEntryCount = 0;
+
+		$stmts = null;
+		foreach (self::$documentRoots as $root => $tag) {
+			$stmts = $this->getArrayValue($this->structure, array($root, $tag));
+			if ($stmts !== null) {
+				$this->documentRoot = $root;
+				break;
+			}
+		}
+
 		if ($stmts === null) {
-			throw new Exception('Invalid CAMT.053 structure: missing BkToCstmrStmt/Stmt');
+			throw new Exception('Invalid CAMT structure: missing BkToCstmrStmt/Stmt (camt.053) or BkToCstmrAcctRpt/Rpt (camt.052)');
 		}
 
 		// Handle single statement (convert to array of one)
@@ -235,21 +268,25 @@ class Camt053FileProcessor
 	{
 		$map = array();
 
-		if (!isset($xml->BkToCstmrStmt->Stmt)) {
-			return $map;
-		}
-
-		foreach ($xml->BkToCstmrStmt->Stmt as $stmt) {
-			if (!isset($stmt->Ntry)) {
+		foreach (self::$documentRoots as $root => $tag) {
+			if (!isset($xml->{$root}->{$tag})) {
 				continue;
 			}
-			foreach ($stmt->Ntry as $ntry) {
-				$ref = isset($ntry->AcctSvcrRef) ? (string) $ntry->AcctSvcrRef : '';
-				$ccy = isset($ntry->Amt) ? (string) $ntry->Amt['Ccy'] : '';
-				if ($ref !== '' && $ccy !== '') {
-					$map[$ref] = strtoupper($ccy);
+
+			foreach ($xml->{$root}->{$tag} as $stmt) {
+				if (!isset($stmt->Ntry)) {
+					continue;
+				}
+				foreach ($stmt->Ntry as $ntry) {
+					$ref = isset($ntry->AcctSvcrRef) ? (string) $ntry->AcctSvcrRef : '';
+					$ccy = isset($ntry->Amt) ? (string) $ntry->Amt['Ccy'] : '';
+					if ($ref !== '' && $ccy !== '') {
+						$map[$ref] = strtoupper($ccy);
+					}
 				}
 			}
+
+			break;
 		}
 
 		return $map;
@@ -283,7 +320,7 @@ class Camt053FileProcessor
 		$statement->setIsFromFile(true);
 
 		// Get creation date from header if available
-		$creationDate = $this->getArrayValue($this->structure, array('BkToCstmrStmt', 'GrpHdr', 'CreDtTm'));
+		$creationDate = $this->getArrayValue($this->structure, array($this->documentRoot, 'GrpHdr', 'CreDtTm'));
 		if ($creationDate) {
 			$statement->setCreationDate($creationDate);
 		}
@@ -297,6 +334,14 @@ class Camt053FileProcessor
 			}
 
 			foreach ($entries as $entry) {
+				// An intraday report also lists movements the bank has not booked
+				// yet and can still drop. Reconciling one would tie a Dolibarr
+				// line to something that may never exist.
+				if ($this->isIntradayReport() && !$this->isBookedEntry($entry)) {
+					$this->pendingEntryCount++;
+					continue;
+				}
+
 				foreach ($this->extractEntriesFromNtry($entry, $statementCcy, $iban) as $camt053Entry) {
 					$statement->addEntry($camt053Entry);
 				}
@@ -632,6 +677,51 @@ class Camt053FileProcessor
 			$array = $array[$key];
 		}
 		return $array;
+	}
+
+	/**
+	 * Whether the parsed document is an intraday report (camt.052) rather than
+	 * a final statement (camt.053).
+	 *
+	 * @return bool
+	 */
+	public function isIntradayReport(): bool
+	{
+		return ($this->documentRoot === 'BkToCstmrAcctRpt');
+	}
+
+	/**
+	 * How many entries an intraday report carried that were not booked yet.
+	 *
+	 * They are deliberately dropped, and silently dropping data is what this
+	 * counter exists to prevent: the caller reports it.
+	 *
+	 * @return int
+	 */
+	public function getPendingEntryCount(): int
+	{
+		return $this->pendingEntryCount;
+	}
+
+	/**
+	 * Whether an <Ntry> is booked.
+	 *
+	 * The status is a plain code in camt.05x.001.02 and a <Cd> child from .06
+	 * onwards. Only an explicit BOOK counts: an unreadable or proprietary status
+	 * on an intraday report is treated as pending, because reconciling a
+	 * movement the bank has not committed to is the costly mistake here.
+	 *
+	 * @param array $entry <Ntry> structure
+	 * @return bool
+	 */
+	private function isBookedEntry(array $entry): bool
+	{
+		$status = $this->getArrayValue($entry, array('Sts', 'Cd'));
+		if (!is_string($status) || trim($status) === '') {
+			$status = $this->getArrayValue($entry, array('Sts'));
+		}
+
+		return (is_string($status) && strtoupper(trim($status)) === 'BOOK');
 	}
 
 	/**

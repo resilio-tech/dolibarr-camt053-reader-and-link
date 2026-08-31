@@ -74,11 +74,18 @@ Camt053SftpMonthlyPatternHelp = Regular expression matching the monthly CAMT.053
 Camt053SftpPostAction = After download
 Camt053SftpPostDelete = Delete the file on the server
 Camt053SftpPostLeave = Leave the file on the server
-Camt053SftpDefaultAccount = Fallback bank account
-Camt053SftpDefaultAccountHelp = Used only when the IBAN from the file cannot be matched to a bank account
 Camt053SftpLastRun = Last run
 Camt053SftpDeleteTitle = Delete SFTP account
 Camt053SftpDeleteConfirm = Are you sure you want to delete this SFTP account?
+
+#
+# Automatic download
+#
+
+Camt053FetchSetup = Automatic download
+Camt053FetchSetupHelp = When disabled, the scheduled job still logs in and lists what the server holds, but downloads nothing, records nothing and deletes nothing. The connection test reports the remote layout either way.
+Camt053FetchEnabled = Download and record the CAMT files
+Camt053FetchDisabledWarning = Automatic download is disabled: the scheduled job lists the remote files but leaves them there. Turn it on in
 
 #
 # Zulip report
@@ -113,13 +120,36 @@ Camt053TransferRateHint = Estimated from the current exchange rate, adjust if ne
 Camt053TransferInvalidAccounts = Invalid or missing bank accounts for this transfer.
 Camt053SftpTest = Test connection
 Camt053SftpTestConnectOk = Connected to %s:%s successfully.
-Camt053SftpTestListOk = Remote directory '%s' listed: %s file(s) found.
+Camt053SftpTestReport = Connection test: %s
+Camt053SftpTestTarget = Target
+Camt053SftpTestEntry = Remote entry
+Camt053SftpTestTypeDir = Directory
+Camt053SftpTestTypeFile = File
+Camt053SftpTestCronAction = What the scheduled job does with it
+Camt053SftpTestEmptyDir = The remote directory is empty.
+Camt053SftpTestCronSkipsDir = Directory, not downloaded
+Camt053SftpTestCronOutOfReach = Out of reach: the job only reads the configured directory
+Camt053SftpTestCronDaily = Downloaded (daily pattern)
+Camt053SftpTestCronMonthly = Downloaded (monthly pattern, triggers the Zulip report)
+Camt053SftpTestCronDailyAndMonthly = Downloaded (daily and monthly patterns)
+Camt053SftpTestCronNoPattern = Downloaded: no pattern configured, so every file is taken
+Camt053SftpTestCronIgnored = Ignored: matches no pattern
+Camt053SftpTestCounts = %s file(s) in the configured directory, %s taken by the scheduled job, %s subdirectory(ies).
+Camt053SftpTestNestedWarning = Files were found in subdirectories. The scheduled job never descends into them: point the remote directory at the level that holds the files.
+Camt053SftpTestNoPatternWarning = No file pattern is configured, so the job downloads and parses every file in this directory. Set a daily and a monthly pattern to take only the statements you want.
+Camt053SftpTestTruncated = Listing stopped at %s entries.
 Camt053SftpTestListFailed = Connected to %s:%s, but listing directory '%s' failed: %s
 Camt053SftpTestFailed = Connection to %s:%s failed: %s
 Camt053DuplicateBankLineSelected = Bank line #%s was selected for several statement entries; the duplicate was ignored.
 SecurityTokenError = Security token is invalid or has expired, the action was cancelled. Please retry.
 Camt053EmptyStatementReference = No statement reference could be computed from the period, nothing was reconciled.
 Camt053ReaderAndLinkResults = CAMT.053 reconciliation results
+Camt053StatementReview = CAMT.053 statement review
+Camt053StatementReviewOf = CAMT.053 statement review: %s
+Camt053StatementNotFound = This statement is unknown, or belongs to another entity.
+Camt053StatementNoArchive = This statement was recorded before archived copies were tracked, so it cannot be reopened. Upload the file from the module page instead.
+Camt053StatementFileMissing = The archived statement file is missing or unreadable.
+Camt053ReviewCounts = %s ambiguous and %s unmatched entries to review, %s reconciled automatically, %s already reconciled.
 Camt053SftpPublicKey = SSH public key
 Camt053SftpPublicKeyHelp = Optional for an RSA key: it is derived from the private key when left empty. Required for any other key type. The private key must be in PEM format (ssh-keygen -p -m PEM -f &lt;keyfile&gt;), which is the only format the PHP ssh2 extension reads.
 Camt053TransferInvalidAmount = The transfer amount must be strictly positive.

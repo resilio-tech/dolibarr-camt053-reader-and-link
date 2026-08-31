@@ -79,6 +79,45 @@ function camt053WarnIfSftpExtensionMissing()
 }
 
 /**
+ * Whether a file name matches a configured PCRE pattern.
+ *
+ * Shared by the cron, which uses it to decide what to download, and by the
+ * connection test, which uses it to show what the cron would pick up.
+ *
+ * @param string|null $pattern Pattern (with delimiters) or null
+ * @param string      $name    File name
+ * @return bool
+ */
+function camt053MatchesFilePattern($pattern, $name)
+{
+	if (empty($pattern)) {
+		return false;
+	}
+
+	$result = @preg_match($pattern, $name);
+	if ($result === false) {
+		// An invalid admin-supplied regex would otherwise silently make the
+		// cron skip every file, with nothing in the log to explain why.
+		// preg_last_error_msg() is PHP 8.0+, the module supports 7.4.
+		dol_syslog('CAMT053: invalid file pattern ' . $pattern . ' (preg error ' . preg_last_error() . ')', LOG_ERR);
+		return false;
+	}
+
+	return (bool) $result;
+}
+
+/**
+ * Tell whether the scheduled SFTP fetch is allowed to run.
+ * Disabled unless an administrator turned it on in the module setup.
+ *
+ * @return bool
+ */
+function camt053SftpFetchEnabled()
+{
+	return (getDolGlobalString('CAMT053_SFTP_FETCH_ENABLED') === '1');
+}
+
+/**
  * Check the anti-CSRF token submitted with a form against the session token.
  * Mirrors the check done by Dolibarr in main.inc.php (token vs $_SESSION['token']).
  *

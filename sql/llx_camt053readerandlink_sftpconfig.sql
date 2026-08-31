@@ -31,7 +31,6 @@ CREATE TABLE llx_camt053readerandlink_sftpconfig(
 	daily_pattern			varchar(255),
 	monthly_pattern			varchar(255),
 	post_download_action	varchar(16) DEFAULT 'delete' NOT NULL,
-	fk_default_bank_account	integer,
 	last_run				datetime,
 	last_status				varchar(255),
 	date_creation			datetime NOT NULL,

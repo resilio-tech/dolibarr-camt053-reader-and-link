@@ -7,15 +7,23 @@ rule below is a regression, whatever the reason.
 
 ## 1. Purpose
 
-Import a CAMT.053 file (ISO 20022) coming from **one bank**, match its entries
-against the Dolibarr bank lines of the matching account, and reconcile them
-(`num_releve` + `rappro`). The statement file is then archived under the bank
-account so it shows on the Dolibarr statement page.
+Import a CAMT.053 statement or a CAMT.052 intraday report (ISO 20022) coming
+from **one bank**, match its entries against the Dolibarr bank lines of the
+matching account, and reconcile them (`num_releve` + `rappro`). The file is then
+archived under the bank account so it shows on the Dolibarr statement page.
 
 Two entry points, same rules:
 
 - **Manual**: upload from the module page (`index.php` > `submit.php` > `confirm.php`).
-- **Automatic**: daily cron fetching files over SFTP (`Camt053CronRunner`).
+- **Automatic**: cron fetching files over SFTP every 12 hours
+  (`Camt053CronRunner`), which is what picks up the intraday report twice a day
+  and the monthly statement within 12 hours of its delivery. Downloading is off
+  until an administrator sets `CAMT053_SFTP_FETCH_ENABLED` from the module
+  setup. With the switch off the job still logs in and lists the remote
+  directory, and reports how many files the patterns target, but downloads
+  nothing, records nothing and deletes nothing. The connection test reports the
+  remote layout either way: it is what an administrator uses to validate the
+  patterns before letting the job take anything.
 
 ---
 
@@ -55,6 +63,10 @@ never route a write towards another entity.
 Must:
 
 - Match on amount and value date, with a tolerance of 1 day.
+- Reconcile, out of a CAMT.052 intraday report, only the entries the bank has
+  booked (`<Sts>BOOK`, in either spelling). A pending entry can still be dropped
+  by the bank, so it is left out, and the number left out is reported. Every
+  entry of a CAMT.053 statement is kept, whatever its status.
 - Report as ambiguous, never reconcile automatically, when several Dolibarr
   lines match one CAMT entry. The user chooses in a dropdown.
 - Split a collective booking (grouped salary transfers) so each underlying
@@ -66,6 +78,11 @@ Must:
 Must not:
 
 - Reconcile an ambiguous entry by picking one candidate.
+- Reconcile a pending entry read from an intraday report.
+- Book a statement on a fallback account when its IBAN resolves to nothing.
+  There is no fallback account: the bank account always comes from the IBAN the
+  file carries, since one SFTP directory delivers the files of several accounts.
+  An unresolved IBAN is reported (see §6), never guessed.
 - Reconcile a line that already carries a `num_releve`.
 - Touch anything when parsing fails. The file is neither recorded as processed
   nor deleted from the SFTP server, so the next run retries it.
@@ -101,16 +118,34 @@ payment on its own.
   statement, so a same named file holding different content gets its own copy.
 - No bank account resolved means no archiving. The upload is kept and the user
   is warned (`StatementFileNotArchived`), the file is never silently dropped.
+- The cron records where it archived each file, which is what lets the
+  reconciliation screen be reopened later from a link.
 
 ---
 
-## 6. Security
+## 6. Reporting
+
+A file nobody can act on must reach a human, not just the log:
+
+- A statement whose IBAN resolves to no bank account raises a Zulip alert on
+  **every** run, not only for the monthly file.
+- The monthly report links to `statement.php` per bank account, so whoever reads
+  it opens the entries still needing a decision instead of re-uploading the file.
+- A failed SFTP login raises its own alert, because three of them lock the
+  PostFinance account.
+
+---
+
+## 7. Security
 
 - XXE protection on every parse. External entities are disabled and declarations
   are rejected.
 - `.xml` extension and MIME type checked on upload.
 - Path traversal guard on the file path travelling between `submit.php` and
   `confirm.php`: it must resolve inside the entity upload directory.
+- `statement.php` reads a file off disk, so it reopens only a path that resolves
+  inside the bank document directory or the entity upload directory, and only
+  from a tracking row of the current entity.
 - CSRF token required on every writing page, including `confirm.php`.
 - Rights: `banque->lire` to read, `banque->consolidate` to reconcile, which is
   what Dolibarr core requires for the same operation.
@@ -122,18 +157,18 @@ payment on its own.
 
 ---
 
-## 7. Out of scope
+## 8. Out of scope
 
 The module does not:
 
 - create or modify bank accounts
 - record payments, invoices or transfers by itself
 - move data between entities
-- handle formats other than CAMT.053
+- handle formats other than CAMT.053 and CAMT.052
 
 ---
 
-## 8. Conventions
+## 9. Conventions
 
 - No explanatory comments in the code. Only the doc blocks required by the
   Dolibarr coding standard.

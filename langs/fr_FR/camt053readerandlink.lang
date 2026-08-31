@@ -76,11 +76,18 @@ Camt053SftpMonthlyPatternHelp = Expression régulière correspondant au fichier 
 Camt053SftpPostAction = Après téléchargement
 Camt053SftpPostDelete = Supprimer le fichier sur le serveur
 Camt053SftpPostLeave = Laisser le fichier sur le serveur
-Camt053SftpDefaultAccount = Compte bancaire de repli
-Camt053SftpDefaultAccountHelp = Utilisé uniquement lorsque l'IBAN du fichier ne peut pas être associé à un compte bancaire
 Camt053SftpLastRun = Dernière exécution
 Camt053SftpDeleteTitle = Supprimer le compte SFTP
 Camt053SftpDeleteConfirm = Êtes-vous sûr de vouloir supprimer ce compte SFTP ?
+
+#
+# Téléchargement automatique
+#
+
+Camt053FetchSetup = Téléchargement automatique
+Camt053FetchSetupHelp = Lorsqu'il est désactivé, la tâche planifiée se connecte quand même et liste ce que contient le serveur, mais ne télécharge rien, n'enregistre rien et ne supprime rien. Le test de connexion détaille l'arborescence distante dans les deux cas.
+Camt053FetchEnabled = Télécharger et enregistrer les fichiers CAMT
+Camt053FetchDisabledWarning = Le téléchargement automatique est désactivé : la tâche planifiée liste les fichiers distants mais les laisse sur place. Activez-le dans
 
 #
 # Rapport Zulip
@@ -115,13 +122,36 @@ Camt053TransferRateHint = Estimé d'après le taux de change actuel, ajustez si 
 Camt053TransferInvalidAccounts = Comptes bancaires invalides ou manquants pour ce virement.
 Camt053SftpTest = Tester la connexion
 Camt053SftpTestConnectOk = Connexion à %s:%s réussie.
-Camt053SftpTestListOk = Répertoire distant « %s » listé : %s fichier(s) trouvé(s).
+Camt053SftpTestReport = Test de connexion : %s
+Camt053SftpTestTarget = Cible
+Camt053SftpTestEntry = Élément distant
+Camt053SftpTestTypeDir = Répertoire
+Camt053SftpTestTypeFile = Fichier
+Camt053SftpTestCronAction = Ce que la tâche planifiée en fait
+Camt053SftpTestEmptyDir = Le répertoire distant est vide.
+Camt053SftpTestCronSkipsDir = Répertoire, non téléchargé
+Camt053SftpTestCronOutOfReach = Hors de portée : la tâche ne lit que le répertoire configuré
+Camt053SftpTestCronDaily = Téléchargé (motif quotidien)
+Camt053SftpTestCronMonthly = Téléchargé (motif mensuel, déclenche le rapport Zulip)
+Camt053SftpTestCronDailyAndMonthly = Téléchargé (motifs quotidien et mensuel)
+Camt053SftpTestCronNoPattern = Téléchargé : aucun motif configuré, donc tous les fichiers sont pris
+Camt053SftpTestCronIgnored = Ignoré : ne correspond à aucun motif
+Camt053SftpTestCounts = %s fichier(s) dans le répertoire configuré, %s pris par la tâche planifiée, %s sous-répertoire(s).
+Camt053SftpTestNestedWarning = Des fichiers ont été trouvés dans des sous-répertoires. La tâche planifiée n'y descend jamais : faites pointer le répertoire distant sur le niveau qui contient les fichiers.
+Camt053SftpTestNoPatternWarning = Aucun motif de fichier n'est configuré, la tâche télécharge et analyse donc tous les fichiers de ce répertoire. Renseignez un motif quotidien et un motif mensuel pour ne prendre que les relevés voulus.
+Camt053SftpTestTruncated = Listage arrêté à %s éléments.
 Camt053SftpTestListFailed = Connecté à %s:%s, mais le listage du répertoire « %s » a échoué : %s
 Camt053SftpTestFailed = Échec de la connexion à %s:%s : %s
 Camt053DuplicateBankLineSelected = La ligne bancaire #%s a été sélectionnée pour plusieurs écritures du relevé ; le doublon a été ignoré.
 SecurityTokenError = Le jeton de sécurité est invalide ou a expiré, l'action a été annulée. Merci de réessayer.
 Camt053EmptyStatementReference = Aucune référence de relevé n'a pu être calculée à partir de la période, rien n'a été rapproché.
 Camt053ReaderAndLinkResults = Résultats du rapprochement CAMT.053
+Camt053StatementReview = Revue du relevé CAMT.053
+Camt053StatementReviewOf = Revue du relevé CAMT.053 : %s
+Camt053StatementNotFound = Ce relevé est inconnu, ou appartient à une autre entité.
+Camt053StatementNoArchive = Ce relevé a été enregistré avant le suivi des copies archivées, il ne peut donc pas être rouvert. Importez le fichier depuis la page du module.
+Camt053StatementFileMissing = Le fichier de relevé archivé est absent ou illisible.
+Camt053ReviewCounts = %s écritures ambiguës et %s non rapprochées à traiter, %s rapprochées automatiquement, %s déjà rapprochées.
 Camt053SftpPublicKey = Clé publique SSH
 Camt053SftpPublicKeyHelp = Facultatif pour une clé RSA : elle est déduite de la clé privée si ce champ est vide. Obligatoire pour tout autre type de clé. La clé privée doit être au format PEM (ssh-keygen -p -m PEM -f &lt;fichier&gt;), le seul que l'extension PHP ssh2 sache lire.
 Camt053TransferInvalidAmount = Le montant du virement doit être strictement positif.

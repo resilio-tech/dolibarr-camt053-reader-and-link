@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.052.001.02">
+	<BkToCstmrAcctRpt>
+		<GrpHdr>
+			<MsgId>RPT202608270001</MsgId>
+			<CreDtTm>2026-08-27T09:00:00</CreDtTm>
+		</GrpHdr>
+		<Rpt>
+			<Id>RPT001</Id>
+			<CreDtTm>2026-08-27T09:00:00</CreDtTm>
+			<Acct>
+				<Id>
+					<IBAN>CH9300762011623852957</IBAN>
+				</Id>
+				<Ccy>CHF</Ccy>
+			</Acct>
+			<Ntry>
+				<Amt Ccy="CHF">1200.00</Amt>
+				<CdtDbtInd>CRDT</CdtDbtInd>
+				<Sts>BOOK</Sts>
+				<ValDt>
+					<Dt>2026-08-27</Dt>
+				</ValDt>
+				<AcctSvcrRef>INTRADAYBOOK01</AcctSvcrRef>
+				<AddtlNtryInf>Booked, plain status code</AddtlNtryInf>
+			</Ntry>
+			<Ntry>
+				<Amt Ccy="CHF">340.50</Amt>
+				<CdtDbtInd>DBIT</CdtDbtInd>
+				<Sts>
+					<Cd>BOOK</Cd>
+				</Sts>
+				<ValDt>
+					<Dt>2026-08-27</Dt>
+				</ValDt>
+				<AcctSvcrRef>INTRADAYBOOK02</AcctSvcrRef>
+				<AddtlNtryInf>Booked, status as a Cd child</AddtlNtryInf>
+			</Ntry>
+			<Ntry>
+				<Amt Ccy="CHF">999.99</Amt>
+				<CdtDbtInd>CRDT</CdtDbtInd>
+				<Sts>PDNG</Sts>
+				<ValDt>
+					<Dt>2026-08-27</Dt>
+				</ValDt>
+				<AcctSvcrRef>INTRADAYPENDING01</AcctSvcrRef>
+				<AddtlNtryInf>Pending, the bank can still drop it</AddtlNtryInf>
+			</Ntry>
+			<Ntry>
+				<Amt Ccy="CHF">75.00</Amt>
+				<CdtDbtInd>DBIT</CdtDbtInd>
+				<Sts>
+					<Cd>PDNG</Cd>
+				</Sts>
+				<ValDt>
+					<Dt>2026-08-27</Dt>
+				</ValDt>
+				<AcctSvcrRef>INTRADAYPENDING02</AcctSvcrRef>
+				<AddtlNtryInf>Pending, status as a Cd child</AddtlNtryInf>
+			</Ntry>
+		</Rpt>
+	</BkToCstmrAcctRpt>
+</Document>
