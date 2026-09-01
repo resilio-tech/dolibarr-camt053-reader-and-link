@@ -92,7 +92,7 @@ if (!$user->hasRight('banque', 'lire')) {
 
 // Redirect if no upload action
 if ($action != 'upload' || (empty($_FILES['file']) && empty(GETPOST('file_json')))) {
-	header('Location: ' . dol_buildpath('/custom/camt053readerandlink/index.php', 1));
+	header('Location: ' . dol_buildpath('/camt053readerandlink/index.php', 1));
 	exit;
 }
 

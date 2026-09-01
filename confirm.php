@@ -336,7 +336,7 @@ try {
 	}
 
 	// Form to check for new reconciliations
-	print '<form method="POST" action="'.dol_buildpath('/custom/camt053readerandlink/submit.php', 1).'" enctype="multipart/form-data" style="display: inline;">';
+	print '<form method="POST" action="'.dol_buildpath('/camt053readerandlink/submit.php', 1).'" enctype="multipart/form-data" style="display: inline;">';
 	print '<input type="hidden" name="date_start" value="' . dol_escape_htmltag($date_start) . '">';
 	print '<input type="hidden" name="date_end" value="' . dol_escape_htmltag($date_end) . '">';
 	print '<input type="hidden" name="bank_account_id" value="' . ((int) $bank_account_id) . '">';

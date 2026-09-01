@@ -100,8 +100,8 @@ if (empty($dolibarr_nocache)) {
 $(document).ready(function() {
 	const location = window.location.pathname;
 	if (
-		!location.includes('/custom/camt053readerandlink/index.php')
-		&& !location.includes('/custom/camt053readerandlink/submit.php')
+		!location.includes('/camt053readerandlink/index.php')
+		&& !location.includes('/camt053readerandlink/submit.php')
 	) return;
 	console.log('Camt053ReaderAndLink JS loaded');
 	const form = $('#form');

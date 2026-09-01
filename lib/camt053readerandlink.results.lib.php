@@ -166,7 +166,7 @@ function camt053_render_results(array $banks, array $context)
 
 	$actionableFirst = !empty($context['actionable_first']);
 
-	print '<form id="form" name="form" action="' . dol_buildpath('/custom/camt053readerandlink/confirm.php', 1) . '" method="post">';
+	print '<form id="form" name="form" action="' . dol_buildpath('/camt053readerandlink/confirm.php', 1) . '" method="post">';
 
 	foreach ($banks as $accountId => $bank) {
 		$results = $bank['results'];
