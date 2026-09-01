@@ -62,6 +62,7 @@ require_once DOL_DOCUMENT_ROOT.'/compta/bank/class/account.class.php';
 
 // Load module classes
 require_once __DIR__ . '/lib/camt053readerandlink.lib.php';
+require_once __DIR__ . '/class/Camt053StatementArchive.class.php';
 
 // Load translation files required by the page
 $langs->loadLangs(array("camt053readerandlink@camt053readerandlink"));
@@ -301,27 +302,26 @@ try {
 		$sanitizedFilename = dol_sanitizeFileName($file);
 
 		$targetDir = $conf->bank->dir_output . '/' . $id . '/statement/' . dol_sanitizeFileName($numref);
-		$targetFile = $targetDir . '/' . $sanitizedFilename;
-
-		dol_syslog('CAMT053: Archiving statement file ' . $upload_file . ' to ' . $targetFile, LOG_DEBUG);
 
 		if (!is_dir($targetDir)) {
 			dol_mkdir($targetDir);
 		}
 
-		if (file_exists($targetFile)) {
-			// Physical file already in place: drop the temporary upload, keep the existing one
-			@unlink($upload_file);
+		$archived = Camt053StatementArchive::store($upload_file, $targetDir, $sanitizedFilename);
+		$targetFile = $archived['path'];
+
+		if ($archived['outcome'] === Camt053StatementArchive::ALREADY) {
 			dol_syslog('CAMT053: Statement file already present at ' . $targetFile . ', skipping move', LOG_DEBUG);
-		} elseif (rename($upload_file, $targetFile)) {
+		} elseif ($archived['outcome'] === Camt053StatementArchive::STORED) {
 			dol_syslog('CAMT053: Statement file archived to ' . $targetFile, LOG_DEBUG);
 			// Index in database only once the file physically exists, keeping ecm_files in sync
-			$resindex = addFileIntoDatabaseIndex($targetDir, $sanitizedFilename, $file, 'uploaded', 1, $object);
+			$resindex = addFileIntoDatabaseIndex($targetDir, basename($targetFile), $file, 'uploaded', 1, $object);
 			if ($resindex < 0) {
 				dol_syslog('CAMT053: File archived but database indexing failed for ' . $targetFile, LOG_WARNING);
 			}
 		} else {
-			dol_syslog('CAMT053: Error moving statement file to ' . $targetFile, LOG_ERR);
+			dol_syslog('CAMT053: Error moving statement file ' . $upload_file . ' to ' . $targetDir, LOG_ERR);
+			setEventMessages($langs->trans('StatementFileNotArchived'), null, 'warnings');
 		}
 	}
 
