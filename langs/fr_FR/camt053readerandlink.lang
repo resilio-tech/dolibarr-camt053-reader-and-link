@@ -146,7 +146,6 @@ Camt053SftpTestTruncated = Listage arrêté à %s éléments.
 Camt053SftpTestListFailed = Connecté à %s:%s, mais le listage du répertoire « %s » a échoué : %s
 Camt053SftpTestFailed = Échec de la connexion à %s:%s : %s
 Camt053DuplicateBankLineSelected = La ligne bancaire #%s a été sélectionnée pour plusieurs écritures du relevé ; le doublon a été ignoré.
-SecurityTokenError = Le jeton de sécurité est invalide ou a expiré, l'action a été annulée. Merci de réessayer.
 Camt053EmptyStatementReference = Aucune référence de relevé n'a pu être calculée à partir de la période, rien n'a été rapproché.
 Camt053ReaderAndLinkResults = Résultats du rapprochement CAMT.053
 Camt053StatementReview = Revue du relevé CAMT.053

@@ -21,6 +21,10 @@
  * \brief   Create / edit an SFTP account (PostFinance MFTPF) config.
  */
 
+if (!defined('CSRFCHECK_WITH_TOKEN')) {
+	define('CSRFCHECK_WITH_TOKEN', '1');
+}
+
 // Load Dolibarr environment
 $res = 0;
 if (!$res && !empty($_SERVER["CONTEXT_DOCUMENT_ROOT"])) {
@@ -84,58 +88,54 @@ if (($action == 'add' || $action == 'update') && $user->admin) {
 		exit;
 	}
 
-	if (!camt053VerifCsrfToken()) {
-		setEventMessages($langs->trans("SecurityTokenError"), null, 'errors');
+	// On edit, keep the existing secrets when the corresponding field is left empty.
+	$keepKey = ($action == 'update') ? $object->private_key : null;
+	$keepPass = ($action == 'update') ? $object->private_key_passphrase : null;
+	$keepPwd = ($action == 'update') ? $object->password : null;
+
+	$object->ref = GETPOST('ref', 'alphanohtml');
+	$object->label = GETPOST('label', 'alphanohtml');
+	$object->active = GETPOSTINT('active');
+	$object->host = GETPOST('host', 'alphanohtml');
+	$object->port = GETPOSTINT('port') ? GETPOSTINT('port') : 8022;
+	$object->username = GETPOST('username', 'alphanohtml');
+	$object->auth_type = (GETPOST('auth_type', 'alpha') == 'password') ? 'password' : 'key';
+
+	// Secrets are read raw ('none'): any HTML-oriented filter (restricthtml,
+	// alphanohtml) would alter characters like & < " and corrupt the stored
+	// credential. They are escaped at the SQL boundary and never echoed raw.
+	$postedKey = trim((string) GETPOST('private_key', 'none'));
+	$object->private_key = ($postedKey !== '') ? $postedKey : $keepKey;
+
+	$object->public_key = trim((string) GETPOST('public_key', 'none'));
+
+	$object->host_fingerprint = GETPOST('host_fingerprint', 'alphanohtml');
+
+	$postedPass = (string) GETPOST('private_key_passphrase', 'none');
+	$object->private_key_passphrase = ($postedPass !== '') ? $postedPass : $keepPass;
+
+	$postedPwd = (string) GETPOST('password', 'none');
+	$object->password = ($postedPwd !== '') ? $postedPwd : $keepPwd;
+
+	$object->remote_dir = GETPOST('remote_dir', 'alphanohtml') ? GETPOST('remote_dir', 'alphanohtml') : 'yellow-net-reports';
+	// Patterns are PCRE: keep regex metacharacters (alphanohtml would strip them).
+	$object->daily_pattern = GETPOST('daily_pattern', 'restricthtml');
+	$object->monthly_pattern = GETPOST('monthly_pattern', 'restricthtml');
+	$object->post_download_action = (GETPOST('post_download_action', 'alpha') == 'leave') ? 'leave' : 'delete';
+
+	if ($action == 'add') {
+		$result = $object->create($user);
 	} else {
-		// On edit, keep the existing secrets when the corresponding field is left empty.
-		$keepKey = ($action == 'update') ? $object->private_key : null;
-		$keepPass = ($action == 'update') ? $object->private_key_passphrase : null;
-		$keepPwd = ($action == 'update') ? $object->password : null;
+		$result = $object->update($user);
+	}
 
-		$object->ref = GETPOST('ref', 'alphanohtml');
-		$object->label = GETPOST('label', 'alphanohtml');
-		$object->active = GETPOSTINT('active');
-		$object->host = GETPOST('host', 'alphanohtml');
-		$object->port = GETPOSTINT('port') ? GETPOSTINT('port') : 8022;
-		$object->username = GETPOST('username', 'alphanohtml');
-		$object->auth_type = (GETPOST('auth_type', 'alpha') == 'password') ? 'password' : 'key';
-
-		// Secrets are read raw ('none'): any HTML-oriented filter (restricthtml,
-		// alphanohtml) would alter characters like & < " and corrupt the stored
-		// credential. They are escaped at the SQL boundary and never echoed raw.
-		$postedKey = trim((string) GETPOST('private_key', 'none'));
-		$object->private_key = ($postedKey !== '') ? $postedKey : $keepKey;
-
-		$object->public_key = trim((string) GETPOST('public_key', 'none'));
-
-		$object->host_fingerprint = GETPOST('host_fingerprint', 'alphanohtml');
-
-		$postedPass = (string) GETPOST('private_key_passphrase', 'none');
-		$object->private_key_passphrase = ($postedPass !== '') ? $postedPass : $keepPass;
-
-		$postedPwd = (string) GETPOST('password', 'none');
-		$object->password = ($postedPwd !== '') ? $postedPwd : $keepPwd;
-
-		$object->remote_dir = GETPOST('remote_dir', 'alphanohtml') ? GETPOST('remote_dir', 'alphanohtml') : 'yellow-net-reports';
-		// Patterns are PCRE: keep regex metacharacters (alphanohtml would strip them).
-		$object->daily_pattern = GETPOST('daily_pattern', 'restricthtml');
-		$object->monthly_pattern = GETPOST('monthly_pattern', 'restricthtml');
-		$object->post_download_action = (GETPOST('post_download_action', 'alpha') == 'leave') ? 'leave' : 'delete';
-
-		if ($action == 'add') {
-			$result = $object->create($user);
-		} else {
-			$result = $object->update($user);
-		}
-
-		if ($result > 0) {
-			setEventMessages($langs->trans("RecordSaved"), null, 'mesgs');
-			header("Location: ".$listurl);
-			exit;
-		} else {
-			setEventMessages($object->getError(), null, 'errors');
-			$action = ($action == 'add') ? 'create' : 'edit';
-		}
+	if ($result > 0) {
+		setEventMessages($langs->trans("RecordSaved"), null, 'mesgs');
+		header("Location: ".$listurl);
+		exit;
+	} else {
+		setEventMessages($object->getError(), null, 'errors');
+		$action = ($action == 'add') ? 'create' : 'edit';
 	}
 }
 

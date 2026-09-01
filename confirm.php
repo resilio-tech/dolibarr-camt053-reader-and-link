@@ -25,6 +25,10 @@
  *	\brief      Confirm and finalize bank reconciliations
  */
 
+if (!defined('CSRFCHECK_WITH_TOKEN')) {
+	define('CSRFCHECK_WITH_TOKEN', '1');
+}
+
 // Load Dolibarr environment
 $res = 0;
 // Try main.inc.php into web root known defined into CONTEXT_DOCUMENT_ROOT (not always defined)
@@ -76,12 +80,6 @@ if (!isModEnabled('camt053readerandlink')) {
 // not on banque.modifier.
 if (!$user->hasRight('banque', 'consolidate')) {
 	accessforbidden();
-}
-// This page writes (num_releve + rappro) straight away, so it must carry the
-// same token check as the admin pages. Core blocks token-less POSTs at the
-// default MAIN_SECURITY_CSRF_WITH_TOKEN, but not on instances that lowered it.
-if (!camt053VerifCsrfToken()) {
-	accessforbidden($langs->trans('SecurityTokenError'));
 }
 
 llxHeader("", $langs->trans("Camt053ReaderAndLinkArea"), '', '', 0, 0, '', '', '', 'mod-camt053readerandlink page-index');

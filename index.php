@@ -91,6 +91,7 @@ print '<input type="file" name="file" id="file" accept=".xml" required />';
 print '</div>';
 
 print '<input type="hidden" name="token" value="' . newToken() . '" />';
+print '<input type="hidden" name="uploadform" value="1" />';
 print '<input type="hidden" name="action" value="upload" />';
 
 print '<br /><br />';

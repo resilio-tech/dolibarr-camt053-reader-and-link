@@ -14,7 +14,7 @@
 ### Bug Fixes
 - Alert Zulip when a fetched statement resolves to no bank account. Only the monthly report ever mentioned an unresolved IBAN, so a daily file carrying one left its entries unbooked with nothing but a syslog line
 - Archive the manual upload by content, as the scheduled job already did. Banks reuse a single name for every statement, and the interactive path treated "a file already exists at that path" as "this statement is archived": the newly uploaded file was deleted and last month's copy kept in its place. A failed archiving is now reported to the user instead of only reaching the log
-- Require a CSRF token on the upload processing page, which writes the uploaded file to disk and was the last writing page relying on the core check alone
+- Require the CSRF token through Dolibarr's own `CSRFCHECK_WITH_TOKEN` instead of a check written in the module. Every writing page declares it before loading `main.inc.php`, so core demands a token on every POST and on every request carrying an `action`, whatever the instance set `MAIN_SECURITY_CSRF_WITH_TOKEN` to, and drops the parameters itself when the token is wrong. `submit.php`, which moves the uploaded file to disk, was not covered at all, and `camt053VerifCsrfToken()` is gone. The upload form declares `uploadform`, so a POST larger than `post_max_size` now gets core's explicit message instead of a bare refusal
 - Build the module links from the module path instead of a hardcoded `/custom/` prefix, so the upload form, the confirmation form, the results form and the internal transfer suggestion keep working when Dolibarr serves the module from an alternate directory
 - Stop OpenSSL prompting for a passphrase on the terminal when an encrypted private key is read without one. The derivation now fails cleanly instead of waiting on standard input, which in a cron run is nobody
 - Drop the unused `temp` data directory from the module descriptor. Dolibarr creates a declared directory as `DOL_DATA_ROOT/<entity>/<dir>`, which is not the `DOL_DATA_ROOT/camt053readerandlink/<entity>/` layout the module actually writes to, so the declaration only ever produced a decoy directory. The directories the module uses are created where they are written
@@ -36,7 +36,7 @@
 - `Camt053HostKeyTest.php` - host key fingerprint normalization and the trust verdict
 - `Camt053StatementArchiveTest.php` - the manual upload is archived by content, and stays in place whenever the archiving fails
 - `Camt053SshPublicKeyTest.php` - an encrypted key read without a passphrase fails without prompting
-- `CsrfTokenTest.php` - every writing page carries the token guard
+- `CsrfTokenTest.php` - every writing page requires the token before Dolibarr loads, and every action link is built with one
 
 ## 2.1.2 (2026-07-27)
 

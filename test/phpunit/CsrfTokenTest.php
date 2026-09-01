@@ -18,43 +18,12 @@
 /**
  * \file       test/phpunit/CsrfTokenTest.php
  * \ingroup    camt053readerandlink
- * \brief      PHPUnit tests for camt053VerifCsrfToken(), which guards every
- *             write action of the module.
+ * \brief      PHPUnit tests for the CSRF protection of the writing pages. The
+ *             check belongs to Dolibarr's main.inc.php; what the module owns is
+ *             asking for it, early enough to be seen, and posting a token back.
  */
 
 use PHPUnit\Framework\TestCase;
-
-if (!function_exists('GETPOSTISSET')) {
-	/**
-	 * Minimal stand-in for Dolibarr's GETPOSTISSET.
-	 *
-	 * @param string $paramname Parameter name
-	 * @return bool
-	 */
-	function GETPOSTISSET($paramname)
-	{
-		return isset($_POST[$paramname]) || isset($_GET[$paramname]);
-	}
-}
-
-if (!function_exists('GETPOST')) {
-	/**
-	 * Minimal stand-in for Dolibarr's GETPOST.
-	 *
-	 * @param string $paramname Parameter name
-	 * @param string $check     Sanitizer (ignored here)
-	 * @return string
-	 */
-	function GETPOST($paramname, $check = 'alphanohtml')
-	{
-		if (isset($_POST[$paramname])) {
-			return (string) $_POST[$paramname];
-		}
-		return isset($_GET[$paramname]) ? (string) $_GET[$paramname] : '';
-	}
-}
-
-require_once dirname(__FILE__) . '/../../lib/camt053readerandlink.lib.php';
 
 /**
  * Class CsrfTokenTest
@@ -62,102 +31,140 @@ require_once dirname(__FILE__) . '/../../lib/camt053readerandlink.lib.php';
 class CsrfTokenTest extends TestCase
 {
 	/**
-	 * Reset the request and session state between cases.
+	 * Module root.
 	 *
-	 * @return void
+	 * @return string
 	 */
-	protected function setUp(): void
+	private function root(): string
 	{
-		$_POST = array();
-		$_GET = array();
-		$_SESSION = array();
+		return (string) realpath(dirname(__FILE__) . '/../..');
 	}
 
 	/**
-	 * The token posted by the form is the one the previous page stored.
+	 * Pages that write, and therefore need a token on every action.
 	 *
-	 * @return void
+	 * @return array<int, string>
 	 */
-	public function testValidTokenPasses(): void
+	private function writingPages(): array
 	{
-		$_SESSION['token'] = 'abc123';
-		$_POST['token'] = 'abc123';
-
-		$this->assertTrue(camt053VerifCsrfToken());
-	}
-
-	/**
-	 * A different token is rejected.
-	 *
-	 * @return void
-	 */
-	public function testWrongTokenFails(): void
-	{
-		$_SESSION['token'] = 'abc123';
-		$_POST['token'] = 'nope';
-
-		$this->assertFalse(camt053VerifCsrfToken());
-	}
-
-	/**
-	 * No token at all is rejected.
-	 *
-	 * @return void
-	 */
-	public function testMissingTokenFails(): void
-	{
-		$_SESSION['token'] = 'abc123';
-
-		$this->assertFalse(camt053VerifCsrfToken());
-	}
-
-	/**
-	 * An empty session token must not turn an empty posted token into a pass,
-	 * which a plain string comparison would.
-	 *
-	 * @return void
-	 */
-	public function testEmptySessionTokenFails(): void
-	{
-		$_SESSION['token'] = '';
-		$_POST['token'] = '';
-
-		$this->assertFalse(camt053VerifCsrfToken());
-	}
-
-	/**
-	 * Same when the session has no token key at all.
-	 *
-	 * @return void
-	 */
-	public function testAbsentSessionTokenFails(): void
-	{
-		$_POST['token'] = '';
-
-		$this->assertFalse(camt053VerifCsrfToken());
-	}
-
-	/**
-	 * SPEC section 7 requires the token on every writing page. A page added
-	 * later without the guard is what this case is here to catch.
-	 *
-	 * @return void
-	 */
-	public function testEveryWritingPageCallsTheGuard(): void
-	{
-		$root = dirname(__FILE__) . '/../..';
-		$pages = array(
+		return array(
 			'submit.php',
 			'confirm.php',
 			'admin/setup.php',
 			'admin/sftp_card.php',
 			'admin/sftp_list.php',
 		);
+	}
 
-		foreach ($pages as $page) {
-			$source = file_get_contents($root . '/' . $page);
+	/**
+	 * SPEC section 7. A page added later without the constant is what this case
+	 * is here to catch.
+	 *
+	 * @return void
+	 */
+	public function testEveryWritingPageRequiresTheToken(): void
+	{
+		foreach ($this->writingPages() as $page) {
+			$source = file_get_contents($this->root() . '/' . $page);
 			$this->assertNotFalse($source, $page . ' is missing');
-			$this->assertStringContainsString('camt053VerifCsrfToken()', $source, $page . ' writes without checking the token');
+			$this->assertStringContainsString(
+				"define('CSRFCHECK_WITH_TOKEN', '1')",
+				$source,
+				$page . ' writes without requiring a token'
+			);
 		}
+	}
+
+	/**
+	 * The constant is read while main.inc.php runs, so defining it afterwards
+	 * silently protects nothing.
+	 *
+	 * @return void
+	 */
+	public function testTheConstantIsDefinedBeforeDolibarrIsLoaded(): void
+	{
+		foreach ($this->writingPages() as $page) {
+			$source = file_get_contents($this->root() . '/' . $page);
+			$this->assertLessThan(
+				strpos($source, 'main.inc.php'),
+				strpos($source, 'CSRFCHECK_WITH_TOKEN'),
+				$page . ' defines the constant after loading Dolibarr'
+			);
+		}
+	}
+
+	/**
+	 * The other half: a page requiring a token whose forms and action links send
+	 * none is a page nobody can use.
+	 *
+	 * @return void
+	 */
+	public function testThePagesLeadingToThemSendAToken(): void
+	{
+		$callers = array(
+			'index.php',
+			'lib/camt053readerandlink.results.lib.php',
+			'admin/setup.php',
+			'admin/sftp_card.php',
+			'admin/sftp_list.php',
+		);
+
+		foreach ($callers as $caller) {
+			$source = file_get_contents($this->root() . '/' . $caller);
+			$this->assertNotFalse($source, $caller . ' is missing');
+			$this->assertStringContainsString('newToken()', $source, $caller . ' posts to a guarded page without a token');
+		}
+	}
+
+	/**
+	 * Every link carrying an action reaches a page that now demands a token, so
+	 * none of them may be built without one, wherever it is built.
+	 *
+	 * @return void
+	 */
+	public function testActionLinksCarryAToken(): void
+	{
+		$seen = 0;
+
+		foreach ($this->modulePages() as $page) {
+			$lines = file($page);
+			foreach ($lines as $number => $line) {
+				if (strpos($line, '?action=') === false) {
+					continue;
+				}
+				$seen++;
+				$this->assertStringContainsString(
+					'token=',
+					$line,
+					substr($page, strlen($this->root()) + 1) . ' line ' . ($number + 1)
+						. ' builds an action link without a token'
+				);
+			}
+		}
+
+		$this->assertGreaterThan(0, $seen, 'No action link found at all, the scan is looking in the wrong place');
+	}
+
+	/**
+	 * Every PHP file of the module but the tests.
+	 *
+	 * @return array<int, string>
+	 */
+	private function modulePages(): array
+	{
+		$found = array();
+		$dirs = new RecursiveDirectoryIterator($this->root(), FilesystemIterator::SKIP_DOTS);
+
+		foreach (new RecursiveIteratorIterator($dirs) as $file) {
+			$path = $file->getPathname();
+			if (substr($path, -4) !== '.php' || strpos($path, '/test/') !== false || strpos($path, '/.git/') !== false) {
+				continue;
+			}
+			$found[] = $path;
+		}
+
+		sort($found);
+
+		return $found;
 	}
 }

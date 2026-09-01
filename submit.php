@@ -25,6 +25,10 @@
  *	\brief      Process uploaded CAMT.053 file and compare with database
  */
 
+if (!defined('CSRFCHECK_WITH_TOKEN')) {
+	define('CSRFCHECK_WITH_TOKEN', '1');
+}
+
 // Load Dolibarr environment
 $res = 0;
 // Try main.inc.php into web root known defined into CONTEXT_DOCUMENT_ROOT (not always defined)
@@ -68,7 +72,6 @@ require_once __DIR__ . '/class/BankStatementMatcher.class.php';
 require_once __DIR__ . '/class/BankRelationshipLookup.class.php';
 require_once __DIR__ . '/class/PaymentSuggestionFinder.class.php';
 require_once __DIR__ . '/class/InternalTransferDetector.class.php';
-require_once __DIR__ . '/lib/camt053readerandlink.lib.php';
 require_once __DIR__ . '/lib/camt053readerandlink.results.lib.php';
 
 // Load translation files required by the page
@@ -95,9 +98,6 @@ if (!$user->hasRight('banque', 'lire')) {
 if ($action != 'upload' || (empty($_FILES['file']) && empty(GETPOST('file_json')))) {
 	header('Location: ' . dol_buildpath('/camt053readerandlink/index.php', 1));
 	exit;
-}
-if (!camt053VerifCsrfToken()) {
-	accessforbidden($langs->trans('SecurityTokenError'));
 }
 
 $bank_account_id = GETPOSTINT('bank_account_id');
