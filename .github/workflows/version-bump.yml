@@ -36,18 +36,21 @@ jobs:
 
       - name: Calculate new version
         id: new
+        # Inputs go through the environment, never straight into the shell.
+        env:
+          CURRENT: ${{ steps.current.outputs.version }}
+          CUSTOM_VERSION: ${{ github.event.inputs.custom_version }}
+          VERSION_TYPE: ${{ github.event.inputs.version_type }}
         run: |
-          CURRENT="${{ steps.current.outputs.version }}"
-
-          if [ -n "${{ github.event.inputs.custom_version }}" ]; then
-            NEW_VERSION="${{ github.event.inputs.custom_version }}"
+          if [ -n "$CUSTOM_VERSION" ]; then
+            NEW_VERSION="$CUSTOM_VERSION"
           else
             IFS='.' read -ra PARTS <<< "$CURRENT"
             MAJOR="${PARTS[0]}"
             MINOR="${PARTS[1]}"
             PATCH="${PARTS[2]:-0}"
 
-            case "${{ github.event.inputs.version_type }}" in
+            case "$VERSION_TYPE" in
               major)
                 MAJOR=$((MAJOR + 1))
                 MINOR=0
@@ -63,6 +66,12 @@ jobs:
             esac
 
             NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          fi
+
+          # Only a plain version string may reach the sed and the branch name below.
+          if ! printf '%s' "$NEW_VERSION" | grep -Eq '^[0-9]+(\.[0-9]+)*([.-][A-Za-z0-9]+)*$'; then
+            echo "Refusing to bump: unexpected version string '$NEW_VERSION'" >&2
+            exit 1
           fi
 
           echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
@@ -84,8 +93,10 @@ jobs:
 
       - name: Update version in module descriptor
         if: steps.new.outputs.already_updated == 'false'
+        env:
+          VERSION: ${{ steps.new.outputs.version }}
         run: |
-          sed -i "s/\$this->version = '[^']*'/\$this->version = '${{ steps.new.outputs.version }}'/" core/modules/modCamt053ReaderAndLink.class.php
+          sed -i "s/\$this->version = '[^']*'/\$this->version = '$VERSION'/" core/modules/modCamt053ReaderAndLink.class.php
 
       - name: Create Pull Request
         if: steps.new.outputs.already_updated == 'false'

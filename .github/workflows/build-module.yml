@@ -22,10 +22,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          # Full history: the version bump below pushes to main, and GitHub
-          # refuses a push coming from a shallow clone.
-          fetch-depth: 0
 
       - name: Get module version
         id: version
@@ -37,18 +33,26 @@ jobs:
           REF_NAME: ${{ github.ref_name }}
           REF: ${{ github.ref }}
         run: |
+          DESCRIPTOR_VERSION=$(grep -oP "\\\$this->version\s*=\s*'\K[^']+" core/modules/modCamt053ReaderAndLink.class.php)
+
           if [ -n "$INPUT_VERSION" ]; then
             VERSION="$INPUT_VERSION"
           elif [ "${REF#refs/tags/v}" != "$REF" ]; then
             VERSION="${REF_NAME#v}"
           else
-            # Extract version from module descriptor
-            VERSION=$(grep -oP "\\\$this->version\s*=\s*'\K[^']+" core/modules/modCamt053ReaderAndLink.class.php)
+            VERSION="$DESCRIPTOR_VERSION"
           fi
 
           # Only a plain version string may reach sed, filenames and git below.
           if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+(\.[0-9]+)*([.-][A-Za-z0-9]+)*$'; then
             echo "Refusing to build: unexpected version string '$VERSION'" >&2
+            exit 1
+          fi
+
+          # The descriptor is bumped in the pull request that prepares a release.
+          if [ -z "$INPUT_VERSION" ] && [ "$VERSION" != "$DESCRIPTOR_VERSION" ]; then
+            echo "Refusing to build: tag $VERSION does not match the descriptor ($DESCRIPTOR_VERSION)." >&2
+            echo "Bump \$this->version in core/modules/modCamt053ReaderAndLink.class.php, then tag." >&2
             exit 1
           fi
 
@@ -125,38 +129,3 @@ jobs:
           files: module_camt053readerandlink-${{ steps.version.outputs.version }}.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Commit version update
-        if: github.event_name == 'release'
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # Drop the stamping done for the package, otherwise switching branches
-          # fails on the dirty descriptor. It is re-applied on main below.
-          git checkout -- core/modules/modCamt053ReaderAndLink.class.php
-
-          git fetch origin main:refs/remotes/origin/main
-          git checkout -B main origin/main
-
-          CURRENT_VERSION=$(grep -oP "\\\$this->version\s*=\s*'\K[^']+" core/modules/modCamt053ReaderAndLink.class.php)
-          if [ "$VERSION" = "$CURRENT_VERSION" ]; then
-            echo "Version already up to date ($VERSION), nothing to commit"
-            exit 0
-          fi
-
-          sed -i "s/\$this->version = '[^']*'/\$this->version = '$VERSION'/" core/modules/modCamt053ReaderAndLink.class.php
-
-          # The sed above assumes exact spacing; make a silent no-op fatal here
-          # rather than letting `git commit` fail with "nothing to commit".
-          if git diff --quiet core/modules/modCamt053ReaderAndLink.class.php; then
-            echo "Version stamping did not change the descriptor, check its formatting" >&2
-            exit 1
-          fi
-
-          git add core/modules/modCamt053ReaderAndLink.class.php
-          git commit -m "chore: bump version to $VERSION"
-          git push origin HEAD:main
