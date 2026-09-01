@@ -77,7 +77,7 @@ class modCamt053ReaderAndLink extends DolibarrModules
 		);
 
 		// Data directories
-		$this->dirs = array("/camt053readerandlink/temp");
+		$this->dirs = array();
 
 		// Config pages
 		$this->config_page_url = array("setup.php@camt053readerandlink");
