@@ -24,6 +24,10 @@
 - Pass the version bump workflow inputs through the environment and validate the computed version, closing the same shell injection the build workflow was already hardened against
 - Realign the module descriptor and this changelog with the published tags: both stopped at `2.0.2-pre2` while v2.0.2 through v2.1.2 were released
 
+### Documentation
+- Say which PHPUnit version the suite targets and why a newer one reports the process-isolation annotations as deprecated, so the difference between a local run and the CI matrix stops looking like a defect
+- Describe the SSH host key field on the SFTP prerequisites
+
 ### Tests
 - `Camt053FileProcessorTest.php` - CAMT.052 root detection, booked-only filtering and the pending count
 - `EntityScopeSqlTest.php` - entity scoping of the processed-file lookup behind the reconciliation link
