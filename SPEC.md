@@ -146,7 +146,12 @@ A file nobody can act on must reach a human, not just the log:
 - `statement.php` reads a file off disk, so it reopens only a path that resolves
   inside the bank document directory or the entity upload directory, and only
   from a tracking row of the current entity.
-- CSRF token required on every writing page, including `confirm.php`.
+- CSRF token required on every writing page, through Dolibarr's own check: the
+  page defines `CSRFCHECK_WITH_TOKEN` before loading `main.inc.php`, which makes
+  core demand a token on every POST and on every request carrying an `action`,
+  whatever the instance set `MAIN_SECURITY_CSRF_WITH_TOKEN` to, and drop the
+  parameters itself when the token is wrong. The module implements no check of
+  its own, so every link carrying an `action` is built with `newToken()`.
 - Rights: `banque->lire` to read, `banque->consolidate` to reconcile, which is
   what Dolibarr core requires for the same operation.
 - SFTP secrets (private key, passphrase, password, Zulip API key) are encrypted
@@ -154,6 +159,12 @@ A file nobody can act on must reach a human, not just the log:
   private key is never rendered back in the edit form.
 - A single SFTP login attempt per run: PostFinance locks the account after three
   failures.
+- The SSH host key is verified before authenticating, never after. An account
+  carrying no fingerprint records the one it first meets; once recorded, a
+  server presenting another key is refused before a single credential reaches
+  it, and the refusal raises its own Zulip alert. The fingerprint is only ever
+  written on an account that has none: a key change is what the check exists to
+  refuse, so it is cleared by hand once the bank has confirmed it.
 
 ---
 

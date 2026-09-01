@@ -116,20 +116,3 @@ function camt053SftpFetchEnabled()
 {
 	return (getDolGlobalString('CAMT053_SFTP_FETCH_ENABLED') === '1');
 }
-
-/**
- * Check the anti-CSRF token submitted with a form against the session token.
- * Mirrors the check done by Dolibarr in main.inc.php (token vs $_SESSION['token']).
- *
- * @return bool  True if the submitted token is valid.
- */
-function camt053VerifCsrfToken()
-{
-	$sessiontoken = empty($_SESSION['token']) ? '' : $_SESSION['token'];
-	if ($sessiontoken === '') {
-		// No token in session yet: nothing to compare against, so nothing passes.
-		return false;
-	}
-
-	return (GETPOSTISSET('token') && GETPOST('token', 'alpha') === $sessiontoken);
-}

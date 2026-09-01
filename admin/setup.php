@@ -22,6 +22,10 @@
  * \brief   Camt053ReaderAndLink setup page.
  */
 
+if (!defined('CSRFCHECK_WITH_TOKEN')) {
+	define('CSRFCHECK_WITH_TOKEN', '1');
+}
+
 // Load Dolibarr environment
 $res = 0;
 if (!$res && !empty($_SERVER["CONTEXT_DOCUMENT_ROOT"])) {
@@ -75,29 +79,21 @@ $modulepart = GETPOST('modulepart', 'aZ09');
  */
 
 if ($action == 'update_fetch') {
-	if (!camt053VerifCsrfToken()) {
-		setEventMessages($langs->trans("SecurityTokenError"), null, 'errors');
-	} else {
-		$enabled = GETPOST('sftp_fetch_enabled', 'int') ? '1' : '0';
-		dolibarr_set_const($db, 'CAMT053_SFTP_FETCH_ENABLED', $enabled, 'chaine', 0, '', $conf->entity);
-		setEventMessages($langs->trans("RecordSaved"), null, 'mesgs');
-	}
+	$enabled = GETPOST('sftp_fetch_enabled', 'int') ? '1' : '0';
+	dolibarr_set_const($db, 'CAMT053_SFTP_FETCH_ENABLED', $enabled, 'chaine', 0, '', $conf->entity);
+	setEventMessages($langs->trans("RecordSaved"), null, 'mesgs');
 }
 
 if ($action == 'update_zulip') {
-	if (!camt053VerifCsrfToken()) {
-		setEventMessages($langs->trans("SecurityTokenError"), null, 'errors');
-	} else {
-		dolibarr_set_const($db, 'CAMT053_ZULIP_SITE', GETPOST('zulip_site', 'alphanohtml'), 'chaine', 0, '', $conf->entity);
-		dolibarr_set_const($db, 'CAMT053_ZULIP_BOT_EMAIL', GETPOST('zulip_email', 'alphanohtml'), 'chaine', 0, '', $conf->entity);
-		dolibarr_set_const($db, 'CAMT053_ZULIP_STREAM', GETPOST('zulip_stream', 'alphanohtml'), 'chaine', 0, '', $conf->entity);
-		dolibarr_set_const($db, 'CAMT053_ZULIP_TOPIC', GETPOST('zulip_topic', 'alphanohtml'), 'chaine', 0, '', $conf->entity);
-		$apikey = trim((string) GETPOST('zulip_apikey', 'none'));
-		if ($apikey !== '') {
-			dolibarr_set_const($db, 'CAMT053_ZULIP_BOT_APIKEY', dolEncrypt($apikey), 'chaine', 0, '', $conf->entity);
-		}
-		setEventMessages($langs->trans("RecordSaved"), null, 'mesgs');
+	dolibarr_set_const($db, 'CAMT053_ZULIP_SITE', GETPOST('zulip_site', 'alphanohtml'), 'chaine', 0, '', $conf->entity);
+	dolibarr_set_const($db, 'CAMT053_ZULIP_BOT_EMAIL', GETPOST('zulip_email', 'alphanohtml'), 'chaine', 0, '', $conf->entity);
+	dolibarr_set_const($db, 'CAMT053_ZULIP_STREAM', GETPOST('zulip_stream', 'alphanohtml'), 'chaine', 0, '', $conf->entity);
+	dolibarr_set_const($db, 'CAMT053_ZULIP_TOPIC', GETPOST('zulip_topic', 'alphanohtml'), 'chaine', 0, '', $conf->entity);
+	$apikey = trim((string) GETPOST('zulip_apikey', 'none'));
+	if ($apikey !== '') {
+		dolibarr_set_const($db, 'CAMT053_ZULIP_BOT_APIKEY', dolEncrypt($apikey), 'chaine', 0, '', $conf->entity);
 	}
+	setEventMessages($langs->trans("RecordSaved"), null, 'mesgs');
 }
 
 include DOL_DOCUMENT_ROOT.'/core/actions_setmoduleoptions.inc.php';

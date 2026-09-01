@@ -21,6 +21,10 @@
  * \brief   List of SFTP accounts (PostFinance MFTPF) configs.
  */
 
+if (!defined('CSRFCHECK_WITH_TOKEN')) {
+	define('CSRFCHECK_WITH_TOKEN', '1');
+}
+
 // Load Dolibarr environment
 $res = 0;
 if (!$res && !empty($_SERVER["CONTEXT_DOCUMENT_ROOT"])) {
@@ -53,6 +57,7 @@ require_once DOL_DOCUMENT_ROOT."/core/lib/admin.lib.php";
 require_once __DIR__.'/../lib/camt053readerandlink.lib.php';
 require_once __DIR__.'/../class/Camt053SftpConfig.class.php';
 require_once __DIR__.'/../class/SftpFileTransport.class.php';
+require_once __DIR__.'/../class/Camt053HostKey.class.php';
 
 $langs->loadLangs(array("admin", "camt053readerandlink@camt053readerandlink"));
 
@@ -74,74 +79,71 @@ if ($action == 'testconn' && $id > 0 && $user->admin) {
 	$testMaxDepth = 2;
 	$testMaxEntries = 500;
 
-	if (!camt053VerifCsrfToken()) {
-		setEventMessages($langs->trans("SecurityTokenError"), null, 'errors');
-	} else {
-		$object = new Camt053SftpConfig($db);
-		if ($object->fetch($id) > 0) {
-			$transport = new SftpFileTransport($object);
-			// trans() restores some tags after encoding, so escape every parameter
-			// that carries user-supplied text.
-			$host = dol_escape_htmltag($object->host);
-			$port = dol_escape_htmltag($object->port);
-			$remoteDir = dol_escape_htmltag($object->remote_dir);
+	$object = new Camt053SftpConfig($db);
+	if ($object->fetch($id) > 0) {
+		$transport = new SftpFileTransport($object);
+		// trans() restores some tags after encoding, so escape every parameter
+		// that carries user-supplied text.
+		$host = dol_escape_htmltag($object->host);
+		$port = dol_escape_htmltag($object->port);
+		$remoteDir = dol_escape_htmltag($object->remote_dir);
 
-			$report = array(
-				'ref' => $object->ref,
-				'host' => $object->host,
-				'port' => (int) $object->port,
-				'username' => $object->username,
-				'auth_type' => $object->auth_type,
-				'remote_dir' => $object->remote_dir,
-				'daily_pattern' => (string) $object->daily_pattern,
-				'monthly_pattern' => (string) $object->monthly_pattern,
-				'post_download_action' => $object->post_download_action,
-				'connected' => false,
-				'error' => '',
-				'entries' => array(),
-				'truncated' => false,
-			);
+		$report = array(
+			'ref' => $object->ref,
+			'host' => $object->host,
+			'port' => (int) $object->port,
+			'username' => $object->username,
+			'auth_type' => $object->auth_type,
+			'remote_dir' => $object->remote_dir,
+			'daily_pattern' => (string) $object->daily_pattern,
+			'monthly_pattern' => (string) $object->monthly_pattern,
+			'post_download_action' => $object->post_download_action,
+			'connected' => false,
+			'error' => '',
+			'entries' => array(),
+			'truncated' => false,
+			'fingerprint' => '',
+			'fingerprint_learned' => false,
+		);
 
-			if ($transport->connect()) {
-				$report['connected'] = true;
-				$entries = $transport->listEntries($testMaxDepth, $testMaxEntries);
-				if ($entries === null) {
-					$report['error'] = (string) $transport->getError();
-					setEventMessages($langs->trans("Camt053SftpTestListFailed", $host, $port, $remoteDir, dol_escape_htmltag($transport->getError())), null, 'warnings');
-				} else {
-					$report['entries'] = $entries;
-					$report['truncated'] = (count($entries) >= $testMaxEntries);
-					setEventMessages($langs->trans("Camt053SftpTestConnectOk", $host, $port), null, 'mesgs');
-				}
-				$transport->disconnect();
-			} else {
+		if ($transport->connect()) {
+			$report['connected'] = true;
+			$report['fingerprint'] = $transport->getHostFingerprint();
+			$report['fingerprint_learned'] = $transport->isHostKeyLearned();
+			$object->recordFingerprint($transport->getHostFingerprint());
+			$entries = $transport->listEntries($testMaxDepth, $testMaxEntries);
+			if ($entries === null) {
 				$report['error'] = (string) $transport->getError();
-				setEventMessages($langs->trans("Camt053SftpTestFailed", $host, $port, dol_escape_htmltag($transport->getError())), null, 'errors');
+				setEventMessages($langs->trans("Camt053SftpTestListFailed", $host, $port, $remoteDir, dol_escape_htmltag($transport->getError())), null, 'warnings');
+			} else {
+				$report['entries'] = $entries;
+				$report['truncated'] = (count($entries) >= $testMaxEntries);
+				setEventMessages($langs->trans("Camt053SftpTestConnectOk", $host, $port), null, 'mesgs');
 			}
-
-			// Carried over the redirect rather than rendered here: reloading the
-			// page must not open a second SSH session, since a repeated failure
-			// is what locks a PostFinance account.
-			$_SESSION['camt053_test_report'] = $report;
+			$transport->disconnect();
 		} else {
-			setEventMessages($object->getError(), null, 'errors');
+			$report['error'] = (string) $transport->getError();
+			setEventMessages($langs->trans("Camt053SftpTestFailed", $host, $port, dol_escape_htmltag($transport->getError())), null, 'errors');
 		}
+
+		// Carried over the redirect rather than rendered here: reloading the
+		// page must not open a second SSH session, since a repeated failure
+		// is what locks a PostFinance account.
+		$_SESSION['camt053_test_report'] = $report;
+	} else {
+		setEventMessages($object->getError(), null, 'errors');
 	}
 	header("Location: ".$_SERVER["PHP_SELF"]);
 	exit;
 }
 
 if ($action == 'confirm_delete' && $id > 0 && $user->admin) {
-	if (!camt053VerifCsrfToken()) {
-		setEventMessages($langs->trans("SecurityTokenError"), null, 'errors');
-	} else {
-		$object = new Camt053SftpConfig($db);
-		if ($object->fetch($id) > 0) {
-			if ($object->delete($user) > 0) {
-				setEventMessages($langs->trans("RecordDeleted"), null, 'mesgs');
-			} else {
-				setEventMessages($object->getError(), null, 'errors');
-			}
+	$object = new Camt053SftpConfig($db);
+	if ($object->fetch($id) > 0) {
+		if ($object->delete($user) > 0) {
+			setEventMessages($langs->trans("RecordDeleted"), null, 'mesgs');
+		} else {
+			setEventMessages($object->getError(), null, 'errors');
 		}
 	}
 	header("Location: ".$_SERVER["PHP_SELF"]);
@@ -172,6 +174,15 @@ function camt053PrintTestReport(array $report, $langs)
 	$postAction = ($report['post_download_action'] === 'leave') ? "Camt053SftpPostLeave" : "Camt053SftpPostDelete";
 	print '<tr class="oddeven"><td>'.$langs->trans("Camt053SftpPostAction").'</td>';
 	print '<td colspan="4">'.$langs->trans($postAction).'</td></tr>';
+
+	if (!empty($report['fingerprint'])) {
+		$fingerprint = dol_escape_htmltag(Camt053HostKey::format($report['fingerprint']));
+		if (!empty($report['fingerprint_learned'])) {
+			$fingerprint .= ' <span class="warning">'.$langs->trans("Camt053SftpTestFingerprintLearned").'</span>';
+		}
+		print '<tr class="oddeven"><td>'.$langs->trans("Camt053SftpHostFingerprint").'</td>';
+		print '<td colspan="4">'.$fingerprint.'</td></tr>';
+	}
 
 	if (!$report['connected'] || $report['error'] !== '') {
 		print '<tr class="oddeven"><td>'.$langs->trans("Error").'</td>';
@@ -302,7 +313,7 @@ if ($action == 'delete' && $id > 0) {
 
 // New button
 print '<div class="tabsAction">';
-print '<a class="butAction" href="'.$cardurl.'?action=create">'.$langs->trans("Camt053SftpAccountNew").'</a>';
+print '<a class="butAction" href="'.$cardurl.'?action=create&token='.newToken().'">'.$langs->trans("Camt053SftpAccountNew").'</a>';
 print '</div>';
 
 $configLoader = new Camt053SftpConfig($db);
@@ -327,7 +338,7 @@ if (empty($list)) {
 	print '<tr class="oddeven"><td colspan="10" class="opacitymedium center">'.$langs->trans("Camt053SftpNoAccount").'</td></tr>';
 } else {
 	foreach ($list as $cfg) {
-		$editlink = $cardurl.'?action=edit&id='.$cfg->id;
+		$editlink = $cardurl.'?action=edit&token='.newToken().'&id='.$cfg->id;
 		print '<tr class="oddeven">';
 		print '<td><a href="'.$editlink.'">'.dol_escape_htmltag($cfg->ref).'</a></td>';
 		print '<td>'.dol_escape_htmltag($cfg->label).'</td>';

@@ -24,6 +24,7 @@
  */
 
 require_once DOL_DOCUMENT_ROOT . '/core/lib/security.lib.php';
+require_once __DIR__ . '/Camt053HostKey.class.php';
 
 /**
  * Class Camt053SftpConfig
@@ -74,6 +75,10 @@ class Camt053SftpConfig
 	/** @var string|null Matching OpenSSH public key line. Derived from the private
 	 *                   key when left empty, which only works for RSA. */
 	public $public_key;
+
+	/** @var string|null SSH host key fingerprint the server is pinned to. Empty
+	 *                   until the first successful connection records it. */
+	public $host_fingerprint;
 
 	/** @var string|null Passphrase for the private key, plaintext in memory, encrypted at rest */
 	public $private_key_passphrase;
@@ -153,6 +158,10 @@ class Camt053SftpConfig
 			$this->error = 'Invalid post download action';
 			return false;
 		}
+		if (!empty($this->host_fingerprint) && !Camt053HostKey::isValid($this->host_fingerprint)) {
+			$this->error = 'The host key fingerprint must be the MD5 or SHA-1 hex form (32 or 40 hex characters)';
+			return false;
+		}
 
 		return true;
 	}
@@ -175,7 +184,7 @@ class Camt053SftpConfig
 
 		$sql = "INSERT INTO " . MAIN_DB_PREFIX . self::TABLE . " (";
 		$sql .= "entity, ref, label, active, host, port, username, auth_type,";
-		$sql .= " private_key, public_key, private_key_passphrase, password, remote_dir,";
+		$sql .= " private_key, public_key, host_fingerprint, private_key_passphrase, password, remote_dir,";
 		$sql .= " daily_pattern, monthly_pattern, post_download_action,";
 		$sql .= " date_creation, fk_user_creat";
 		$sql .= ") VALUES (";
@@ -189,6 +198,7 @@ class Camt053SftpConfig
 		$sql .= ", " . $this->quote($this->auth_type);
 		$sql .= ", " . $this->quote($this->encrypt($this->private_key));
 		$sql .= ", " . $this->quote($this->public_key);
+		$sql .= ", " . $this->quote(Camt053HostKey::normalize($this->host_fingerprint));
 		$sql .= ", " . $this->quote($this->encrypt($this->private_key_passphrase));
 		$sql .= ", " . $this->quote($this->encrypt($this->password));
 		$sql .= ", " . $this->quote($this->remote_dir);
@@ -236,6 +246,7 @@ class Camt053SftpConfig
 		$sql .= ", auth_type = " . $this->quote($this->auth_type);
 		$sql .= ", private_key = " . $this->quote($this->encrypt($this->private_key));
 		$sql .= ", public_key = " . $this->quote($this->public_key);
+		$sql .= ", host_fingerprint = " . $this->quote(Camt053HostKey::normalize($this->host_fingerprint));
 		$sql .= ", private_key_passphrase = " . $this->quote($this->encrypt($this->private_key_passphrase));
 		$sql .= ", password = " . $this->quote($this->encrypt($this->password));
 		$sql .= ", remote_dir = " . $this->quote($this->remote_dir);
@@ -374,6 +385,35 @@ class Camt053SftpConfig
 	}
 
 	/**
+	 * Pin the account to the host key it just met, when it carries none.
+	 *
+	 * @param string $fingerprint Fingerprint the server presented
+	 * @return int 1 on success, 0 when there was nothing to record, -1 on error
+	 */
+	public function recordFingerprint(string $fingerprint): int
+	{
+		$fingerprint = Camt053HostKey::normalize($fingerprint);
+
+		if (empty($this->id) || $fingerprint === '' || !empty($this->host_fingerprint)) {
+			return 0;
+		}
+
+		$sql = "UPDATE " . MAIN_DB_PREFIX . self::TABLE . " SET";
+		$sql .= " host_fingerprint = '" . $this->db->escape($fingerprint) . "'";
+		$sql .= " WHERE rowid = " . ((int) $this->id);
+		$sql .= " AND entity IN (" . getEntity(self::TABLE) . ")";
+		$sql .= " AND (host_fingerprint IS NULL OR host_fingerprint = '')";
+
+		if (!$this->db->query($sql)) {
+			$this->error = 'Database error: ' . $this->db->lasterror();
+			return -1;
+		}
+
+		$this->host_fingerprint = $fingerprint;
+		return 1;
+	}
+
+	/**
 	 * Get last error message.
 	 *
 	 * @return string|null
@@ -391,7 +431,7 @@ class Camt053SftpConfig
 	private function fieldList(): string
 	{
 		return "rowid, entity, ref, label, active, host, port, username, auth_type,"
-			. " private_key, public_key, private_key_passphrase, password, remote_dir,"
+			. " private_key, public_key, host_fingerprint, private_key_passphrase, password, remote_dir,"
 			. " daily_pattern, monthly_pattern, post_download_action,"
 			. " last_run, last_status, date_creation,"
 			. " fk_user_creat, fk_user_modif";
@@ -417,6 +457,7 @@ class Camt053SftpConfig
 		$this->private_key = $this->decrypt($obj->private_key);
 		// Public key material is not secret: stored as-is.
 		$this->public_key = $obj->public_key;
+		$this->host_fingerprint = $obj->host_fingerprint;
 		$this->private_key_passphrase = $this->decrypt($obj->private_key_passphrase);
 		$this->password = $this->decrypt($obj->password);
 		$this->remote_dir = $obj->remote_dir;

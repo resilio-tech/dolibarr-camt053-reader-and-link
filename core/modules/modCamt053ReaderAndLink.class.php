@@ -55,7 +55,7 @@ class modCamt053ReaderAndLink extends DolibarrModules
 
 		$this->editor_name = 'Slordef';
 		$this->editor_url = '';
-		$this->version = '2.0.2-pre2';
+		$this->version = '2.2.0';
 		$this->const_name = 'MAIN_MODULE_'.strtoupper($this->name);
 		$this->picto = 'fa-building-columns';
 
@@ -77,7 +77,7 @@ class modCamt053ReaderAndLink extends DolibarrModules
 		);
 
 		// Data directories
-		$this->dirs = array("/camt053readerandlink/temp");
+		$this->dirs = array();
 
 		// Config pages
 		$this->config_page_url = array("setup.php@camt053readerandlink");

@@ -39,7 +39,7 @@ chdir($rootPath);
 
 require_once $rootPath . '/master.inc.php';
 require_once DOL_DOCUMENT_ROOT . '/user/class/user.class.php';
-require_once DOL_DOCUMENT_ROOT . '/custom/camt053readerandlink/class/Camt053CronRunner.class.php';
+require_once __DIR__ . '/../class/Camt053CronRunner.class.php';
 
 /** @var DoliDB $db */
 /** @var Translate $langs */

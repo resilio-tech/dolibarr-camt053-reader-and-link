@@ -25,6 +25,10 @@
  *	\brief      Process uploaded CAMT.053 file and compare with database
  */
 
+if (!defined('CSRFCHECK_WITH_TOKEN')) {
+	define('CSRFCHECK_WITH_TOKEN', '1');
+}
+
 // Load Dolibarr environment
 $res = 0;
 // Try main.inc.php into web root known defined into CONTEXT_DOCUMENT_ROOT (not always defined)
@@ -92,7 +96,7 @@ if (!$user->hasRight('banque', 'lire')) {
 
 // Redirect if no upload action
 if ($action != 'upload' || (empty($_FILES['file']) && empty(GETPOST('file_json')))) {
-	header('Location: ' . dol_buildpath('/custom/camt053readerandlink/index.php', 1));
+	header('Location: ' . dol_buildpath('/camt053readerandlink/index.php', 1));
 	exit;
 }
 

@@ -102,7 +102,7 @@ class InternalTransferDetector
 			'amount' => number_format((float) $transfer['amount'], 2, '.', ''),
 			'date' => $transfer['date'],
 		);
-		return dol_buildpath('/custom/camt053readerandlink/transfer_confirm.php', 1) . '?' . http_build_query($params);
+		return dol_buildpath('/camt053readerandlink/transfer_confirm.php', 1) . '?' . http_build_query($params);
 	}
 
 	/**

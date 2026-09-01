@@ -25,6 +25,10 @@
  *	\brief      Confirm and finalize bank reconciliations
  */
 
+if (!defined('CSRFCHECK_WITH_TOKEN')) {
+	define('CSRFCHECK_WITH_TOKEN', '1');
+}
+
 // Load Dolibarr environment
 $res = 0;
 // Try main.inc.php into web root known defined into CONTEXT_DOCUMENT_ROOT (not always defined)
@@ -62,6 +66,7 @@ require_once DOL_DOCUMENT_ROOT.'/compta/bank/class/account.class.php';
 
 // Load module classes
 require_once __DIR__ . '/lib/camt053readerandlink.lib.php';
+require_once __DIR__ . '/class/Camt053StatementArchive.class.php';
 
 // Load translation files required by the page
 $langs->loadLangs(array("camt053readerandlink@camt053readerandlink"));
@@ -75,12 +80,6 @@ if (!isModEnabled('camt053readerandlink')) {
 // not on banque.modifier.
 if (!$user->hasRight('banque', 'consolidate')) {
 	accessforbidden();
-}
-// This page writes (num_releve + rappro) straight away, so it must carry the
-// same token check as the admin pages. Core blocks token-less POSTs at the
-// default MAIN_SECURITY_CSRF_WITH_TOKEN, but not on instances that lowered it.
-if (!camt053VerifCsrfToken()) {
-	accessforbidden($langs->trans('SecurityTokenError'));
 }
 
 llxHeader("", $langs->trans("Camt053ReaderAndLinkArea"), '', '', 0, 0, '', '', '', 'mod-camt053readerandlink page-index');
@@ -301,27 +300,26 @@ try {
 		$sanitizedFilename = dol_sanitizeFileName($file);
 
 		$targetDir = $conf->bank->dir_output . '/' . $id . '/statement/' . dol_sanitizeFileName($numref);
-		$targetFile = $targetDir . '/' . $sanitizedFilename;
-
-		dol_syslog('CAMT053: Archiving statement file ' . $upload_file . ' to ' . $targetFile, LOG_DEBUG);
 
 		if (!is_dir($targetDir)) {
 			dol_mkdir($targetDir);
 		}
 
-		if (file_exists($targetFile)) {
-			// Physical file already in place: drop the temporary upload, keep the existing one
-			@unlink($upload_file);
+		$archived = Camt053StatementArchive::store($upload_file, $targetDir, $sanitizedFilename);
+		$targetFile = $archived['path'];
+
+		if ($archived['outcome'] === Camt053StatementArchive::ALREADY) {
 			dol_syslog('CAMT053: Statement file already present at ' . $targetFile . ', skipping move', LOG_DEBUG);
-		} elseif (rename($upload_file, $targetFile)) {
+		} elseif ($archived['outcome'] === Camt053StatementArchive::STORED) {
 			dol_syslog('CAMT053: Statement file archived to ' . $targetFile, LOG_DEBUG);
 			// Index in database only once the file physically exists, keeping ecm_files in sync
-			$resindex = addFileIntoDatabaseIndex($targetDir, $sanitizedFilename, $file, 'uploaded', 1, $object);
+			$resindex = addFileIntoDatabaseIndex($targetDir, basename($targetFile), $file, 'uploaded', 1, $object);
 			if ($resindex < 0) {
 				dol_syslog('CAMT053: File archived but database indexing failed for ' . $targetFile, LOG_WARNING);
 			}
 		} else {
-			dol_syslog('CAMT053: Error moving statement file to ' . $targetFile, LOG_ERR);
+			dol_syslog('CAMT053: Error moving statement file ' . $upload_file . ' to ' . $targetDir, LOG_ERR);
+			setEventMessages($langs->trans('StatementFileNotArchived'), null, 'warnings');
 		}
 	}
 
@@ -336,7 +334,7 @@ try {
 	}
 
 	// Form to check for new reconciliations
-	print '<form method="POST" action="'.dol_buildpath('/custom/camt053readerandlink/submit.php', 1).'" enctype="multipart/form-data" style="display: inline;">';
+	print '<form method="POST" action="'.dol_buildpath('/camt053readerandlink/submit.php', 1).'" enctype="multipart/form-data" style="display: inline;">';
 	print '<input type="hidden" name="date_start" value="' . dol_escape_htmltag($date_start) . '">';
 	print '<input type="hidden" name="date_end" value="' . dol_escape_htmltag($date_end) . '">';
 	print '<input type="hidden" name="bank_account_id" value="' . ((int) $bank_account_id) . '">';

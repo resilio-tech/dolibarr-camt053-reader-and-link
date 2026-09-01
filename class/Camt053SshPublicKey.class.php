@@ -47,7 +47,7 @@ class Camt053SshPublicKey
 			return null;
 		}
 
-		$key = @openssl_pkey_get_private($privateKey, $passphrase !== '' ? $passphrase : null);
+		$key = @openssl_pkey_get_private($privateKey, $passphrase);
 		if ($key === false) {
 			return null;
 		}

@@ -29,6 +29,11 @@ Bank reconciliation module that allows importing bank statements in CAMT.053 for
   (`ssh-keygen -p -m PEM -f <keyfile>`); the OpenSSH container format is refused
   with an explicit message. Paste the matching public key in the configuration,
   or leave it empty for an RSA key and it is derived from the private one.
+  The server itself is identified by its SSH host key: leave the fingerprint
+  field empty and the first successful connection records the key it meets, or
+  paste the fingerprint the bank published to pin it from the start. A server
+  presenting another key afterwards is refused before any credential is sent,
+  and the refusal is reported to Zulip.
 
 ### Module Installation
 
@@ -209,6 +214,15 @@ phpunit
 # Specific test
 phpunit BankStatementMatcherTest.php
 ```
+
+The suite targets **PHPUnit 9.6**, the last release supporting PHP 7.4, which is
+the module's declared floor and the first entry of the CI matrix. Nineteen tests
+run in an isolated process (they declare stand-ins for Dolibarr functions that
+would otherwise collide between test classes), which PHPUnit 9.6 only reads from
+the `@runInSeparateProcess` and `@preserveGlobalState disabled` doc-comment
+annotations. A newer PHPUnit runs the suite green but reports those annotations
+as deprecated: they cannot be turned into attributes while 9.6 has to keep
+reading them.
 
 ### Test File
 
