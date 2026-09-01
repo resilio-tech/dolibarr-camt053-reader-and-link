@@ -136,4 +136,28 @@ class CsrfTokenTest extends TestCase
 
 		$this->assertFalse(camt053VerifCsrfToken());
 	}
+
+	/**
+	 * SPEC section 7 requires the token on every writing page. A page added
+	 * later without the guard is what this case is here to catch.
+	 *
+	 * @return void
+	 */
+	public function testEveryWritingPageCallsTheGuard(): void
+	{
+		$root = dirname(__FILE__) . '/../..';
+		$pages = array(
+			'submit.php',
+			'confirm.php',
+			'admin/setup.php',
+			'admin/sftp_card.php',
+			'admin/sftp_list.php',
+		);
+
+		foreach ($pages as $page) {
+			$source = file_get_contents($root . '/' . $page);
+			$this->assertNotFalse($source, $page . ' is missing');
+			$this->assertStringContainsString('camt053VerifCsrfToken()', $source, $page . ' writes without checking the token');
+		}
+	}
 }
