@@ -32,6 +32,7 @@ require_once __DIR__ . '/Camt053ArchivePath.class.php';
 require_once __DIR__ . '/Camt053SftpConfig.class.php';
 require_once __DIR__ . '/Camt053ProcessedFile.class.php';
 require_once __DIR__ . '/SftpFileTransport.class.php';
+require_once __DIR__ . '/Camt053HostKey.class.php';
 require_once __DIR__ . '/ReconciliationService.class.php';
 require_once __DIR__ . '/ZulipNotifier.class.php';
 
@@ -110,9 +111,11 @@ class Camt053CronRunner
 			$msg = 'connection failed: ' . $transport->getError();
 			$config->recordRun($msg);
 			$this->error .= '[' . $config->ref . '] ' . $msg . '; ';
-			$this->alertConnectionFailure($config, $transport->getError());
+			$this->alertConnectionFailure($config, $transport->getError(), $transport->isHostKeyMismatch());
 			return $config->ref . ': ' . $msg;
 		}
+
+		$this->rememberHostKey($config, $transport);
 
 		$files = $transport->listFiles(null);
 		if ($files === null) {
@@ -588,13 +591,34 @@ class Camt053CronRunner
 	}
 
 	/**
-	 * Send a short Zulip alert when a connection fails (lockout risk).
+	 * Pin the account to the host key it just met, when it carried none.
 	 *
-	 * @param Camt053SftpConfig $config Config
-	 * @param string|null       $detail Error detail
+	 * @param Camt053SftpConfig $config    Config being processed
+	 * @param SftpFileTransport $transport Connected transport
 	 * @return void
 	 */
-	private function alertConnectionFailure(Camt053SftpConfig $config, ?string $detail): void
+	private function rememberHostKey(Camt053SftpConfig $config, SftpFileTransport $transport): void
+	{
+		if (!$transport->isHostKeyLearned()) {
+			return;
+		}
+
+		if ($config->recordFingerprint($transport->getHostFingerprint()) > 0) {
+			dol_syslog('CAMT053 cron: pinned ' . $config->ref . ' to the host key of ' . $config->host
+				. ' (' . Camt053HostKey::format($transport->getHostFingerprint()) . ')', LOG_WARNING);
+		}
+	}
+
+	/**
+	 * Send a short Zulip alert when a connection fails (lockout risk).
+	 *
+	 * @param Camt053SftpConfig $config          Config
+	 * @param string|null       $detail          Error detail
+	 * @param bool              $hostKeyMismatch Whether the host key changed, in
+	 *                                           which case no login was attempted
+	 * @return void
+	 */
+	private function alertConnectionFailure(Camt053SftpConfig $config, ?string $detail, bool $hostKeyMismatch = false): void
 	{
 		$notifier = ZulipNotifier::fromConf();
 		if ($notifier === null) {
@@ -603,6 +627,15 @@ class Camt053CronRunner
 
 		$stream = getDolGlobalString('CAMT053_ZULIP_STREAM');
 		$topic = $this->zulipTopic($config);
+
+		if ($hostKeyMismatch) {
+			$content = ":rotating_light: **CAMT.053 SFTP host key changed** for `" . $config->ref . "` (" . $config->host . ")\n";
+			$content .= '> ' . ($detail ?: 'unknown error') . "\n";
+			$content .= "_No credential was sent. Confirm the new key with the bank before clearing the fingerprint on the account._";
+			$notifier->sendStream($stream, $topic, $content);
+
+			return;
+		}
 
 		$content = ":warning: **CAMT.053 SFTP connection failed** for `" . $config->ref . "` (" . $config->host . ")\n";
 		$content .= '> ' . ($detail ?: 'unknown error') . "\n";

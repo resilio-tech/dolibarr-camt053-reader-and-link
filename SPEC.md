@@ -154,6 +154,12 @@ A file nobody can act on must reach a human, not just the log:
   private key is never rendered back in the edit form.
 - A single SFTP login attempt per run: PostFinance locks the account after three
   failures.
+- The SSH host key is verified before authenticating, never after. An account
+  carrying no fingerprint records the one it first meets; once recorded, a
+  server presenting another key is refused before a single credential reaches
+  it, and the refusal raises its own Zulip alert. The fingerprint is only ever
+  written on an account that has none: a key change is what the check exists to
+  refuse, so it is cleared by hand once the bank has confirmed it.
 
 ---
 

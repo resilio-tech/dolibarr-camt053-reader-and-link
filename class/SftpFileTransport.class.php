@@ -30,6 +30,7 @@
 
 require_once __DIR__ . '/Camt053SftpConfig.class.php';
 require_once __DIR__ . '/Camt053SshPublicKey.class.php';
+require_once __DIR__ . '/Camt053HostKey.class.php';
 
 /**
  * Class SftpFileTransport
@@ -52,6 +53,15 @@ class SftpFileTransport
 
 	/** @var int Connection timeout in seconds */
 	private $timeout = 30;
+
+	/** @var string Host key fingerprint the server presented on this connection */
+	private $hostFingerprint = '';
+
+	/** @var bool Whether the config carried no fingerprint and this one is new */
+	private $hostKeyLearned = false;
+
+	/** @var bool Whether the connection was refused over a changed host key */
+	private $hostKeyMismatch = false;
 
 	/**
 	 * Constructor
@@ -84,6 +94,10 @@ class SftpFileTransport
 			return false;
 		}
 
+		if (!$this->verifyHostKey($session)) {
+			return false;
+		}
+
 		if (!$this->authenticate($session)) {
 			return false;
 		}
@@ -98,6 +112,77 @@ class SftpFileTransport
 		$this->sftp = $sftp;
 
 		return true;
+	}
+
+	/**
+	 * Check the host key against the fingerprint the account is pinned to, and
+	 * learn it when the account carries none, for the caller to persist.
+	 *
+	 * @param resource $session Open SSH session
+	 * @return bool True when the key may be trusted
+	 */
+	private function verifyHostKey($session): bool
+	{
+		$this->hostFingerprint = '';
+		$this->hostKeyLearned = false;
+		$this->hostKeyMismatch = false;
+
+		if (!function_exists('ssh2_fingerprint')) {
+			$this->error = 'The ssh2 extension exposes no ssh2_fingerprint(), so the host key cannot be verified';
+			return false;
+		}
+
+		$actual = @ssh2_fingerprint($session, SSH2_FINGERPRINT_SHA1 | SSH2_FINGERPRINT_HEX);
+		$verdict = Camt053HostKey::verdict($this->config->host_fingerprint, $actual);
+
+		if ($verdict === Camt053HostKey::MISMATCH) {
+			$this->hostKeyMismatch = true;
+			$this->error = 'The SSH host key of ' . $this->config->host . ' is not the one this account is pinned to'
+				. ' (expected ' . Camt053HostKey::format($this->config->host_fingerprint)
+				. ', got ' . Camt053HostKey::format($actual) . ').'
+				. ' Nothing was sent to it. Clear the fingerprint on the account only once the bank has confirmed the change.';
+			return false;
+		}
+
+		if ($verdict === Camt053HostKey::UNAVAILABLE) {
+			$this->error = 'The server presented no readable SSH host key, so it cannot be identified';
+			return false;
+		}
+
+		$this->hostFingerprint = Camt053HostKey::normalize($actual);
+		$this->hostKeyLearned = ($verdict === Camt053HostKey::LEARN);
+
+		return true;
+	}
+
+	/**
+	 * Fingerprint the server presented on the current connection.
+	 *
+	 * @return string Normalized hex, empty when no key was verified
+	 */
+	public function getHostFingerprint(): string
+	{
+		return $this->hostFingerprint;
+	}
+
+	/**
+	 * Whether the account did not carry that fingerprint yet.
+	 *
+	 * @return bool
+	 */
+	public function isHostKeyLearned(): bool
+	{
+		return $this->hostKeyLearned;
+	}
+
+	/**
+	 * Whether the last connect() was refused over a changed host key.
+	 *
+	 * @return bool
+	 */
+	public function isHostKeyMismatch(): bool
+	{
+		return $this->hostKeyMismatch;
 	}
 
 	/**

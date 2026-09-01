@@ -52,6 +52,7 @@ global $langs, $user, $db;
 require_once DOL_DOCUMENT_ROOT."/core/lib/admin.lib.php";
 require_once __DIR__.'/../lib/camt053readerandlink.lib.php';
 require_once __DIR__.'/../class/Camt053SftpConfig.class.php';
+require_once __DIR__.'/../class/Camt053HostKey.class.php';
 
 $langs->loadLangs(array("admin", "banks", "camt053readerandlink@camt053readerandlink"));
 
@@ -106,6 +107,8 @@ if (($action == 'add' || $action == 'update') && $user->admin) {
 		$object->private_key = ($postedKey !== '') ? $postedKey : $keepKey;
 
 		$object->public_key = trim((string) GETPOST('public_key', 'none'));
+
+		$object->host_fingerprint = GETPOST('host_fingerprint', 'alphanohtml');
 
 		$postedPass = (string) GETPOST('private_key_passphrase', 'none');
 		$object->private_key_passphrase = ($postedPass !== '') ? $postedPass : $keepPass;
@@ -183,6 +186,11 @@ print '<td><input type="text" name="host" class="minwidth300" value="'.dol_escap
 // Port
 print '<tr><td class="fieldrequired">'.$langs->trans("Camt053SftpPort").'</td>';
 print '<td><input type="number" name="port" class="width75" value="'.((int) $object->port).'"></td></tr>';
+
+// Host key fingerprint
+print '<tr><td>'.$langs->trans("Camt053SftpHostFingerprint").'</td>';
+print '<td><input type="text" name="host_fingerprint" class="minwidth300" value="'.dol_escape_htmltag(Camt053HostKey::format($object->host_fingerprint)).'" placeholder="a1:b2:c3:...">';
+print '<br><span class="opacitymedium small">'.$langs->trans("Camt053SftpHostFingerprintHelp").'</span></td></tr>';
 
 // Username
 print '<tr><td class="fieldrequired">'.$langs->trans("Camt053SftpUsername").'</td>';

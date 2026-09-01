@@ -53,6 +53,7 @@ require_once DOL_DOCUMENT_ROOT."/core/lib/admin.lib.php";
 require_once __DIR__.'/../lib/camt053readerandlink.lib.php';
 require_once __DIR__.'/../class/Camt053SftpConfig.class.php';
 require_once __DIR__.'/../class/SftpFileTransport.class.php';
+require_once __DIR__.'/../class/Camt053HostKey.class.php';
 
 $langs->loadLangs(array("admin", "camt053readerandlink@camt053readerandlink"));
 
@@ -100,10 +101,15 @@ if ($action == 'testconn' && $id > 0 && $user->admin) {
 				'error' => '',
 				'entries' => array(),
 				'truncated' => false,
+				'fingerprint' => '',
+				'fingerprint_learned' => false,
 			);
 
 			if ($transport->connect()) {
 				$report['connected'] = true;
+				$report['fingerprint'] = $transport->getHostFingerprint();
+				$report['fingerprint_learned'] = $transport->isHostKeyLearned();
+				$object->recordFingerprint($transport->getHostFingerprint());
 				$entries = $transport->listEntries($testMaxDepth, $testMaxEntries);
 				if ($entries === null) {
 					$report['error'] = (string) $transport->getError();
@@ -172,6 +178,15 @@ function camt053PrintTestReport(array $report, $langs)
 	$postAction = ($report['post_download_action'] === 'leave') ? "Camt053SftpPostLeave" : "Camt053SftpPostDelete";
 	print '<tr class="oddeven"><td>'.$langs->trans("Camt053SftpPostAction").'</td>';
 	print '<td colspan="4">'.$langs->trans($postAction).'</td></tr>';
+
+	if (!empty($report['fingerprint'])) {
+		$fingerprint = dol_escape_htmltag(Camt053HostKey::format($report['fingerprint']));
+		if (!empty($report['fingerprint_learned'])) {
+			$fingerprint .= ' <span class="warning">'.$langs->trans("Camt053SftpTestFingerprintLearned").'</span>';
+		}
+		print '<tr class="oddeven"><td>'.$langs->trans("Camt053SftpHostFingerprint").'</td>';
+		print '<td colspan="4">'.$fingerprint.'</td></tr>';
+	}
 
 	if (!$report['connected'] || $report['error'] !== '') {
 		print '<tr class="oddeven"><td>'.$langs->trans("Error").'</td>';
