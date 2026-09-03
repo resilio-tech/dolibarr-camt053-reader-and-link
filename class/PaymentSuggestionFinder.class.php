@@ -24,6 +24,8 @@
 
 require_once __DIR__ . '/Camt053Entry.class.php';
 
+require_once __DIR__ . '/Camt053DocumentReference.class.php';
+
 /**
  * Class PaymentSuggestionFinder
  *
@@ -137,6 +139,47 @@ class PaymentSuggestionFinder
 	}
 
 	/**
+	 * Documents an entry names, whatever they still owe.
+	 *
+	 * The amount is deliberately not filtered here: a reference that resolves to
+	 * a document owing something else is not a match, but it is not nothing
+	 * either, and the caller has to be able to say so.
+	 *
+	 * @param array<int, string> $references Compact references carried by the entry
+	 * @param bool               $incoming   True for money in (customer invoice),
+	 *                                       false for money out (supplier invoice)
+	 * @param string             $currency   Entry currency
+	 * @param int                $entity     Entity
+	 * @return array<int, array> Candidates, each with type, id, ref, label and remaining
+	 */
+	public function findByReference(array $references, bool $incoming, string $currency, int $entity): array
+	{
+		$spellings = array();
+		foreach ($references as $reference) {
+			foreach (Camt053DocumentReference::spellings((string) $reference) as $spelling) {
+				$spellings[] = "'" . $this->db->escape($spelling) . "'";
+			}
+		}
+		if (empty($spellings)) {
+			return array();
+		}
+
+		$extraWhere = " AND f.ref IN (" . implode(',', array_unique($spellings)) . ")";
+		$currency = strtoupper($currency);
+
+		$type = $incoming ? 'customer_invoice' : 'supplier_invoice';
+		$candidates = $incoming
+			? $this->customerInvoices(null, $currency, $entity, $extraWhere)
+			: $this->supplierInvoices(null, $currency, $entity, $extraWhere);
+
+		foreach ($candidates as $index => $candidate) {
+			$candidates[$index]['type'] = $type;
+		}
+
+		return $candidates;
+	}
+
+	/**
 	 * Decide a document's payable currency and remaining due.
 	 *
 	 * @param object $row             Row with total_ttc, multicurrency_code,
@@ -167,12 +210,13 @@ class PaymentSuggestionFinder
 	/**
 	 * Unpaid customer invoices matching amount + currency.
 	 *
-	 * @param float  $absAmount Entry amount (absolute)
+	 * @param float|null $absAmount Entry amount (absolute), null to keep every
+	 *                              unpaid document whatever it still owes
 	 * @param string $currency  Entry currency
 	 * @param int    $entity    Entity
 	 * @return array<int,array>
 	 */
-	private function customerInvoices(float $absAmount, string $currency, int $entity): array
+	private function customerInvoices(?float $absAmount, string $currency, int $entity, string $extraWhere = ''): array
 	{
 		$sql = "SELECT f.rowid, f.ref, s.nom AS label, f.total_ttc, f.multicurrency_code, f.multicurrency_total_ttc,";
 		$sql .= " COALESCE((SELECT SUM(pf.amount) FROM " . MAIN_DB_PREFIX . "paiement_facture pf WHERE pf.fk_facture = f.rowid), 0) AS paid,";
@@ -180,6 +224,7 @@ class PaymentSuggestionFinder
 		$sql .= " FROM " . MAIN_DB_PREFIX . "facture f";
 		$sql .= " LEFT JOIN " . MAIN_DB_PREFIX . "societe s ON s.rowid = f.fk_soc";
 		$sql .= " WHERE f.entity = " . ((int) $entity) . " AND f.paye = 0 AND f.fk_statut = 1";
+		$sql .= $extraWhere;
 
 		return $this->collect($sql, $absAmount, $currency);
 	}
@@ -187,12 +232,13 @@ class PaymentSuggestionFinder
 	/**
 	 * Unpaid supplier invoices matching amount + currency.
 	 *
-	 * @param float  $absAmount Entry amount (absolute)
+	 * @param float|null $absAmount Entry amount (absolute), null to keep every
+	 *                              unpaid document whatever it still owes
 	 * @param string $currency  Entry currency
 	 * @param int    $entity    Entity
 	 * @return array<int,array>
 	 */
-	private function supplierInvoices(float $absAmount, string $currency, int $entity): array
+	private function supplierInvoices(?float $absAmount, string $currency, int $entity, string $extraWhere = ''): array
 	{
 		$sql = "SELECT f.rowid, f.ref, s.nom AS label, f.total_ttc, f.multicurrency_code, f.multicurrency_total_ttc,";
 		$sql .= " COALESCE((SELECT SUM(pf.amount) FROM " . MAIN_DB_PREFIX . "paiementfourn_facturefourn pf WHERE pf.fk_facturefourn = f.rowid), 0) AS paid,";
@@ -200,6 +246,7 @@ class PaymentSuggestionFinder
 		$sql .= " FROM " . MAIN_DB_PREFIX . "facture_fourn f";
 		$sql .= " LEFT JOIN " . MAIN_DB_PREFIX . "societe s ON s.rowid = f.fk_soc";
 		$sql .= " WHERE f.entity = " . ((int) $entity) . " AND f.paye = 0 AND f.fk_statut = 1";
+		$sql .= $extraWhere;
 
 		return $this->collect($sql, $absAmount, $currency);
 	}
@@ -256,12 +303,13 @@ class PaymentSuggestionFinder
 	/**
 	 * Run a candidate query and keep rows whose payable currency + remaining match.
 	 *
-	 * @param string $sql       Query returning the expected columns
-	 * @param float  $absAmount Target amount
-	 * @param string $currency  Target currency
+	 * @param string     $sql       Query returning the expected columns
+	 * @param float|null $absAmount Target amount, null to keep every row whatever
+	 *                              it still owes
+	 * @param string     $currency  Target currency
 	 * @return array<int,array> Matched candidates
 	 */
-	private function collect(string $sql, float $absAmount, string $currency): array
+	private function collect(string $sql, ?float $absAmount, string $currency): array
 	{
 		$out = array();
 		$resql = $this->db->query($sql);
@@ -271,7 +319,10 @@ class PaymentSuggestionFinder
 		}
 		while ($row = $this->db->fetch_object($resql)) {
 			list($docCurrency, $remaining) = $this->payable($row);
-			if ($docCurrency !== $currency || !$this->amountMatches($remaining, $absAmount)) {
+			if ($docCurrency !== $currency) {
+				continue;
+			}
+			if ($absAmount !== null && !$this->amountMatches($remaining, $absAmount)) {
 				continue;
 			}
 			$out[] = array(

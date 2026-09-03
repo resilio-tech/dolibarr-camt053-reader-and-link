@@ -84,6 +84,12 @@ if ($action == 'update_fetch') {
 	setEventMessages($langs->trans("RecordSaved"), null, 'mesgs');
 }
 
+if ($action == 'update_autopayment') {
+	$enabled = GETPOST('auto_payment_enabled', 'int') ? '1' : '0';
+	dolibarr_set_const($db, 'CAMT053_AUTO_PAYMENT_ENABLED', $enabled, 'chaine', 0, '', $conf->entity);
+	setEventMessages($langs->trans("RecordSaved"), null, 'mesgs');
+}
+
 if ($action == 'update_zulip') {
 	dolibarr_set_const($db, 'CAMT053_ZULIP_SITE', GETPOST('zulip_site', 'alphanohtml'), 'chaine', 0, '', $conf->entity);
 	dolibarr_set_const($db, 'CAMT053_ZULIP_BOT_EMAIL', GETPOST('zulip_email', 'alphanohtml'), 'chaine', 0, '', $conf->entity);
@@ -134,6 +140,28 @@ print '<tr class="liste_titre"><td class="titlefield">'.$langs->trans("Parameter
 
 print '<tr class="oddeven"><td>'.$langs->trans("Camt053FetchEnabled").'</td>';
 print '<td>'.$form->selectyesno('sftp_fetch_enabled', camt053SftpFetchEnabled() ? 1 : 0, 1).'</td></tr>';
+
+print '</table>';
+print '<div class="center" style="margin-top:10px">';
+print '<input type="submit" class="button" value="'.$langs->trans("Save").'">';
+print '</div>';
+print '</form>';
+
+print '<br>';
+
+// Automatic recording of the payments the file names
+print '<form method="POST" action="'.$_SERVER["PHP_SELF"].'">';
+print '<input type="hidden" name="token" value="'.newToken().'">';
+print '<input type="hidden" name="action" value="update_autopayment">';
+
+print load_fiche_titre($langs->trans("Camt053AutoPaymentSetup"), '', '');
+print '<span class="opacitymedium">'.$langs->trans("Camt053AutoPaymentSetupHelp").'</span><br><br>';
+
+print '<table class="noborder centpercent">';
+print '<tr class="liste_titre"><td class="titlefield">'.$langs->trans("Parameter").'</td><td>'.$langs->trans("Value").'</td></tr>';
+
+print '<tr class="oddeven"><td>'.$langs->trans("Camt053AutoPaymentEnabled").'</td>';
+print '<td>'.$form->selectyesno('auto_payment_enabled', camt053AutoPaymentEnabled() ? 1 : 0, 1).'</td></tr>';
 
 print '</table>';
 print '<div class="center" style="margin-top:10px">';

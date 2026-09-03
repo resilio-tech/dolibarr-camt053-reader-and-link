@@ -88,6 +88,9 @@ Camt053SftpDeleteConfirm = Are you sure you want to delete this SFTP account?
 Camt053FetchSetup = Automatic download
 Camt053FetchSetupHelp = When disabled, the scheduled job still logs in and lists what the server holds, but downloads nothing, records nothing and deletes nothing. The connection test reports the remote layout either way.
 Camt053FetchEnabled = Download and record the CAMT files
+Camt053AutoPaymentSetup = Automatic payment recording
+Camt053AutoPaymentSetupHelp = When the scheduled job meets an entry that matches no bank line, it can settle the document the transfer message names. It only does so when nothing is left to decide: one reference, one open document of the company currency, and an amount equal to what that document still owes. Anything else is reported and waits for a human.
+Camt053AutoPaymentEnabled = Record the payments the file names
 Camt053FetchDisabledWarning = Automatic download is disabled: the scheduled job lists the remote files but leaves them there. Turn it on in
 
 #

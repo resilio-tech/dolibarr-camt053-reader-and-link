@@ -4,8 +4,10 @@
 
 ### New Features
 - Read the document references the transfer message carries, and preselect the candidate they name when several Dolibarr lines match one entry on amount and date. The file usually says which invoice was paid, as `FA2602-0001`, with or without the separator of the mask, several of them at a time, buried in whatever text the payer typed, and nothing read it: the dropdown asked for a manual choice the file had already answered. The amount still decides the match, the reference only ranks what it matched, and an entry naming two candidates changes nothing
+- Record the payment of the document a daily entry names, when nothing is left to decide: one reference, resolving to one open document of the company currency, owing exactly what the bank moved. The payment is booked as a transfer on the value date and its bank line is reconciled with the statement of the run, which is what removes the daily hand entry of every direct debit. Several references, several documents, a foreign currency or an amount that is not the remaining due write nothing and are reported with their reason. Off until an administrator turns it on in the module setup: it is the only thing the module does that moves money without being asked
 
 ### Tests
+- `Camt053PaymentRecorderTest.php` - every case that must write nothing, and the remaining due as the amount that counts
 - `Camt053DocumentReferenceTest.php` - references read out of surrounding text and markup, the optional separator, several references at once, long digit runs that are not references, and the ranking rules
 
 ## 2.2.0 (2026-09-01)

@@ -116,3 +116,15 @@ function camt053SftpFetchEnabled()
 {
 	return (getDolGlobalString('CAMT053_SFTP_FETCH_ENABLED') === '1');
 }
+
+/**
+ * Tell whether the scheduled job may record a payment on its own.
+ * Disabled unless an administrator turned it on in the module setup: it is the
+ * one thing the module does that writes money movements without being asked.
+ *
+ * @return bool
+ */
+function camt053AutoPaymentEnabled()
+{
+	return (getDolGlobalString('CAMT053_AUTO_PAYMENT_ENABLED') === '1');
+}
