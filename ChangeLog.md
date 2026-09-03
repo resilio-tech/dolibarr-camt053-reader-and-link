@@ -1,6 +1,14 @@
 # CHANGELOG CAMT053READERANDLINK FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
-## 2.2.0 (unreleased)
+## 2.2.1 (unreleased)
+
+### Bug Fixes
+- Show the menu entry again on Dolibarr 23 and above. Its condition called `isModenabled()` instead of `isModEnabled()`, and since the fix for advisory GHSA-x3w7-24rq-gvc5, shipped with Dolibarr 23, Dolibarr only evaluates the functions of its own whitelist, compared with the case they are written in. The condition was refused, a refused condition reads as false, and the entry disappeared from the Bank menu with nothing said anywhere. An installation that already carries the refused condition is repaired on the next Dolibarr upgrade, or by disabling and re-enabling the module (#12)
+
+### Tests
+- `MenuConditionTest.php` - every condition of the descriptor calls only functions Dolibarr accepts, read exactly as Dolibarr reads them, and existing installations are repaired
+
+## 2.2.0 (2026-09-01)
 
 ### New Features
 - CAMT.052 intraday reports are read alongside CAMT.053 statements. Only entries the bank has booked are reconciled: a pending one can still be dropped, and the count of those left out is reported instead of being silently lost
