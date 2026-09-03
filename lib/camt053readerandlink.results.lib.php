@@ -180,8 +180,7 @@ function camt053_render_results(array $banks, array $context)
 		print '<td>' . $langs->trans('Date') . '</td>';
 		print '<td>' . $langs->trans('Name') . '</td>';
 		print '<td>' . $langs->trans('Conciliated') . '</td>';
-		print '<td>' . $langs->trans('Conciliated') . '</td>';
-		print '<td>hash</td>';
+		print '<td>' . $langs->trans('Camt053BankLineOrAction') . '</td>';
 		print '</tr>';
 
 		// The two sections a human has to act on, and the two that only report.
@@ -322,7 +321,6 @@ function camt053_render_results_section($section, array $results, int $accountId
 			print '<td>' . dol_escape_htmltag($entry['value_date']) . '</td>';
 			print '<td>' . dol_escape_htmltag($entry['name']) . '<br /><span class="info">' . dol_escape_htmltag($entry['info']) . '</span></td>';
 			print '<td><div class="statement_link_multiple">' . $langs->trans('MultipleConciliated') . '</div></td>';
-			print '<td>' . dol_escape_htmltag($entry['hash']) . '</td>';
 			print '<td>';
 			$array = array();
 			foreach ($n_obj['db'] as $ntry_db_obj) {

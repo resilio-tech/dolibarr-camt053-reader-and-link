@@ -34,6 +34,7 @@ WillBeConciliated = Will be conciliated
 WillNotBeConciliated = Will not be conciliated
 MultipleConciliated = Multiple conciliated
 Conciliated = Conciliation
+Camt053BankLineOrAction = Bank line / action
 ConcilationsConfirmed = Conciliations confirmed
 CheckNewConciliations = Check new conciliations
 ViewBankStatement = View bank statement
