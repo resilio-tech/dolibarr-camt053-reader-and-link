@@ -735,6 +735,10 @@ class Camt053CronRunner
 				}
 
 				$lines[] = ':white_check_mark: Auto-reconciled: ' . count($account['auto']);
+				if (!empty($account['recorded'])) {
+					$lines[] = ':money_bag: Payments recorded: ' . count($account['recorded']);
+					$lines = array_merge($lines, $this->formatEntryList($account['recorded']));
+				}
 				$lines[] = ':warning: Ambiguous (manual): ' . count($account['ambiguous']);
 				$lines = array_merge($lines, $this->formatEntryList($account['ambiguous']));
 				$lines[] = ':x: Unmatched: ' . count($account['unmatched']);
