@@ -145,6 +145,15 @@ class Camt053PaymentRecorder
 
 		$candidates = $this->finder->findByReference($references, $amount > 0, $currency, $entity);
 		if (empty($candidates)) {
+			// Two distinct movements pointing at one document: the first one
+			// settled it, and this one arrives on a document that owes nothing.
+			// Worth saying so rather than reporting a reference that resolves to
+			// nothing, which reads like a typo.
+			$settled = $this->settledDocument($references, $amount > 0, $entity);
+			if ($settled !== null) {
+				return $this->outcome(self::SKIPPED, 'double_payment', $settled);
+			}
+
 			return $this->outcome(self::SKIPPED, 'no_document');
 		}
 		if (count($candidates) > 1) {
@@ -160,6 +169,54 @@ class Camt053PaymentRecorder
 		}
 
 		return $this->outcome(self::CERTAIN, '', $document);
+	}
+
+	/**
+	 * A document of that reference that is already settled.
+	 *
+	 * @param array<int, string> $references Compact references carried by the entry
+	 * @param bool               $incoming   True for money in, false for money out
+	 * @param int                $entity     Entity
+	 * @return array|null Reference and id of the settled document, null when none
+	 */
+	private function settledDocument(array $references, bool $incoming, int $entity): ?array
+	{
+		$spellings = array();
+		foreach ($references as $reference) {
+			foreach (Camt053DocumentReference::spellings((string) $reference) as $spelling) {
+				$spellings[] = "'" . $this->db->escape($spelling) . "'";
+			}
+		}
+		if (empty($spellings)) {
+			return null;
+		}
+
+		$table = $incoming ? 'facture' : 'facture_fourn';
+
+		$sql = "SELECT f.rowid, f.ref, f.total_ttc";
+		$sql .= " FROM " . MAIN_DB_PREFIX . $table . " AS f";
+		$sql .= " WHERE f.ref IN (" . implode(',', array_unique($spellings)) . ")";
+		$sql .= " AND f.entity = " . ((int) $entity);
+		$sql .= " AND f.paye = 1";
+
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			return null;
+		}
+
+		$row = $this->db->fetch_object($resql);
+		if (!$row) {
+			return null;
+		}
+
+		return array(
+			'type' => $incoming ? 'customer_invoice' : 'supplier_invoice',
+			'id' => (int) $row->rowid,
+			'ref' => (string) $row->ref,
+			'label' => '',
+			'remaining' => 0.0,
+			'total' => (float) $row->total_ttc,
+		);
 	}
 
 	/**

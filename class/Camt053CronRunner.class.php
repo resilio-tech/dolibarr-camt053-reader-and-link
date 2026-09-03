@@ -26,6 +26,7 @@
 require_once DOL_DOCUMENT_ROOT . '/core/lib/files.lib.php';
 require_once DOL_DOCUMENT_ROOT . '/compta/bank/class/account.class.php';
 require_once __DIR__ . '/../lib/camt053readerandlink.lib.php';
+require_once __DIR__ . '/Camt053ReviewAlert.class.php';
 require_once __DIR__ . '/Camt053FileOutcome.class.php';
 require_once __DIR__ . '/Camt053SafeFile.class.php';
 require_once __DIR__ . '/Camt053ArchivePath.class.php';
@@ -149,6 +150,7 @@ class Camt053CronRunner
 		$monthlySummaries = array();
 		$monthlyRecordIds = array();
 		$unresolvedFiles = array();
+		$reviewFiles = array();
 
 		foreach ($targets as $target) {
 			$name = $target['name'];
@@ -246,6 +248,16 @@ class Camt053CronRunner
 				$monthlyRecordIds[$name] = $recordId;
 			}
 
+			// Whatever this file could not settle has to reach a human now, not
+			// at the end of the month: a daily file is most of what the job reads.
+			if (!empty($summary['totals']['unmatched'])) {
+				$accountIds = array_keys($summary['accounts']);
+				$reviewFiles[$name] = array(
+					'summary' => $summary,
+					'url' => $this->statementUrl($recordId, (int) reset($accountIds)),
+				);
+			}
+
 			$this->postDownloadCleanup($transport, $config, $name);
 		}
 
@@ -253,6 +265,10 @@ class Camt053CronRunner
 
 		if (!empty($unresolvedFiles)) {
 			$this->alertUnresolvedStatements($config, $unresolvedFiles);
+		}
+
+		if (!empty($reviewFiles)) {
+			$this->alertEntriesNeedingADecision($config, $reviewFiles);
 		}
 
 		if (!empty($monthlySummaries)) {
@@ -682,6 +698,36 @@ class Camt053CronRunner
 		if (!$notifier->sendStream(getDolGlobalString('CAMT053_ZULIP_STREAM'), $this->zulipTopic($config), implode("\n", $lines))) {
 			dol_syslog('CAMT053 cron: unresolved statement alert failed - ' . $notifier->getError(), LOG_ERR);
 			$this->error .= '[' . $config->ref . '] Zulip unresolved alert failed; ';
+		}
+	}
+
+	/**
+	 * Tell a human about the entries a run could not settle.
+	 *
+	 * One message per config and per run, whatever the file was: an entry
+	 * needing a decision used to wait for the monthly report, or for nothing at
+	 * all when the monthly file carried nothing about it.
+	 *
+	 * @param Camt053SftpConfig $config      SFTP config being processed
+	 * @param array             $reviewFiles Summary and statement link, keyed by file name
+	 * @return void
+	 */
+	private function alertEntriesNeedingADecision(Camt053SftpConfig $config, array $reviewFiles): void
+	{
+		$message = Camt053ReviewAlert::format($config->ref, $reviewFiles);
+		if ($message === '') {
+			return;
+		}
+
+		$notifier = ZulipNotifier::fromConf();
+		if ($notifier === null) {
+			dol_syslog('CAMT053 cron: entries need a decision but Zulip is not configured', LOG_WARNING);
+			return;
+		}
+
+		if (!$notifier->sendStream(getDolGlobalString('CAMT053_ZULIP_STREAM'), $this->zulipTopic($config), $message)) {
+			dol_syslog('CAMT053 cron: review alert failed - ' . $notifier->getError(), LOG_ERR);
+			$this->error .= '[' . $config->ref . '] Zulip review alert failed; ';
 		}
 	}
 
