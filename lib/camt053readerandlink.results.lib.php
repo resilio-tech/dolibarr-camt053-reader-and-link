@@ -25,6 +25,7 @@
 
 require_once DOL_DOCUMENT_ROOT . '/compta/bank/class/account.class.php';
 require_once __DIR__ . '/../class/Camt053Entry.class.php';
+require_once __DIR__ . '/../class/Camt053DocumentReference.class.php';
 require_once __DIR__ . '/../class/BankRelationshipLookup.class.php';
 require_once __DIR__ . '/../class/PaymentSuggestionFinder.class.php';
 require_once __DIR__ . '/../class/InternalTransferDetector.class.php';
@@ -144,6 +145,48 @@ function camt053_render_suggestions($entry, $entity, $accountId, $finder, $detec
 	}
 
 	return implode('<br />', $out);
+}
+
+/**
+ * Bank line of the only candidate whose document the entry names.
+ *
+ * The amount matched several Dolibarr lines, so the module cannot choose on its
+ * own (SPEC section 3). It can when the file says which document was paid: the
+ * reference is preselected in the dropdown, which stays open on every other
+ * candidate. An entry naming two of them is still a manual choice.
+ *
+ * @param Camt053Entry $fileEntry      Entry read from the file
+ * @param array        $candidates     Matching Dolibarr entries
+ * @param object       $relationLookup Lookup of the document behind a bank line
+ * @return string Bank line id to preselect, empty string for none
+ */
+function camt053_candidate_named_by_entry($fileEntry, array $candidates, $relationLookup)
+{
+	$data = $fileEntry->getData();
+	$references = Camt053DocumentReference::extract((string) $data['name'], (string) $data['info']);
+	if (empty($references)) {
+		return '';
+	}
+
+	$candidateRefs = array();
+	foreach ($candidates as $candidate) {
+		$bankLine = $candidate->getBankLine();
+		if (!$bankLine) {
+			continue;
+		}
+		// The dropdown keys its options on rowid, so the preselection has to
+		// answer with the same id.
+		$lineId = (int) (!empty($bankLine->rowid) ? $bankLine->rowid : (isset($bankLine->id) ? $bankLine->id : 0));
+		if ($lineId <= 0) {
+			continue;
+		}
+		$relation = $relationLookup->getRelation($lineId);
+		if ($relation !== null && !empty($relation['ref'])) {
+			$candidateRefs[$lineId] = (string) $relation['ref'];
+		}
+	}
+
+	return Camt053DocumentReference::pickNamed($references, $candidateRefs);
 }
 
 /**
@@ -316,6 +359,7 @@ function camt053_render_results_section($section, array $results, int $accountId
 		foreach ($results['multiples'] as $n_obj) {
 			$entry = $n_obj['file']->getData();
 			$ntry_hash = $n_obj['file']->getHash();
+			$preselected = camt053_candidate_named_by_entry($n_obj['file'], $n_obj['db'], $relationLookup);
 			print '<tr>';
 			print '<td>' . ($n_obj['file']->isFromFile() ? $from_file : $from_doli) . '</td>';
 			print '<td style="text-align: right">' . number_format($entry['amount'], 2) . '</td>';
@@ -340,7 +384,7 @@ function camt053_render_results_section($section, array $results, int $accountId
 				}
 				$array[$id] = '(' . $id . ') ' . $doc . $n . '<br />' . $a . '<br />' . $d;
 			}
-			print $form->selectMassAction('', $array, 1, 'linked_' . dol_escape_htmltag($accountId . '-' . $ntry_hash));
+			print $form->selectMassAction($preselected, $array, 1, 'linked_' . dol_escape_htmltag($accountId . '-' . $ntry_hash));
 			print '</td>';
 			print '</tr>';
 		}
