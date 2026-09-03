@@ -74,6 +74,13 @@ Must:
   stays offered, and an entry naming two of them preselects nothing.
 - Split a collective booking (grouped salary transfers) so each underlying
   transfer can be matched on its own.
+- Report an entry whose payment is already recorded in Dolibarr, further from
+  the booking date than the tolerance reaches, as exactly that. The document the
+  file names leads to its payment and to the bank line behind it. The quick
+  action offered moves the two dates of the bank line, which is what the
+  matching compares, and never the date of the payment, which is an accounting
+  date. A line already reconciled with another statement is reported, never
+  moved.
 - Stay idempotent: a file already processed leaves the database unchanged.
   The cron tracks this in `llx_camt053readerandlink_processedfile` keyed on
   `(file_hash, entity)`.

@@ -44,6 +44,12 @@ BasedOnPreviousMonthIfNotFilled = Based on the previous month of the file extrac
 ErrorProcessingFile = Error while processing the file
 ReconciliationFailed = Reconciliation failed for bank line
 StatementFileNotArchived = The statement file could not be archived because no bank account could be determined
+Camt053AlreadyRecordedOffDate = Already recorded, date outside the tolerance
+Camt053RecordedOn = Bank line recorded on %s
+Camt053AlignDateAndReconcile = Align the date and reconcile
+Camt053DateAligned = The bank line was moved to %s and reconciled
+Camt053LineAlreadyReconciled = That bank line is already reconciled with statement %s
+Camt053AlignFailed = The bank line date could not be aligned
 
 #
 # SFTP accounts (PostFinance MFTPF)
