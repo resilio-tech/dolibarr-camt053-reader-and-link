@@ -109,7 +109,29 @@ partial payments work. A foreign currency invoice is prefilled through the
 `multicurrency_amount_<id>` field, not the company currency one.
 
 These are suggestions. The module opens a prefilled page, it never records a
-payment on its own.
+payment on its own, with the single exception below.
+
+### Automatic recording
+
+Off until an administrator sets `CAMT053_AUTO_PAYMENT_ENABLED`. It is the only
+thing the module does that writes a money movement nobody asked for, so it is
+opt-in, and it only runs in the scheduled job.
+
+A payment is recorded only when nothing is left to decide:
+
+- the text of the entry names exactly one document reference
+- it resolves to exactly one open document of the entity, in the direction of
+  the movement: a credit settles a customer invoice, a debit a supplier one
+- that document is in the company currency
+- the amount of the entry is exactly what the document still owes
+
+The payment is recorded as a bank transfer on the value date of the entry, and
+the bank line it creates is reconciled with the statement of the run.
+
+**Never**, whatever the setting: split one entry across several documents,
+record a partial payment, record on an amount that is not the remaining due, or
+record anything for a reference resolving to more than one document. Each of
+those writes nothing and is reported with its reason.
 
 ---
 
@@ -179,7 +201,8 @@ A file nobody can act on must reach a human, not just the log:
 The module does not:
 
 - create or modify bank accounts
-- record payments, invoices or transfers by itself
+- record payments, invoices or transfers by itself, beyond the one certain case
+  of section 4, which an administrator has to turn on
 - move data between entities
 - handle formats other than CAMT.053 and CAMT.052
 

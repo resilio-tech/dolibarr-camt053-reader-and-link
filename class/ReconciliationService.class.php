@@ -26,6 +26,8 @@
 require_once DOL_DOCUMENT_ROOT . '/compta/bank/class/account.class.php';
 require_once __DIR__ . '/Camt053FileProcessor.class.php';
 require_once __DIR__ . '/DatabaseBankStatementLoader.class.php';
+require_once __DIR__ . '/Camt053PaymentRecorder.class.php';
+require_once __DIR__ . '/../lib/camt053readerandlink.lib.php';
 require_once __DIR__ . '/BankStatementMatcher.class.php';
 
 /**
@@ -114,6 +116,12 @@ class ReconciliationService
 		$matcher = new BankStatementMatcher($this->dateTolerance);
 		$banks = $matcher->compareMultiple($fileStatements, $dbStatements, $dbLoader);
 
+		global $conf;
+		$entity = (int) $conf->entity;
+		// Writing a payment nobody asked for is the one thing the module does
+		// that moves money on its own, so it stays off until it is turned on.
+		$recorder = camt053AutoPaymentEnabled() ? new Camt053PaymentRecorder($this->db, $this->user) : null;
+
 		foreach ($banks as $accountId => $bank) {
 			$results = $bank['results'];
 			$fileStatement = $fileStatements[$accountId];
@@ -124,6 +132,7 @@ class ReconciliationService
 				'iban' => $fileStatement->getIban(),
 				'num_releve' => $numReleve,
 				'auto' => array(),
+				'recorded' => array(),
 				'ambiguous' => array(),
 				'unmatched' => array(),
 				'already' => count($results['already_linked'] ?? array()),
@@ -154,15 +163,37 @@ class ReconciliationService
 				$account['ambiguous'][] = $this->entryInfo($pair['file']->getData(), 0);
 			}
 
-			// Unmatched file entries: no candidate at all.
+			// Unmatched file entries: no candidate at all. The document the entry
+			// names can still settle it, and the case where nothing is left to
+			// decide is recorded rather than reported.
 			foreach ($results['unlinkeds'] as $entry) {
-				if ($entry->isFromFile()) {
-					$account['unmatched'][] = $this->entryInfo($entry->getData(), 0);
+				if (!$entry->isFromFile()) {
+					continue;
 				}
+
+				$outcome = $recorder !== null
+					? $recorder->record($entry, (int) $accountId, $entity, $numReleve)
+					: array('status' => Camt053PaymentRecorder::SKIPPED, 'reason' => 'disabled', 'document' => null, 'bank_line_id' => 0);
+
+				if ($outcome['status'] === Camt053PaymentRecorder::RECORDED) {
+					$account['recorded'][] = $this->entryInfo($entry->getData(), (int) $outcome['bank_line_id'])
+						+ array('document_ref' => (string) $outcome['document']['ref']);
+					continue;
+				}
+
+				if ($outcome['status'] === Camt053PaymentRecorder::FAILED) {
+					$account['errors'][] = $this->entryInfo($entry->getData(), 0)
+						+ array('reason' => (string) $outcome['reason']);
+					continue;
+				}
+
+				$account['unmatched'][] = $this->entryInfo($entry->getData(), 0)
+					+ array('skip_reason' => (string) $outcome['reason']);
 			}
 
 			$summary['accounts'][(int) $accountId] = $account;
 			$summary['totals']['auto'] += count($account['auto']);
+			$summary['totals']['recorded'] += count($account['recorded']);
 			$summary['totals']['ambiguous'] += count($account['ambiguous']);
 			$summary['totals']['unmatched'] += count($account['unmatched']);
 			$summary['totals']['errors'] += count($account['errors']);
@@ -311,7 +342,7 @@ class ReconciliationService
 			'unresolved_ibans' => array(),
 			'intraday' => false,
 			'pending' => 0,
-			'totals' => array('auto' => 0, 'ambiguous' => 0, 'unmatched' => 0, 'errors' => 0),
+			'totals' => array('auto' => 0, 'recorded' => 0, 'ambiguous' => 0, 'unmatched' => 0, 'errors' => 0),
 		);
 	}
 

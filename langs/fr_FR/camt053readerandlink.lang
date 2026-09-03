@@ -90,6 +90,9 @@ Camt053SftpDeleteConfirm = Êtes-vous sûr de vouloir supprimer ce compte SFTP ?
 Camt053FetchSetup = Téléchargement automatique
 Camt053FetchSetupHelp = Lorsqu'il est désactivé, la tâche planifiée se connecte quand même et liste ce que contient le serveur, mais ne télécharge rien, n'enregistre rien et ne supprime rien. Le test de connexion détaille l'arborescence distante dans les deux cas.
 Camt053FetchEnabled = Télécharger et enregistrer les fichiers CAMT
+Camt053AutoPaymentSetup = Enregistrement automatique des paiements
+Camt053AutoPaymentSetupHelp = Quand le travail planifié rencontre une écriture qui ne correspond à aucune ligne bancaire, il peut solder le document que le message de virement désigne. Il ne le fait que s'il n'y a plus rien à décider : une seule référence, un seul document ouvert dans la monnaie de la société, et un montant égal à ce que ce document doit encore. Tout le reste est signalé et attend une décision humaine.
+Camt053AutoPaymentEnabled = Enregistrer les paiements désignés par le fichier
 Camt053FetchDisabledWarning = Le téléchargement automatique est désactivé : la tâche planifiée liste les fichiers distants mais les laisse sur place. Activez-le dans
 
 #
