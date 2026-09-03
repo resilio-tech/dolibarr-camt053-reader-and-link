@@ -107,6 +107,32 @@ class Camt053DocumentReference
 	}
 
 	/**
+	 * Every spelling a reference can carry in the database.
+	 *
+	 * The bank writes the reference with the separator of the mask, without it,
+	 * or with another one. The lookup compares against the column itself so the
+	 * index is usable, which means every spelling has to be listed.
+	 *
+	 * @param string $compact Compact reference
+	 * @return array<int, string> Spellings, the compact one first
+	 */
+	public static function spellings(string $compact): array
+	{
+		$compact = self::compact($compact);
+		$parts = array();
+		if (!preg_match('/^([A-Z]{2,4}\d{4})(\d{3,6})$/', $compact, $parts)) {
+			return $compact === '' ? array() : array($compact);
+		}
+
+		$spellings = array($compact);
+		foreach (array('-', '/', '.') as $separator) {
+			$spellings[] = $parts[1] . $separator . $parts[2];
+		}
+
+		return $spellings;
+	}
+
+	/**
 	 * Pick the one candidate the entry names.
 	 *
 	 * @param array<int, string>        $references    References carried by the entry

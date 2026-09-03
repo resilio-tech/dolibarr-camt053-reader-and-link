@@ -176,4 +176,30 @@ class Camt053DocumentReferenceTest extends TestCase
 		$this->assertStringContainsString('camt053_candidate_named_by_entry(', (string) $source);
 		$this->assertStringContainsString('selectMassAction($preselected', (string) $source);
 	}
+
+	/**
+	 * A lookup compares against the column itself so the index is usable, which
+	 * means it has to ask for every spelling the reference can have.
+	 *
+	 * @return void
+	 */
+	public function testEverySpellingOfAReferenceIsListed(): void
+	{
+		$this->assertSame(
+			array('FA26020001', 'FA2602-0001', 'FA2602/0001', 'FA2602.0001'),
+			Camt053DocumentReference::spellings('FA2602-0001')
+		);
+	}
+
+	/**
+	 * Something that is not shaped like a reference is left as it is rather than
+	 * turned into spellings of nothing.
+	 *
+	 * @return void
+	 */
+	public function testAnUnshapedReferenceHasOneSpelling(): void
+	{
+		$this->assertSame(array('ABC'), Camt053DocumentReference::spellings('ABC'));
+		$this->assertSame(array(), Camt053DocumentReference::spellings(''));
+	}
 }
