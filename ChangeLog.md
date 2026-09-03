@@ -1,6 +1,20 @@
 # CHANGELOG CAMT053READERANDLINK FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
-## 2.2.0 (unreleased)
+## 2.2.1 (unreleased)
+
+### Bug Fixes
+- Archive the statement of a confirmation that reconciled nothing. The bank account was only read from the lines that had just been reconciled, so confirming with every dropdown left empty, or with every entry already reconciled, warned that no account could be determined and left the only copy of the file in the upload directory. The account is now resolved from the IBAN the file carries, as the rest of the module already does
+- Archive the statement of a file that carries no entry. A statement with nothing on it is still a statement: the upload redirected straight to the bank statement page and filed nothing, so two real files went through the module without being recorded anywhere. It is archived under its account and its period, and the message says the file carries no entry
+- Parse a statement that carries no entry. A single entry-less `<Stmt>` was taken for a list of statements, and the import aborted on a type error before reaching any of the above
+- Read the period the file declares (`FrToDt`) and date a statement with it when its entries cannot. Both the interactive and the headless path fell back to the previous month of the creation date, which files a monthly statement delivered in the first days of the next month under the wrong month, and gives an entry-less statement a window it has nothing to do with
+- Warn about an IBAN that belongs to no bank account of the current entity even when the statement carries no entry, instead of showing an empty result page with no explanation
+- Report a failed archiving as a failed archiving. Both a missing account and a failed move told the user that no bank account could be determined, which is only one of the two
+
+### Tests
+- `Camt053ReconciliationPeriodTest.php` - the period comes from the entries, then from the one the file declares, then from the creation month, and covers every block of a merged statement
+- `StatementArchivingTest.php` - both upload paths archive through the same helper, the account is resolved before the file is archived, and the file is moved before it is indexed
+
+## 2.2.0 (2026-09-01)
 
 ### New Features
 - CAMT.052 intraday reports are read alongside CAMT.053 statements. Only entries the bank has booked are reconciled: a pending one can still be dropped, and the count of those left out is reported instead of being silently lost

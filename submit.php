@@ -72,7 +72,9 @@ require_once __DIR__ . '/class/BankStatementMatcher.class.php';
 require_once __DIR__ . '/class/BankRelationshipLookup.class.php';
 require_once __DIR__ . '/class/PaymentSuggestionFinder.class.php';
 require_once __DIR__ . '/class/InternalTransferDetector.class.php';
+require_once __DIR__ . '/lib/camt053readerandlink.lib.php';
 require_once __DIR__ . '/lib/camt053readerandlink.results.lib.php';
+require_once __DIR__ . '/class/Camt053StatementArchive.class.php';
 
 // Load translation files required by the page
 $langs->loadLangs(array(
@@ -198,7 +200,7 @@ if ($action == 'upload') {
 		// entity: their entries are dropped (getStatementsByAccountId keeps only
 		// resolved accounts), so reconciliation must not silently ignore them.
 		foreach ($fileProcessor->getStatements() as $stmt) {
-			if ($stmt->getAccountId() === null && $stmt->getEntryCount() > 0) {
+			if ($stmt->getAccountId() === null) {
 				setEventMessages($langs->trans('Camt053IbanNotInCurrentEntity', $stmt->getIban()), null, 'warnings');
 			}
 		}
@@ -235,8 +237,30 @@ if ($action == 'upload') {
 		if (!$hasEntriesToReconcile && $firstAccountId !== null) {
 			$date_end_obj = DateTime::createFromFormat('d/m/Y', $date_end);
 			$date_concil = $date_end_obj ? $date_end_obj->format('Ym') : '';
+
+			// Nothing to reconcile is not nothing to file. The statement belongs to
+			// that account and that period whether it moved anything or not, and the
+			// upload is its only copy: confirm.php, which normally archives, is never
+			// reached on this path.
+			if (!empty($upload_file) && $date_concil !== '') {
+				$outcome = camt053ArchiveStatementFile($db, $upload_file, (int) $firstAccountId, $date_concil);
+				if ($outcome === Camt053StatementArchive::FAILED) {
+					setEventMessages($langs->trans('Camt053StatementFileArchivingFailed'), null, 'warnings');
+				}
+			}
+
 			$redirectUrl = DOL_URL_ROOT . '/compta/bank/releve.php?account=' . ((int) $firstAccountId) . '&num=' . urlencode($date_concil);
-			setEventMessages($langs->trans('AllEntriesReconciled'), null, 'mesgs');
+
+			$carriesNothing = true;
+			foreach ($fileStatements as $statement) {
+				if ($statement->getEntryCount() > 0) {
+					$carriesNothing = false;
+					break;
+				}
+			}
+			$carriesNothing = $carriesNothing && $fileProcessor->getPendingEntryCount() === 0;
+
+			setEventMessages($langs->trans($carriesNothing ? 'Camt053StatementWithoutEntry' : 'AllEntriesReconciled'), null, 'mesgs');
 		}
 	} catch (Throwable $e) {
 		// Throwable already covers Error and Exception; no narrower catch below.
