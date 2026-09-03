@@ -1,6 +1,14 @@
 # CHANGELOG CAMT053READERANDLINK FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
-## 2.2.0 (unreleased)
+## 2.2.1 (unreleased)
+
+### Bug Fixes
+- Give every row of the comparison screen as many cells as its header. Three of the four sections printed one cell short, so the table looked cut wherever an entry needed no dropdown. The header also labelled two different columns "Conciliation", and displayed the entry hash, which is a form key nobody reads
+
+### Tests
+- `ResultsTableTest.php` - every section prints the cells its header announces, each column is labelled once, and the reconciliation form keys are unchanged
+
+## 2.2.0 (2026-09-01)
 
 ### New Features
 - CAMT.052 intraday reports are read alongside CAMT.053 statements. Only entries the bank has booked are reconciled: a pending one can still be dropped, and the count of those left out is reported instead of being silently lost

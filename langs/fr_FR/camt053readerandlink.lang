@@ -36,6 +36,7 @@ WillBeConciliated = Sera rapproché
 WillNotBeConciliated = Ne sera pas rapproché
 MultipleConciliated = Plusieurs rapprochements
 Conciliated = Rapprochement
+Camt053BankLineOrAction = Ligne bancaire / action
 ConcilationsConfirmed = Rapprochements confirmés
 CheckNewConciliations = Vérifier les nouveaux rapprochements
 ViewBankStatement = Voir le relevé bancaire
