@@ -188,7 +188,11 @@ class ReconciliationService
 				}
 
 				$account['unmatched'][] = $this->entryInfo($entry->getData(), 0)
-					+ array('skip_reason' => (string) $outcome['reason']);
+					+ array(
+						'skip_reason' => (string) $outcome['reason'],
+						'document_ref' => isset($outcome['document']['ref']) ? (string) $outcome['document']['ref'] : '',
+						'document_remaining' => isset($outcome['document']['remaining']) ? (float) $outcome['document']['remaining'] : 0.0,
+					);
 			}
 
 			$summary['accounts'][(int) $accountId] = $account;
@@ -243,6 +247,9 @@ class ReconciliationService
 			'amount' => isset($data['amount']) ? (float) $data['amount'] : 0.0,
 			'date' => $data['value_date'] ?? '',
 			'name' => trim(str_replace('<br />', ' ', (string) ($data['name'] ?? ''))),
+			'info' => trim(str_replace('<br />', ' ', (string) ($data['info'] ?? ''))),
+			'currency' => (string) ($data['currency'] ?? ''),
+			'counterparty_iban' => (string) ($data['counterparty_iban'] ?? ''),
 			'bank_line_id' => $bankLineId,
 		);
 	}
