@@ -4,8 +4,10 @@
 
 ### New Features
 - Read the document references the transfer message carries, and preselect the candidate they name when several Dolibarr lines match one entry on amount and date. The file usually says which invoice was paid, as `FA2602-0001`, with or without the separator of the mask, several of them at a time, buried in whatever text the payer typed, and nothing read it: the dropdown asked for a manual choice the file had already answered. The amount still decides the match, the reference only ranks what it matched, and an entry naming two candidates changes nothing
+- Report an entry whose payment is already in Dolibarr with a date further from the bank booking date than the matching tolerance reaches. It used to be listed as an entry that will not be reconciled, which sends someone looking for a movement that is already recorded: the reference the file carries leads to the document, to its payment and to the bank line behind it. A quick action moves the bank line to the date of the statement and reconciles it in one click, and a line already reconciled with another statement is reported without being touched. The date of the payment itself is never rewritten
 
 ### Tests
+- `RecordedPaymentLookupTest.php` - every spelling of the reference is looked for, the lookup stays inside the entity and the statement account, only the documents of the right direction are read, and a line reconciled elsewhere is reported as such
 - `Camt053DocumentReferenceTest.php` - references read out of surrounding text and markup, the optional separator, several references at once, long digit runs that are not references, and the ranking rules
 
 ## 2.2.0 (2026-09-01)

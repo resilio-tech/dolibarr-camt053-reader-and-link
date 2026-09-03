@@ -50,6 +50,7 @@ class CsrfTokenTest extends TestCase
 		return array(
 			'submit.php',
 			'confirm.php',
+			'align_bank_line.php',
 			'admin/setup.php',
 			'admin/sftp_card.php',
 			'admin/sftp_list.php',
