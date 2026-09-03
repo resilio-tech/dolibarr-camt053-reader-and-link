@@ -46,6 +46,9 @@ class PaymentSuggestionFinder
 	/** @var float Amount matching tolerance */
 	private $tolerance = 0.005;
 
+	/** @var int|null Row id of the bank transfer payment mode, resolved on demand */
+	private $transferModeId = null;
+
 	/**
 	 * Constructor
 	 *
@@ -109,7 +112,7 @@ class PaymentSuggestionFinder
 					'label' => $c['label'],
 					'amount' => $c['remaining'],
 					'currency' => $currency,
-					'url' => $this->payUrl($type, $c['id'], $c['remaining'], $date, $currency, $accountId),
+					'url' => $this->payUrl($type, $c['id'], $c['remaining'], $date, $currency, $accountId, (int) $c['payment_mode']),
 				);
 			} else {
 				$options = array();
@@ -120,7 +123,7 @@ class PaymentSuggestionFinder
 						'label' => $c['label'],
 						'amount' => $c['remaining'],
 						'currency' => $currency,
-						'url' => $this->payUrl($type, $c['id'], $c['remaining'], $date, $currency, $accountId),
+						'url' => $this->payUrl($type, $c['id'], $c['remaining'], $date, $currency, $accountId, (int) $c['payment_mode']),
 					);
 				}
 				$links[] = array(
@@ -175,6 +178,7 @@ class PaymentSuggestionFinder
 	private function customerInvoices(float $absAmount, string $currency, int $entity): array
 	{
 		$sql = "SELECT f.rowid, f.ref, s.nom AS label, f.total_ttc, f.multicurrency_code, f.multicurrency_total_ttc,";
+		$sql .= " f.fk_mode_reglement AS payment_mode,";
 		$sql .= " COALESCE((SELECT SUM(pf.amount) FROM " . MAIN_DB_PREFIX . "paiement_facture pf WHERE pf.fk_facture = f.rowid), 0) AS paid,";
 		$sql .= " COALESCE((SELECT SUM(pf.multicurrency_amount) FROM " . MAIN_DB_PREFIX . "paiement_facture pf WHERE pf.fk_facture = f.rowid), 0) AS paid_mc";
 		$sql .= " FROM " . MAIN_DB_PREFIX . "facture f";
@@ -195,6 +199,7 @@ class PaymentSuggestionFinder
 	private function supplierInvoices(float $absAmount, string $currency, int $entity): array
 	{
 		$sql = "SELECT f.rowid, f.ref, s.nom AS label, f.total_ttc, f.multicurrency_code, f.multicurrency_total_ttc,";
+		$sql .= " f.fk_mode_reglement AS payment_mode,";
 		$sql .= " COALESCE((SELECT SUM(pf.amount) FROM " . MAIN_DB_PREFIX . "paiementfourn_facturefourn pf WHERE pf.fk_facturefourn = f.rowid), 0) AS paid,";
 		$sql .= " COALESCE((SELECT SUM(pf.multicurrency_amount) FROM " . MAIN_DB_PREFIX . "paiementfourn_facturefourn pf WHERE pf.fk_facturefourn = f.rowid), 0) AS paid_mc";
 		$sql .= " FROM " . MAIN_DB_PREFIX . "facture_fourn f";
@@ -219,6 +224,7 @@ class PaymentSuggestionFinder
 		}
 
 		$sql = "SELECT er.rowid, er.ref, CONCAT_WS(' ', u.firstname, u.lastname) AS label, er.total_ttc,";
+		$sql .= " er.fk_c_paiement AS payment_mode,";
 		$sql .= " '' AS multicurrency_code, 0 AS multicurrency_total_ttc,";
 		$sql .= " COALESCE((SELECT SUM(p.amount) FROM " . MAIN_DB_PREFIX . "payment_expensereport p WHERE p.fk_expensereport = er.rowid), 0) AS paid,";
 		$sql .= " 0 AS paid_mc";
@@ -244,6 +250,7 @@ class PaymentSuggestionFinder
 		}
 
 		$sql = "SELECT cs.rowid, cs.libelle AS ref, cs.libelle AS label, cs.amount AS total_ttc,";
+		$sql .= " cs.fk_mode_reglement AS payment_mode,";
 		$sql .= " '' AS multicurrency_code, 0 AS multicurrency_total_ttc,";
 		$sql .= " COALESCE((SELECT SUM(p.amount) FROM " . MAIN_DB_PREFIX . "paiementcharge p WHERE p.fk_charge = cs.rowid), 0) AS paid,";
 		$sql .= " 0 AS paid_mc";
@@ -279,6 +286,7 @@ class PaymentSuggestionFinder
 				'ref' => (string) $row->ref,
 				'label' => trim((string) $row->label),
 				'remaining' => $remaining,
+				'payment_mode' => empty($row->payment_mode) ? 0 : (int) $row->payment_mode,
 			);
 		}
 		return $out;
@@ -291,11 +299,12 @@ class PaymentSuggestionFinder
 	 * @param int    $id        Document id
 	 * @param float  $amount    Amount to prefill (in $currency)
 	 * @param string $date      Value date (Y-m-d)
-	 * @param string $currency  Payable currency of the document
-	 * @param int    $accountId Bank account to preselect (0 for none)
+	 * @param string $currency    Payable currency of the document
+	 * @param int    $accountId   Bank account to preselect (0 for none)
+	 * @param int    $paymentMode Payment mode the document carries (0 for none)
 	 * @return string URL
 	 */
-	private function payUrl(string $type, int $id, float $amount, string $date, string $currency = '', int $accountId = 0): string
+	private function payUrl(string $type, int $id, float $amount, string $date, string $currency = '', int $accountId = 0, int $paymentMode = 0): string
 	{
 		$amt = number_format($amount, 2, '.', '');
 		list($y, $m, $d) = $this->dateParts($date);
@@ -303,6 +312,32 @@ class PaymentSuggestionFinder
 
 		// All four payment pages read "accountid" to preselect the bank account.
 		$accountParam = $accountId > 0 ? '&accountid=' . $accountId : '';
+
+		// The suggestion comes from a bank statement, so the movement is a
+		// transfer. Each page falls back to the mode carried by the document, and
+		// a document carrying none opened with an empty select to be filled by
+		// hand every single time. A mode already set on the document wins: only
+		// the empty case is prefilled, and each page reads its own parameter.
+		$modeParam = '';
+		if ($paymentMode <= 0) {
+			switch ($type) {
+				case 'customer_invoice':
+					$modeParam = '&paiementcode=VIR';
+					break;
+				case 'supplier_invoice':
+					$transferId = $this->transferModeId();
+					$modeParam = $transferId > 0 ? '&paiementid=' . $transferId : '';
+					break;
+				case 'expense_report':
+					$transferId = $this->transferModeId();
+					$modeParam = $transferId > 0 ? '&fk_typepayment=' . $transferId : '';
+					break;
+				case 'social_charge':
+					$transferId = $this->transferModeId();
+					$modeParam = $transferId > 0 ? '&paiementtype=' . $transferId : '';
+					break;
+			}
+		}
 
 		// Multicurrency invoices are paid in their own currency: Dolibarr expects
 		// the amount in the "multicurrency_amount_<id>" field, not "amount_<id>"
@@ -313,17 +348,31 @@ class PaymentSuggestionFinder
 
 		switch ($type) {
 			case 'customer_invoice':
-				return DOL_URL_ROOT . '/compta/paiement.php?facid=' . $id . '&' . $amountField . $id . '=' . $amt . $dateParams . $accountParam;
+				return DOL_URL_ROOT . '/compta/paiement.php?facid=' . $id . '&' . $amountField . $id . '=' . $amt . $dateParams . $accountParam . $modeParam;
 			case 'supplier_invoice':
 				// Unlike compta/paiement.php, the supplier page only renders the
 				// payment form when action=create is present.
-				return DOL_URL_ROOT . '/fourn/facture/paiement.php?facid=' . $id . '&action=create&' . $amountField . $id . '=' . $amt . $dateParams . $accountParam;
+				return DOL_URL_ROOT . '/fourn/facture/paiement.php?facid=' . $id . '&action=create&' . $amountField . $id . '=' . $amt . $dateParams . $accountParam . $modeParam;
 			case 'expense_report':
-				return DOL_URL_ROOT . '/expensereport/payment/payment.php?id=' . $id . '&action=create&amount_' . $id . '=' . $amt . $dateParams . $accountParam;
+				return DOL_URL_ROOT . '/expensereport/payment/payment.php?id=' . $id . '&action=create&amount_' . $id . '=' . $amt . $dateParams . $accountParam . $modeParam;
 			case 'social_charge':
-				return DOL_URL_ROOT . '/compta/paiement_charge.php?id=' . $id . '&action=create&amount_' . $id . '=' . $amt . $dateParams . $accountParam;
+				return DOL_URL_ROOT . '/compta/paiement_charge.php?id=' . $id . '&action=create&amount_' . $id . '=' . $amt . $dateParams . $accountParam . $modeParam;
 		}
 		return '';
+	}
+
+	/**
+	 * Row id of the bank transfer payment mode, looked up once.
+	 *
+	 * @return int Id, or 0 when the instance has no such mode
+	 */
+	private function transferModeId(): int
+	{
+		if ($this->transferModeId === null) {
+			$this->transferModeId = (int) dol_getIdFromCode($this->db, 'VIR', 'c_paiement', 'code', 'id');
+		}
+
+		return $this->transferModeId;
 	}
 
 	/**

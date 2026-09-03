@@ -1,6 +1,14 @@
 # CHANGELOG CAMT053READERANDLINK FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
-## 2.2.0 (unreleased)
+## 2.2.1 (unreleased)
+
+### New Features
+- Prefill the payment mode with bank transfer on a suggestion whose document carries none. The suggestion comes from a bank statement, so the movement is a transfer, and the four payment pages opened with an empty select to be picked by hand every single time. A mode already set on the document still wins, and each page is passed the parameter it reads: the code for a customer invoice, the dictionary id for the three others
+
+### Tests
+- `PaymentSuggestionFinderTest.php` - the transfer mode is prefilled for the four document types when the document carries none, and nothing is passed when it carries one
+
+## 2.2.0 (2026-09-01)
 
 ### New Features
 - CAMT.052 intraday reports are read alongside CAMT.053 statements. Only entries the bank has booked are reconciled: a pending one can still be dropped, and the count of those left out is reported instead of being silently lost
