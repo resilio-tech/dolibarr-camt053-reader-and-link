@@ -161,6 +161,15 @@ A file nobody can act on must reach a human, not just the log:
   it opens the entries still needing a decision instead of re-uploading the file.
 - A failed SFTP login raises its own alert, because three of them lock the
   PostFinance account.
+- Every run, whatever the file, alerts on the entries it could not settle,
+  grouped by what has to be decided: a document already paid, an amount that is
+  not what the document still owes, a reference matching several documents or
+  none, several references in one movement, a foreign currency, and an entry
+  matching no bank line at all. One message per SFTP config per run, each group
+  capped, each account linking to its reconciliation screen. A file that failed
+  to parse says nothing to Zulip: it is retried on the next run, and announcing
+  a retry twice is noise.
+- An alert reports. It never reconciles and never pays.
 
 ---
 
