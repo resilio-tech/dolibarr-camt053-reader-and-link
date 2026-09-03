@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.02">
+	<BkToCstmrStmt>
+		<GrpHdr>
+			<MsgId>STMT202402SCEN</MsgId>
+			<CreDtTm>2024-02-29T12:00:00</CreDtTm>
+		</GrpHdr>
+		<Stmt>
+			<Id>STMT-SCEN-001</Id>
+			<ElctrncSeqNb>1</ElctrncSeqNb>
+			<CreDtTm>2024-02-29T12:00:00</CreDtTm>
+			<Acct>
+				<Id>
+					<IBAN>BE71096123456769</IBAN>
+				</Id>
+				<Ccy>EUR</Ccy>
+			</Acct>
+			<Bal>
+				<Tp><CdOrPrtry><Cd>OPBD</Cd></CdOrPrtry></Tp>
+				<Amt Ccy="EUR">0.00</Amt>
+				<CdtDbtInd>CRDT</CdtDbtInd>
+				<Dt><Dt>2024-02-01</Dt></Dt>
+			</Bal>
+			<Bal>
+				<Tp><CdOrPrtry><Cd>CLBD</Cd></CdOrPrtry></Tp>
+				<Amt Ccy="EUR">3157.33</Amt>
+				<CdtDbtInd>CRDT</CdtDbtInd>
+				<Dt><Dt>2024-02-29</Dt></Dt>
+			</Bal>
+
+			<!-- CASE 1: single unreconciled match -> LINKED (auto reconcile) -->
+			<Ntry>
+				<Amt Ccy="EUR">1500.00</Amt>
+				<CdtDbtInd>CRDT</CdtDbtInd>
+				<Sts>BOOK</Sts>
+				<BookgDt><Dt>2024-02-01</Dt></BookgDt>
+				<ValDt><Dt>2024-02-01</Dt></ValDt>
+				<AcctSvcrRef>SC-CREDIT-1500</AcctSvcrRef>
+				<NtryDtls><TxDtls>
+					<RmtInf><Ustrd>Single match credit 1500</Ustrd></RmtInf>
+					<RltdPties><Cdtr><Nm>ACME Corporation</Nm></Cdtr></RltdPties>
+				</TxDtls></NtryDtls>
+				<AddtlNtryInf>Should reconcile automatically</AddtlNtryInf>
+			</Ntry>
+
+			<!-- CASE 2: two unreconciled matches -> MULTIPLES (manual choice) -->
+			<Ntry>
+				<Amt Ccy="EUR">800.00</Amt>
+				<CdtDbtInd>CRDT</CdtDbtInd>
+				<Sts>BOOK</Sts>
+				<BookgDt><Dt>2024-02-05</Dt></BookgDt>
+				<ValDt><Dt>2024-02-05</Dt></ValDt>
+				<AcctSvcrRef>SC-CREDIT-800</AcctSvcrRef>
+				<NtryDtls><TxDtls>
+					<RmtInf><Ustrd>Ambiguous credit 800</Ustrd></RmtInf>
+					<RltdPties><Cdtr><Nm>Big Client Inc</Nm></Cdtr></RltdPties>
+				</TxDtls></NtryDtls>
+				<AddtlNtryInf>Two candidate lines within date tolerance</AddtlNtryInf>
+			</Ntry>
+
+			<!-- CASE 3: no matching line -> UNLINKED (not existing) -->
+			<Ntry>
+				<Amt Ccy="EUR">333.33</Amt>
+				<CdtDbtInd>CRDT</CdtDbtInd>
+				<Sts>BOOK</Sts>
+				<BookgDt><Dt>2024-02-10</Dt></BookgDt>
+				<ValDt><Dt>2024-02-10</Dt></ValDt>
+				<AcctSvcrRef>SC-CREDIT-333</AcctSvcrRef>
+				<NtryDtls><TxDtls>
+					<RmtInf><Ustrd>Unknown credit 333.33</Ustrd></RmtInf>
+					<RltdPties><Cdtr><Nm>Unknown Payer</Nm></Cdtr></RltdPties>
+				</TxDtls></NtryDtls>
+				<AddtlNtryInf>No corresponding bank line exists</AddtlNtryInf>
+			</Ntry>
+
+			<!-- CASE 4: match already reconciled -> ALREADY_LINKED -->
+			<Ntry>
+				<Amt Ccy="EUR">999.00</Amt>
+				<CdtDbtInd>CRDT</CdtDbtInd>
+				<Sts>BOOK</Sts>
+				<BookgDt><Dt>2024-02-15</Dt></BookgDt>
+				<ValDt><Dt>2024-02-15</Dt></ValDt>
+				<AcctSvcrRef>SC-CREDIT-999</AcctSvcrRef>
+				<NtryDtls><TxDtls>
+					<RmtInf><Ustrd>Already reconciled credit 999</Ustrd></RmtInf>
+					<RltdPties><Cdtr><Nm>Recurring Client</Nm></Cdtr></RltdPties>
+				</TxDtls></NtryDtls>
+				<AddtlNtryInf>Matching line is already rapproché (num_releve set)</AddtlNtryInf>
+			</Ntry>
+
+			<!-- CASE 5: single unreconciled debit match -> LINKED (debit) -->
+			<Ntry>
+				<Amt Ccy="EUR">125.00</Amt>
+				<CdtDbtInd>DBIT</CdtDbtInd>
+				<Sts>BOOK</Sts>
+				<BookgDt><Dt>2024-02-20</Dt></BookgDt>
+				<ValDt><Dt>2024-02-20</Dt></ValDt>
+				<AcctSvcrRef>SC-DEBIT-125</AcctSvcrRef>
+				<NtryDtls><TxDtls>
+					<RmtInf><Ustrd>Single match debit 125</Ustrd></RmtInf>
+					<RltdPties><Dbtr><Nm>Office Supplies Ltd</Nm></Dbtr></RltdPties>
+				</TxDtls></NtryDtls>
+				<AddtlNtryInf>Should reconcile automatically (debit)</AddtlNtryInf>
+			</Ntry>
+
+			<!-- CASE 6: no bank line, but an unpaid CUSTOMER invoice matches
+			     -> UNLINKED with "create customer payment" suggestion -->
+			<Ntry>
+				<Amt Ccy="EUR">450.00</Amt>
+				<CdtDbtInd>CRDT</CdtDbtInd>
+				<Sts>BOOK</Sts>
+				<BookgDt><Dt>2024-02-03</Dt></BookgDt>
+				<ValDt><Dt>2024-02-03</Dt></ValDt>
+				<AcctSvcrRef>SC-CREDIT-450</AcctSvcrRef>
+				<NtryDtls><TxDtls>
+					<RmtInf><Ustrd>Payment for customer invoice 450</Ustrd></RmtInf>
+					<RltdPties><Dbtr><Nm>CAMT Test Customer</Nm></Dbtr></RltdPties>
+				</TxDtls></NtryDtls>
+				<AddtlNtryInf>Should offer to create a customer payment</AddtlNtryInf>
+			</Ntry>
+
+			<!-- CASE 7: no bank line, but an unpaid SUPPLIER invoice matches
+			     -> UNLINKED with "create supplier payment" suggestion -->
+			<Ntry>
+				<Amt Ccy="EUR">275.00</Amt>
+				<CdtDbtInd>DBIT</CdtDbtInd>
+				<Sts>BOOK</Sts>
+				<BookgDt><Dt>2024-02-08</Dt></BookgDt>
+				<ValDt><Dt>2024-02-08</Dt></ValDt>
+				<AcctSvcrRef>SC-DEBIT-275</AcctSvcrRef>
+				<NtryDtls><TxDtls>
+					<RmtInf><Ustrd>Payment for supplier invoice 275</Ustrd></RmtInf>
+					<RltdPties><Cdtr><Nm>CAMT Test Supplier</Nm></Cdtr></RltdPties>
+				</TxDtls></NtryDtls>
+				<AddtlNtryInf>Should offer to create a supplier payment</AddtlNtryInf>
+			</Ntry>
+
+			<!-- CASE 8: no bank line, TWO unpaid customer invoices match
+			     -> UNLINKED with several candidates (link to invoice list) -->
+			<Ntry>
+				<Amt Ccy="EUR">600.00</Amt>
+				<CdtDbtInd>CRDT</CdtDbtInd>
+				<Sts>BOOK</Sts>
+				<BookgDt><Dt>2024-02-12</Dt></BookgDt>
+				<ValDt><Dt>2024-02-12</Dt></ValDt>
+				<AcctSvcrRef>SC-CREDIT-600</AcctSvcrRef>
+				<NtryDtls><TxDtls>
+					<RmtInf><Ustrd>Ambiguous customer payment 600</Ustrd></RmtInf>
+					<RltdPties><Dbtr><Nm>CAMT Test Customer</Nm></Dbtr></RltdPties>
+				</TxDtls></NtryDtls>
+				<AddtlNtryInf>Two unpaid customer invoices of 600 exist</AddtlNtryInf>
+			</Ntry>
+
+			<!-- CASE 9: no bank line, counterparty IBAN is another own account
+			     -> UNLINKED with "internal transfer" suggestion -->
+			<Ntry>
+				<Amt Ccy="EUR">2000.00</Amt>
+				<CdtDbtInd>DBIT</CdtDbtInd>
+				<Sts>BOOK</Sts>
+				<BookgDt><Dt>2024-02-18</Dt></BookgDt>
+				<ValDt><Dt>2024-02-18</Dt></ValDt>
+				<AcctSvcrRef>SC-TRANSFER-2000</AcctSvcrRef>
+				<NtryDtls><TxDtls>
+					<RmtInf><Ustrd>Transfer to savings account</Ustrd></RmtInf>
+					<RltdPties>
+						<Cdtr><Nm>Own Savings Account</Nm></Cdtr>
+						<CdtrAcct><Id><IBAN>BE68539007547034</IBAN></Id></CdtrAcct>
+					</RltdPties>
+				</TxDtls></NtryDtls>
+				<AddtlNtryInf>Counterparty is the company second bank account</AddtlNtryInf>
+			</Ntry>
+		</Stmt>
+	</BkToCstmrStmt>
+</Document>
