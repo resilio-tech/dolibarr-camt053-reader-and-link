@@ -1,6 +1,14 @@
 # CHANGELOG CAMT053READERANDLINK FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
-## 2.2.0 (unreleased)
+## 2.2.1 (unreleased)
+
+### New Features
+- Read the document references the transfer message carries, and preselect the candidate they name when several Dolibarr lines match one entry on amount and date. The file usually says which invoice was paid, as `FA2602-0001`, with or without the separator of the mask, several of them at a time, buried in whatever text the payer typed, and nothing read it: the dropdown asked for a manual choice the file had already answered. The amount still decides the match, the reference only ranks what it matched, and an entry naming two candidates changes nothing
+
+### Tests
+- `Camt053DocumentReferenceTest.php` - references read out of surrounding text and markup, the optional separator, several references at once, long digit runs that are not references, and the ranking rules
+
+## 2.2.0 (2026-09-01)
 
 ### New Features
 - CAMT.052 intraday reports are read alongside CAMT.053 statements. Only entries the bank has booked are reconciled: a pending one can still be dropped, and the count of those left out is reported instead of being silently lost

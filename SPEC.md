@@ -68,7 +68,10 @@ Must:
   by the bank, so it is left out, and the number left out is reported. Every
   entry of a CAMT.053 statement is kept, whatever its status.
 - Report as ambiguous, never reconcile automatically, when several Dolibarr
-  lines match one CAMT entry. The user chooses in a dropdown.
+  lines match one CAMT entry. The user chooses in a dropdown. When the text of
+  the entry names the document behind exactly one of the candidates, that one is
+  preselected: the file said which document was paid. Every other candidate
+  stays offered, and an entry naming two of them preselects nothing.
 - Split a collective booking (grouped salary transfers) so each underlying
   transfer can be matched on its own.
 - Stay idempotent: a file already processed leaves the database unchanged.
@@ -77,7 +80,10 @@ Must:
 
 Must not:
 
-- Reconcile an ambiguous entry by picking one candidate.
+- Reconcile an ambiguous entry by picking one candidate, beyond preselecting the
+  single one the file names, which stays visible and changeable.
+- Reconcile anything on a reference alone. The amount is what matches; a
+  reference only ranks candidates the amount already matched.
 - Reconcile a pending entry read from an intraday report.
 - Book a statement on a fallback account when its IBAN resolves to nothing.
   There is no fallback account: the bank account always comes from the IBAN the
