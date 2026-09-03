@@ -374,17 +374,7 @@ class Camt053FileProcessor
 	 */
 	private function extractEntriesFromNtry(array $entry, string $statementCcy, string $ownIban): array
 	{
-		$txList = $this->getArrayValue($entry, array('NtryDtls', 'TxDtls'));
-
-		// Normalise to a list of TxDtls: a single <TxDtls> is an associative array,
-		// several come back numerically indexed.
-		if (is_array($txList) && isset($txList[0])) {
-			$transactions = $txList;
-		} elseif (is_array($txList) && !empty($txList)) {
-			$transactions = array($txList);
-		} else {
-			$transactions = array();
-		}
+		$transactions = $this->transactionDetails($entry);
 
 		// Only a genuine collective booking (2+ detailed transactions) is split.
 		if (count($transactions) >= 2) {
@@ -474,6 +464,43 @@ class Camt053FileProcessor
 	}
 
 	/**
+	 * Every transaction detail of an entry, whatever shape the file uses.
+	 *
+	 * <NtryDtls> and <TxDtls> both repeat in real files, and a repeated tag comes
+	 * back from the SimpleXML round trip as a numerically indexed list. Reading
+	 * straight through the keys then finds nothing: an entry detailing several
+	 * transactions lost its counterparty, its remittance info and its name, and
+	 * with them the internal transfer and payment suggestions offered for it.
+	 *
+	 * @param array $entry <Ntry> structure
+	 * @return array<int, array> <TxDtls> structures, in file order
+	 */
+	private function transactionDetails(array $entry): array
+	{
+		$details = isset($entry['NtryDtls']) ? $entry['NtryDtls'] : null;
+		if (!is_array($details)) {
+			return array();
+		}
+
+		$blocks = isset($details[0]) ? $details : array($details);
+
+		$transactions = array();
+		foreach ($blocks as $block) {
+			if (!is_array($block) || !isset($block['TxDtls']) || !is_array($block['TxDtls'])) {
+				continue;
+			}
+			$txList = $block['TxDtls'];
+			foreach (isset($txList[0]) ? $txList : array($txList) as $tx) {
+				if (is_array($tx) && !empty($tx)) {
+					$transactions[] = $tx;
+				}
+			}
+		}
+
+		return $transactions;
+	}
+
+	/**
 	 * First usable transaction reference from a <TxDtls><Refs> block.
 	 *
 	 * @param array $tx <TxDtls> structure
@@ -547,11 +574,17 @@ class Camt053FileProcessor
 		// name (as some banks do for outgoing payments).
 		$partyOrder = ($type === 'DBIT') ? array('Cdtr', 'Dbtr') : array('Dbtr', 'Cdtr');
 
+		// Detail of the movement. An entry kept whole because its detail does not
+		// reconstruct the group total still carries one, and it is the only place
+		// the counterparty and the remittance info are written.
+		$transactions = $this->transactionDetails($entry);
+		$tx = empty($transactions) ? array() : $transactions[0];
+
 		// Build name from various fields
 		$name = '';
 
 		// Try unstructured remittance info
-		$name1 = $this->getArrayValue($entry, array('NtryDtls', 'TxDtls', 'RmtInf', 'Ustrd'));
+		$name1 = $this->getArrayValue($tx, array('RmtInf', 'Ustrd'));
 		if (is_array($name1)) {
 			$name1 = implode(' ', $name1);
 		}
@@ -565,7 +598,7 @@ class Camt053FileProcessor
 		// raise an "Array to string conversion" warning).
 		$name2 = '';
 		foreach ($partyOrder as $partyTag) {
-			$candidate = $this->getArrayValue($entry, array('NtryDtls', 'TxDtls', 'RltdPties', $partyTag, 'Nm'));
+			$candidate = $this->getArrayValue($tx, array('RltdPties', $partyTag, 'Nm'));
 			if (is_string($candidate) && $candidate !== '') {
 				$name2 = $candidate;
 				break;
@@ -585,7 +618,7 @@ class Camt053FileProcessor
 			$info .= $addtlNtryInf;
 		}
 
-		$addtlTxInf = $this->getArrayValue($entry, array('NtryDtls', 'TxDtls', 'AddtlTxInf'));
+		$addtlTxInf = $this->getArrayValue($tx, array('AddtlTxInf'));
 		if (!empty($addtlTxInf)) {
 			$info .= (!empty($info) ? '<br />' : '') . $addtlTxInf;
 		}
@@ -601,8 +634,8 @@ class Camt053FileProcessor
 
 		// Counterparty IBAN (ISO: debit -> creditor account, credit -> debtor
 		// account), falling back to the other tag and never our own account.
-		$cdtrIban = (string) $this->getArrayValue($entry, array('NtryDtls', 'TxDtls', 'RltdPties', 'CdtrAcct', 'Id', 'IBAN'), '');
-		$dbtrIban = (string) $this->getArrayValue($entry, array('NtryDtls', 'TxDtls', 'RltdPties', 'DbtrAcct', 'Id', 'IBAN'), '');
+		$cdtrIban = (string) $this->getArrayValue($tx, array('RltdPties', 'CdtrAcct', 'Id', 'IBAN'), '');
+		$dbtrIban = (string) $this->getArrayValue($tx, array('RltdPties', 'DbtrAcct', 'Id', 'IBAN'), '');
 		$ownNoSpace = strtoupper(str_replace(' ', '', $ownIban));
 		$candidates = ($type === 'DBIT') ? array($cdtrIban, $dbtrIban) : array($dbtrIban, $cdtrIban);
 		foreach ($candidates as $cand) {

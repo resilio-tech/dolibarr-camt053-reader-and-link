@@ -196,7 +196,7 @@ print '</td></tr>';
 print '<tr><td>'.$langs->trans('Date').'</td><td>'.dol_print_date(dol_mktime(12, 0, 0, $month, $day, $year), 'day').'</td></tr>';
 
 print '<tr><td class="fieldrequired">'.$langs->trans('Description').'</td><td>';
-print '<input type="text" name="1_label" class="minwidth300" value="'.dol_escape_htmltag($langs->trans('Camt053TransferLabel')).'">';
+print '<input type="text" id="camt053_transfer_label" name="1_label" class="minwidth300" value="'.dol_escape_htmltag($langs->trans('Camt053TransferLabel')).'">';
 print '</td></tr>';
 
 print '<tr><td class="fieldrequired">'.$langs->trans('Amount').' ('.dol_escape_htmltag($accountFrom->currency_code).')</td><td>';
