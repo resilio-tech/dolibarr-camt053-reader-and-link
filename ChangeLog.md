@@ -1,6 +1,15 @@
 # CHANGELOG CAMT053READERANDLINK FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
-## 2.2.0 (unreleased)
+## 2.2.1 (unreleased)
+
+### Bug Fixes
+- Read the detail of an entry whatever shape the bank writes it in. `<NtryDtls>` and `<TxDtls>` both repeat in real files, and a repeated tag comes back from the XML round trip as a list: reading straight through the keys then found nothing, so an entry detailing several transactions arrived with no counterparty, no remittance info and no name, and therefore with no internal transfer and no payment suggestion. Transactions spread over several detail blocks are now split like several details of one block, and an entry kept whole because its detail does not reconstruct the group total still carries the counterparty of its first transaction
+- Put the caret in the Description field of the transfer confirmation, with its content selected. It is the only field retyped on every transfer
+
+### Tests
+- `EntryDetailsShapeTest.php` - an entry kept whole still reads its detail, transactions spread over several detail blocks are all read, and a single-transaction entry is unchanged
+
+## 2.2.0 (2026-09-01)
 
 ### New Features
 - CAMT.052 intraday reports are read alongside CAMT.053 statements. Only entries the bank has booked are reconciled: a pending one can still be dropped, and the count of those left out is reported instead of being silently lost
