@@ -187,3 +187,9 @@ The module does not:
 - English in the code, the tests and everything published on GitHub.
 - Every fix comes with a PHPUnit test under `test/phpunit/`, runnable without a
   Dolibarr database (the Dolibarr functions used are stubbed).
+- A condition string Dolibarr evaluates for us (menu `enabled` and `perms`, the
+  `test` of the scheduled job) calls only the functions of its `dol_eval`
+  whitelist, spelled exactly as that list spells them. Since the fix for
+  advisory GHSA-x3w7-24rq-gvc5, shipped with Dolibarr 23, anything else is
+  refused, and a refused condition reads as false: the entry disappears with
+  nothing said anywhere.
