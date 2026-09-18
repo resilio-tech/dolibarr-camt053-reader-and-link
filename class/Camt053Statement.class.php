@@ -61,6 +61,11 @@ class Camt053Statement
 	private $creationDate;
 
 	/**
+	 * @var array{date:string,amount:float}|null Closing booked balance (CLBD)
+	 */
+	private $closingBalance;
+
+	/**
 	 * Constructor
 	 *
 	 * @param string   $iban      IBAN of the bank account
@@ -252,6 +257,27 @@ class Camt053Statement
 	public function setCreationDate(?string $creationDate): void
 	{
 		$this->creationDate = $creationDate;
+	}
+
+	/**
+	 * Get the closing booked balance (CLBD)
+	 *
+	 * @return array{date:string,amount:float}|null Date as Y-m-d and signed amount
+	 */
+	public function getClosingBalance(): ?array
+	{
+		return $this->closingBalance;
+	}
+
+	/**
+	 * Set the closing booked balance (CLBD)
+	 *
+	 * @param array{date:string,amount:float}|null $closingBalance Date as Y-m-d and signed amount
+	 * @return void
+	 */
+	public function setClosingBalance(?array $closingBalance): void
+	{
+		$this->closingBalance = $closingBalance;
 	}
 
 	/**

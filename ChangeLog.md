@@ -1,6 +1,15 @@
 # CHANGELOG CAMT053READERANDLINK FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
-## 2.2.0 (unreleased)
+## 2.2.1 (unreleased)
+
+### New Features
+- New monthly scheduled job reporting to Zulip, for the previous month, what the fetch job recorded (files, auto-reconciled, ambiguous, unmatched, in error) and, for every open reconcilable bank account, the gap between the Dolibarr balance on the value date and the PostFinance closing balance (CLBD) of the archived statements, along with the bank lines still not reconciled. An account with no closing balance received is flagged, which is how a statement missing from the SFTP server shows up. It runs on the 5th of each month, disabled by default. An existing installation gets the job by disabling and enabling the module again
+
+### Tests
+- `Camt053FileProcessorTest.php` - the closing balance (CLBD) read from a statement
+- `EntityScopeSqlTest.php` - entity scoping of the monthly check totals
+
+## 2.2.0 (2026-09-01)
 
 ### New Features
 - CAMT.052 intraday reports are read alongside CAMT.053 statements. Only entries the bank has booked are reconciled: a pending one can still be dropped, and the count of those left out is reported instead of being silently lost

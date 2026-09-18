@@ -992,4 +992,67 @@ class Camt053FileProcessorTest extends TestCase
 		$this->assertEqualsWithDelta(-15000.0, $entries[0]->getAmount(), 0.001);
 		$this->assertSame('PARTIALRUN012026', $entries[0]->getHash());
 	}
+
+	/**
+	 * The closing booked balance (CLBD) is read, the opening one ignored.
+	 *
+	 * @return void
+	 */
+	public function testClosingBalanceIsRead(): void
+	{
+		$processor = new Camt053FileProcessor($this->mockDb);
+		$processor->parseFile($this->fixturesPath . 'sample_camt053.xml');
+
+		$this->assertSame(array('date' => '2024-01-31', 'amount' => 6250.0), $processor->getStatements()[0]->getClosingBalance());
+	}
+
+	/**
+	 * A debit closing balance is negative, and a DtTm date is cut to the day.
+	 *
+	 * @return void
+	 */
+	public function testDebitClosingBalanceIsNegative(): void
+	{
+		$xml = '<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.04">
+	<BkToCstmrStmt>
+		<GrpHdr><MsgId>M1</MsgId><CreDtTm>2026-09-01T06:00:00</CreDtTm></GrpHdr>
+		<Stmt>
+			<Id>S1</Id>
+			<Acct><Id><IBAN>CH9300762011623852957</IBAN></Id><Ccy>CHF</Ccy></Acct>
+			<Bal>
+				<Tp><CdOrPrtry><Cd>CLBD</Cd></CdOrPrtry></Tp>
+				<Amt Ccy="CHF">120.50</Amt>
+				<CdtDbtInd>DBIT</CdtDbtInd>
+				<Dt><DtTm>2026-08-31T23:59:59</DtTm></Dt>
+			</Bal>
+			<Ntry>
+				<Amt Ccy="CHF">10.00</Amt>
+				<CdtDbtInd>DBIT</CdtDbtInd>
+				<Sts>BOOK</Sts>
+				<ValDt><Dt>2026-08-31</Dt></ValDt>
+				<AcctSvcrRef>REF1</AcctSvcrRef>
+			</Ntry>
+		</Stmt>
+	</BkToCstmrStmt>
+</Document>';
+
+		$processor = new Camt053FileProcessor($this->mockDb);
+		$this->assertTrue($processor->parseContent($xml));
+
+		$this->assertSame(array('date' => '2026-08-31', 'amount' => -120.5), $processor->getStatements()[0]->getClosingBalance());
+	}
+
+	/**
+	 * A statement carrying no CLBD has no closing balance.
+	 *
+	 * @return void
+	 */
+	public function testNoClosingBalanceWithoutClbd(): void
+	{
+		$processor = new Camt053FileProcessor($this->mockDb);
+		$processor->parseFile($this->fixturesPath . 'camt053_dropdown.xml');
+
+		$this->assertNull($processor->getStatements()[0]->getClosingBalance());
+	}
 }

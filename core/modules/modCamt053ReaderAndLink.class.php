@@ -134,6 +134,7 @@ class modCamt053ReaderAndLink extends DolibarrModules
 		// monthly camt.053 is picked up within 12 hours of its delivery.
 		// This seeds new installations only. An existing job keeps the frequency
 		// stored in its own row, which has to be changed on the scheduled jobs page.
+		$monthlyCheckStart = strtotime(date('Y-m-05 06:00:00', strtotime('first day of next month')));
 		$this->cronjobs = array(
 			0 => array(
 				'label' => 'Fetch and reconcile CAMT.052/053 over SFTP',
@@ -145,6 +146,22 @@ class modCamt053ReaderAndLink extends DolibarrModules
 				'comment' => 'Fetch CAMT.052 intraday reports and CAMT.053 statements from PostFinance MFTPF, auto-reconcile unique matches and report the monthly file to Zulip',
 				'frequency' => 12,
 				'unitfrequency' => 3600,
+				'status' => 0,
+				'test' => 'isModEnabled("camt053readerandlink")',
+				'priority' => 50,
+			),
+			1 => array(
+				'label' => 'CAMT.053 monthly check',
+				'jobtype' => 'method',
+				'class' => '/camt053readerandlink/class/Camt053MonthlyCheck.class.php',
+				'objectname' => 'Camt053MonthlyCheck',
+				'method' => 'run',
+				'parameters' => '',
+				'comment' => 'Report to Zulip, for the previous month, what the fetch job did, the bank lines still not reconciled and the gap between the Dolibarr and PostFinance balances',
+				'frequency' => 1,
+				'unitfrequency' => 2678400,
+				'datestart' => $monthlyCheckStart,
+				'datenextrun' => $monthlyCheckStart,
 				'status' => 0,
 				'test' => 'isModEnabled("camt053readerandlink")',
 				'priority' => 50,

@@ -245,4 +245,25 @@ class EntityScopeSqlTest extends TestCase
 		$this->assertStringContainsString('rowid = 42', $db->lastSql());
 		$this->assertStringContainsString('entity = 1', $db->lastSql());
 	}
+
+	/**
+	 * The monthly check totals only count the files of the current entity.
+	 *
+	 * @runInSeparateProcess
+	 * @preserveGlobalState disabled
+	 * @return void
+	 */
+	public function testProcessedFilePeriodTotalsAreEntityScoped(): void
+	{
+		$this->defineDolibarrStubs();
+
+		$db = new RecordingDb(true, false);
+		$record = new Camt053ProcessedFile($db);
+
+		$totals = $record->fetchPeriodTotals('202608');
+
+		$this->assertSame(0, $totals['files']);
+		$this->assertStringContainsString("num_releve = '202608'", $db->lastSql());
+		$this->assertStringContainsString('entity = 1', $db->lastSql());
+	}
 }
