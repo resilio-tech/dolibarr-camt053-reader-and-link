@@ -49,7 +49,7 @@ class Camt053ReviewAlert
 			'amount_mismatch' => 'Not what the document still owes',
 			'several_documents' => 'The reference matches several documents',
 			'several_references' => 'Several documents referenced, the amount has to be split',
-			'foreign_currency' => 'Foreign currency, the rate has to be decided',
+			'currency_mismatch' => 'Paid in another currency than the document',
 			'no_document' => 'The reference resolves to no open document',
 			'no_reference' => 'No document reference in the message',
 			'disabled' => 'Matched no bank line',
@@ -170,6 +170,11 @@ class Camt053ReviewAlert
 				if ($remaining > 0) {
 					$line .= ' owes ' . number_format($remaining, 2);
 				}
+			}
+
+			$proposals = (array) ($entry['proposals'] ?? array());
+			if (!empty($proposals)) {
+				$line .= ', proposed ' . implode(' or ', $proposals) . ' (to check)';
 			}
 
 			$counterparty = trim((string) ($entry['counterparty_iban'] ?? ''));

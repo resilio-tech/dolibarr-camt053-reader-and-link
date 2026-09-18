@@ -27,6 +27,7 @@ require_once DOL_DOCUMENT_ROOT . '/compta/bank/class/account.class.php';
 require_once __DIR__ . '/Camt053FileProcessor.class.php';
 require_once __DIR__ . '/DatabaseBankStatementLoader.class.php';
 require_once __DIR__ . '/Camt053PaymentRecorder.class.php';
+require_once __DIR__ . '/PaymentSuggestionFinder.class.php';
 require_once __DIR__ . '/../lib/camt053readerandlink.lib.php';
 require_once __DIR__ . '/BankStatementMatcher.class.php';
 
@@ -121,6 +122,7 @@ class ReconciliationService
 		// Writing a payment nobody asked for is the one thing the module does
 		// that moves money on its own, so it stays off until it is turned on.
 		$recorder = camt053AutoPaymentEnabled() ? new Camt053PaymentRecorder($this->db, $this->user) : null;
+		$finder = new PaymentSuggestionFinder($this->db);
 
 		foreach ($banks as $accountId => $bank) {
 			$results = $bank['results'];
@@ -192,6 +194,7 @@ class ReconciliationService
 						'skip_reason' => (string) $outcome['reason'],
 						'document_ref' => isset($outcome['document']['ref']) ? (string) $outcome['document']['ref'] : '',
 						'document_remaining' => isset($outcome['document']['remaining']) ? (float) $outcome['document']['remaining'] : 0.0,
+						'proposals' => empty($outcome['document']) ? $this->proposals($finder, $entry, $entity, (int) $accountId) : array(),
 					);
 			}
 
@@ -204,6 +207,27 @@ class ReconciliationService
 		}
 
 		return $summary;
+	}
+
+	/**
+	 * References of the open documents owing the amount of an entry, for a human to check.
+	 *
+	 * @param PaymentSuggestionFinder $finder    Payment suggestion finder
+	 * @param Camt053Entry            $entry     Entry nothing could settle
+	 * @param int                     $entity    Entity of the bank account
+	 * @param int                     $accountId Bank account
+	 * @return array<int, string>
+	 */
+	private function proposals(PaymentSuggestionFinder $finder, Camt053Entry $entry, int $entity, int $accountId): array
+	{
+		$refs = array();
+		foreach ($finder->findForEntry($entry, $entity, $accountId)['links'] as $link) {
+			foreach (($link['kind'] === 'pay' ? array($link) : $link['options']) as $document) {
+				$refs[] = (string) $document['ref'];
+			}
+		}
+
+		return $refs;
 	}
 
 	/**
