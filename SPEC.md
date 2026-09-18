@@ -155,6 +155,12 @@ A file nobody can act on must reach a human, not just the log:
   it opens the entries still needing a decision instead of re-uploading the file.
 - A failed SFTP login raises its own alert, because three of them lock the
   PostFinance account.
+- A monthly job (`Camt053MonthlyCheck`) reports the previous month to Zulip,
+  whether a monthly file arrived or not: what the fetch job recorded, and for
+  every open reconcilable account of the entity the bank lines still not
+  reconciled and the gap between the Dolibarr balance on the value date and the
+  PostFinance closing balance (CLBD) read from the archived statements. An
+  account with no closing balance for the month is reported as such.
 
 ---
 
