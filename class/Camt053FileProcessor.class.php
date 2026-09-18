@@ -325,6 +325,8 @@ class Camt053FileProcessor
 			$statement->setCreationDate($creationDate);
 		}
 
+		$statement->setClosingBalance($this->extractClosingBalance($stmt));
+
 		// Get entries
 		$entries = $this->getArrayValue($stmt, array('Ntry'));
 		if (!empty($entries)) {
@@ -349,6 +351,44 @@ class Camt053FileProcessor
 		}
 
 		return $statement;
+	}
+
+	/**
+	 * Read the closing booked balance (CLBD) of a statement.
+	 *
+	 * @param array $stmt Statement structure
+	 * @return array{date:string,amount:float}|null Date as Y-m-d and signed amount
+	 */
+	private function extractClosingBalance(array $stmt): ?array
+	{
+		$balances = $this->getArrayValue($stmt, array('Bal'));
+		if (!is_array($balances)) {
+			return null;
+		}
+		if (isset($balances['Tp'])) {
+			$balances = array($balances);
+		}
+
+		foreach ($balances as $balance) {
+			if (!is_array($balance) || $this->getArrayValue($balance, array('Tp', 'CdOrPrtry', 'Cd')) !== 'CLBD') {
+				continue;
+			}
+
+			$amount = $this->getArrayValue($balance, array('Amt'));
+			$date = $this->getArrayValue($balance, array('Dt', 'Dt'), $this->getArrayValue($balance, array('Dt', 'DtTm')));
+			if (!is_numeric($amount) || !is_string($date) || !preg_match('/^\d{4}-\d{2}-\d{2}/', $date)) {
+				continue;
+			}
+
+			$amount = (float) $amount;
+			if ($this->getArrayValue($balance, array('CdtDbtInd')) === 'DBIT') {
+				$amount = -$amount;
+			}
+
+			return array('date' => substr($date, 0, 10), 'amount' => $amount);
+		}
+
+		return null;
 	}
 
 	/**
