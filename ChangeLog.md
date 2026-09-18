@@ -1,6 +1,14 @@
 # CHANGELOG CAMT053READERANDLINK FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
-## 2.2.0 (unreleased)
+## 2.2.1 (unreleased)
+
+### Bug Fixes
+- Add the columns introduced in 2.2.0 on an existing installation when the module is activated again. `archived_path` was only created with the table, so an installation older than 2.2.0 could not record a processed file: every file was processed again on every run and the Zulip links to the reconciliation screen had nothing to open. `host_fingerprint` only reached an installation through a Dolibarr upgrade, which is the only time `dolibarr_allversions.sql` runs
+
+### Tests
+- `UpgradeScriptTest.php` - a column added after the first release is also added on an existing installation
+
+## 2.2.0 (2026-09-01)
 
 ### New Features
 - CAMT.052 intraday reports are read alongside CAMT.053 statements. Only entries the bank has booked are reconciled: a pending one can still be dropped, and the count of those left out is reported instead of being silently lost
