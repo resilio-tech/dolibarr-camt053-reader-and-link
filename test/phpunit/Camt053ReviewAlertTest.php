@@ -166,7 +166,7 @@ class Camt053ReviewAlertTest extends TestCase
 		$entries = array(
 			$this->entry('no_reference'),
 			$this->entry('no_reference'),
-			$this->entry('foreign_currency'),
+			$this->entry('currency_mismatch'),
 		);
 		$files = array('camt.xml' => array('summary' => $this->summary($entries), 'url' => ''));
 
@@ -174,7 +174,23 @@ class Camt053ReviewAlertTest extends TestCase
 
 		$this->assertSame(1, substr_count($message, 'No document reference in the message'));
 		$this->assertStringContainsString('No document reference in the message (2)', $message);
-		$this->assertStringContainsString('Foreign currency', $message);
+		$this->assertStringContainsString('Paid in another currency than the document', $message);
+	}
+
+	/**
+	 * An entry naming no document carries the documents owing its amount, to be
+	 * checked by hand before anything is paid.
+	 *
+	 * @return void
+	 */
+	public function testAnEntryWithoutReferenceCarriesTheProposalsToCheck(): void
+	{
+		$entry = $this->entry('no_reference', array('proposals' => array('SI2602-0042', 'SI2602-0043')));
+		$files = array('camt.xml' => array('summary' => $this->summary(array($entry)), 'url' => ''));
+
+		$message = Camt053ReviewAlert::format('POSTE', $files);
+
+		$this->assertStringContainsString('proposed SI2602-0042 or SI2602-0043 (to check)', $message);
 	}
 
 	/**

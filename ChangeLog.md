@@ -8,7 +8,16 @@
 
 - Alert Zulip, on every run, about the entries it could not settle. Only the monthly report ever mentioned an entry needing a decision, so one arriving in a daily file waited until the end of the month, or forever when the monthly file carried nothing about it. The message groups them by what has to be decided, names the document and what it still owes when there is one, carries the direction, the amount, the date, the counterparty and the text of the entry, and links each account to its reconciliation screen. A suspected double payment, two distinct movements pointing at one document, is reported as such rather than as a reference resolving to nothing
 
+- The scheduled job takes the daily camt.053 statements and their PDF out of the PostFinance directory by their names, and nothing else: the camt.054 notifications are left alone and the daily and monthly file patterns are gone from the SFTP configuration. Every statement not processed yet is taken, oldest first, so a missed day is caught up on the next run. The PDF is archived beside its statement, same account and same day
+- The job runs every hour and works at the hours given as its parameters, 11:00 and 16:00, in Swiss time summer and winter. This seeds new installations only: an existing job has to be set to every hour with `11,16` as parameters on the scheduled jobs page. The monthly report is gone with the monthly pattern
+- A payment in a foreign currency is recorded like any other when it is in the currency of the invoice it names and settles exactly what it owes. A payment in another currency than the invoice is reported instead
+- An entry naming no document carries, in the Zulip alert, the open invoices owing its amount and issued on or before its value date, to be checked by hand. On the reconciliation screen, an entry naming an invoice owing another amount offers to pay it with the amount received
+- Without Zulip configured, every message the job would have sent is written to the log
+
 ### Tests
+- `Camt053RemoteFileTest.php` - statements and PDFs recognised by their names, everything else left alone, delivery order, and a PDF paired with the statement of its day
+- `CheckHourTest.php` - the job works at its hours only, in Swiss time whatever the season
+- `PaymentSuggestionLookupTest.php` - an invoice issued after the payment is not proposed, and an invoice the entry names owing another amount is offered with the amount received
 - `Camt053ReviewAlertTest.php` - a run with nothing to decide says nothing, an entry carries what it takes to decide without opening the file, entries are grouped by reason and long lists are capped
 - `Camt053PaymentRecorderTest.php` - every case that must write nothing, and the remaining due as the amount that counts
 - `Camt053DocumentReferenceTest.php` - references read out of surrounding text and markup, the optional separator, several references at once, long digit runs that are not references, and the ranking rules

@@ -58,6 +58,7 @@ require_once __DIR__.'/../lib/camt053readerandlink.lib.php';
 require_once __DIR__.'/../class/Camt053SftpConfig.class.php';
 require_once __DIR__.'/../class/SftpFileTransport.class.php';
 require_once __DIR__.'/../class/Camt053HostKey.class.php';
+require_once __DIR__.'/../class/Camt053RemoteFile.class.php';
 
 $langs->loadLangs(array("admin", "camt053readerandlink@camt053readerandlink"));
 
@@ -95,8 +96,6 @@ if ($action == 'testconn' && $id > 0 && $user->admin) {
 			'username' => $object->username,
 			'auth_type' => $object->auth_type,
 			'remote_dir' => $object->remote_dir,
-			'daily_pattern' => (string) $object->daily_pattern,
-			'monthly_pattern' => (string) $object->monthly_pattern,
 			'post_download_action' => $object->post_download_action,
 			'connected' => false,
 			'error' => '',
@@ -153,9 +152,8 @@ if ($action == 'confirm_delete' && $id > 0 && $user->admin) {
 /**
  * Print what the connection test found on the server.
  *
- * The listing is the point: several accounts land in the same directory, so the
- * only way to write patterns that pick the right files is to see the names the
- * bank actually delivers, and to see which of them the cron would take.
+ * The listing is the point: it shows the names the bank actually delivers, and
+ * which of them the cron would take.
  *
  * @param array     $report Report built by the testconn action
  * @param Translate $langs  Language object
@@ -197,7 +195,6 @@ function camt053PrintTestReport(array $report, $langs)
 		return;
 	}
 
-	$hasPattern = ($report['daily_pattern'] !== '' || $report['monthly_pattern'] !== '');
 	$files = 0;
 	$taken = 0;
 	$dirs = 0;
@@ -226,22 +223,12 @@ function camt053PrintTestReport(array $report, $langs)
 			$verdict = '<span class="warning">'.$langs->trans("Camt053SftpTestCronOutOfReach").'</span>';
 		} else {
 			$files++;
-			$isDaily = camt053MatchesFilePattern($report['daily_pattern'], $entry['name']);
-			$isMonthly = camt053MatchesFilePattern($report['monthly_pattern'], $entry['name']);
-			if ($isDaily && $isMonthly) {
-				$taken++;
-				$verdict = $langs->trans("Camt053SftpTestCronDailyAndMonthly");
-			} elseif ($isDaily) {
-				$taken++;
-				$verdict = $langs->trans("Camt053SftpTestCronDaily");
-			} elseif ($isMonthly) {
-				$taken++;
-				$verdict = $langs->trans("Camt053SftpTestCronMonthly");
-			} elseif (!$hasPattern) {
-				$taken++;
-				$verdict = '<span class="warning">'.$langs->trans("Camt053SftpTestCronNoPattern").'</span>';
-			} else {
+			$remoteFile = Camt053RemoteFile::classify($entry['name']);
+			if ($remoteFile === null) {
 				$verdict = '<span class="opacitymedium">'.$langs->trans("Camt053SftpTestCronIgnored").'</span>';
+			} else {
+				$taken++;
+				$verdict = $langs->trans($remoteFile['kind'] === Camt053RemoteFile::PDF ? "Camt053SftpTestCronPdf" : "Camt053SftpTestCronStatement");
 			}
 		}
 
@@ -263,9 +250,6 @@ function camt053PrintTestReport(array $report, $langs)
 
 	if ($nested > 0) {
 		print '<div class="warning">'.$langs->trans("Camt053SftpTestNestedWarning").'</div>';
-	}
-	if (!$hasPattern && $files > 0) {
-		print '<div class="warning">'.$langs->trans("Camt053SftpTestNoPatternWarning").'</div>';
 	}
 	if (!empty($report['truncated'])) {
 		print '<div class="opacitymedium">'.$langs->trans("Camt053SftpTestTruncated", count($report['entries'])).'</div>';

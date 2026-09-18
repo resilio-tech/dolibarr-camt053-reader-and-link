@@ -130,21 +130,23 @@ class Camt053PaymentRecorderTest extends TestCase
 	 * One unpaid document row as the candidate query returns it.
 	 *
 	 * @param string $ref      Document reference
-	 * @param float  $totalTtc Total of the document
+	 * @param float  $totalTtc Total of the document, in its own currency
 	 * @param float  $paid     What was already paid on it
+	 * @param string $currency Currency of the document, empty for the company one
 	 * @return object
 	 */
-	private function document(string $ref, float $totalTtc, float $paid = 0.0): object
+	private function document(string $ref, float $totalTtc, float $paid = 0.0, string $currency = ''): object
 	{
 		$row = new stdClass();
 		$row->rowid = 12;
 		$row->ref = $ref;
 		$row->label = 'ACME Corporation';
-		$row->total_ttc = $totalTtc;
-		$row->multicurrency_code = '';
-		$row->multicurrency_total_ttc = 0;
+		$row->total_ttc = $currency === '' ? $totalTtc : $totalTtc * 0.95;
+		$row->multicurrency_code = $currency;
+		$row->multicurrency_tx = $currency === '' ? 1 : 1.05;
+		$row->multicurrency_total_ttc = $currency === '' ? 0 : $totalTtc;
 		$row->paid = $paid;
-		$row->paid_mc = 0;
+		$row->paid_mc = $currency === '' ? 0 : $paid;
 		$row->payment_mode = 0;
 
 		return $row;
@@ -208,20 +210,39 @@ class Camt053PaymentRecorderTest extends TestCase
 	}
 
 	/**
-	 * A foreign currency payment carries a rate, which is one more thing to
-	 * decide.
+	 * A payment in another currency than the document carries a rate, which is
+	 * one more thing to decide.
 	 *
 	 * @return void
 	 */
-	public function testAForeignCurrencyEntryRecordsNothing(): void
+	public function testAPaymentInAnotherCurrencyThanTheDocumentRecordsNothing(): void
 	{
 		$entry = $this->entry('Paiement FA2602-0001');
 		$entry->setCurrency('EUR');
 
-		$outcome = $this->decide($entry);
+		$outcome = $this->decide($entry, array($this->document('FA2602-0001', 150.0)));
 
 		$this->assertSame(Camt053PaymentRecorder::SKIPPED, $outcome['status']);
-		$this->assertSame('foreign_currency', $outcome['reason']);
+		$this->assertSame('currency_mismatch', $outcome['reason']);
+		$this->assertSame('FA2602-0001', $outcome['document']['ref']);
+	}
+
+	/**
+	 * A foreign currency document paid in its own currency, for exactly what it
+	 * still owes, is settled like any other.
+	 *
+	 * @return void
+	 */
+	public function testAForeignCurrencyDocumentPaidInItsOwnCurrencyIsCertain(): void
+	{
+		$entry = $this->entry('Paiement FA2602-0001');
+		$entry->setCurrency('EUR');
+
+		$outcome = $this->decide($entry, array($this->document('FA2602-0001', 150.0, 0.0, 'EUR')));
+
+		$this->assertSame(Camt053PaymentRecorder::CERTAIN, $outcome['status']);
+		$this->assertSame('EUR', $outcome['document']['currency']);
+		$this->assertSame(1.05, $outcome['document']['rate']);
 	}
 
 	/**

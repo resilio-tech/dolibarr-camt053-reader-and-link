@@ -29,8 +29,6 @@ CREATE TABLE llx_camt053readerandlink_sftpconfig(
 	private_key_passphrase	text,
 	password				text,
 	remote_dir				varchar(255) DEFAULT 'yellow-net-reports' NOT NULL,
-	daily_pattern			varchar(255),
-	monthly_pattern			varchar(255),
 	post_download_action	varchar(16) DEFAULT 'delete' NOT NULL,
 	last_run				datetime,
 	last_status				varchar(255),

@@ -130,10 +130,9 @@ class modCamt053ReaderAndLink extends DolibarrModules
 		// Cronjobs (List of cron jobs entries to add when module is enabled)
 		// Disabled by default: enable it from the scheduled jobs page once at least
 		// one SFTP account is configured.
-		// Every 12 hours: the intraday camt.052 is fetched twice a day, and the
-		// monthly camt.053 is picked up within 12 hours of its delivery.
 		// This seeds new installations only. An existing job keeps the frequency
-		// stored in its own row, which has to be changed on the scheduled jobs page.
+		// and parameters stored in its own row, which have to be changed on the
+		// scheduled jobs page.
 		$this->cronjobs = array(
 			0 => array(
 				'label' => 'Fetch and reconcile CAMT.052/053 over SFTP',
@@ -141,9 +140,9 @@ class modCamt053ReaderAndLink extends DolibarrModules
 				'class' => '/camt053readerandlink/class/Camt053CronRunner.class.php',
 				'objectname' => 'Camt053CronRunner',
 				'method' => 'run',
-				'parameters' => '',
-				'comment' => 'Fetch CAMT.052 intraday reports and CAMT.053 statements from PostFinance MFTPF, auto-reconcile unique matches and report the monthly file to Zulip',
-				'frequency' => 12,
+				'parameters' => '11,16',
+				'comment' => 'Every hour, works at the hours given as parameters (Swiss time): fetches the daily CAMT.053 statements and their PDF from PostFinance, reconciles unique matches and tells Zulip what it could not settle',
+				'frequency' => 1,
 				'unitfrequency' => 3600,
 				'status' => 0,
 				'test' => 'isModEnabled("camt053readerandlink")',
