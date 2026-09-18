@@ -21,6 +21,8 @@
  * \brief      Tracking of downloaded/processed CAMT.053 files for idempotency.
  */
 
+require_once __DIR__ . '/Camt053RemoteFile.class.php';
+
 /**
  * Class Camt053ProcessedFile
  *
@@ -203,6 +205,40 @@ class Camt053ProcessedFile
 		$this->error_detail = $obj->error;
 
 		return 1;
+	}
+
+	/**
+	 * Where the statement of an account and delivery day was archived.
+	 *
+	 * @param string $iban Account IBAN, as the file name carries it
+	 * @param string $day  Delivery day (Y-m-d)
+	 * @return array{archived_path:string, fk_bank_account:int}|null Null when it was not archived yet
+	 */
+	public function findStatement(string $iban, string $day): ?array
+	{
+		$sql = "SELECT filename, archived_path, fk_bank_account FROM " . MAIN_DB_PREFIX . self::TABLE;
+		$sql .= " WHERE entity = " . ((int) $this->entity);
+		$sql .= " AND archived_path IS NOT NULL";
+		$sql .= " AND filename LIKE '%" . $this->db->escape($iban) . "%" . $this->db->escape(str_replace('-', '', $day)) . "%'";
+		$sql .= " ORDER BY rowid DESC";
+
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			$this->error = 'Database error: ' . $this->db->lasterror();
+			return null;
+		}
+
+		while ($obj = $this->db->fetch_object($resql)) {
+			$file = Camt053RemoteFile::classify((string) $obj->filename);
+			if ($file !== null && $file['kind'] === Camt053RemoteFile::STATEMENT && $file['iban'] === $iban && $file['day'] === $day) {
+				return array(
+					'archived_path' => (string) $obj->archived_path,
+					'fk_bank_account' => (int) $obj->fk_bank_account,
+				);
+			}
+		}
+
+		return null;
 	}
 
 	/**

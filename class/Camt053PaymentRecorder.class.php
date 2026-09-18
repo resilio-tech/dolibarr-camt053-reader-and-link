@@ -32,8 +32,8 @@ require_once __DIR__ . '/PaymentSuggestionFinder.class.php';
  * The daily collections name the invoice they settle, and recording them by hand
  * one at a time is the bulk of the manual work left. Only the case where nothing
  * is left to decide is recorded: one reference, resolving to one open document
- * of the company currency, owing exactly what the bank moved. Anything else is
- * reported with the reason, and waits for a human.
+ * of the currency the bank moved, owing exactly what the bank moved. Anything
+ * else is reported with the reason, and waits for a human.
  */
 class Camt053PaymentRecorder
 {
@@ -136,14 +136,9 @@ class Camt053PaymentRecorder
 			return $this->outcome(self::SKIPPED, 'no_document');
 		}
 
-		// A foreign currency payment carries a rate, which is one more thing to
-		// decide. Left to a human on purpose.
 		$currency = strtoupper($entry->getCurrency() ?: $this->companyCurrency);
-		if ($currency !== $this->companyCurrency) {
-			return $this->outcome(self::SKIPPED, 'foreign_currency');
-		}
 
-		$candidates = $this->finder->findByReference($references, $amount > 0, $currency, $entity);
+		$candidates = $this->finder->findByReference($references, $amount > 0, '', $entity);
 		if (empty($candidates)) {
 			// Two distinct movements pointing at one document: the first one
 			// settled it, and this one arrives on a document that owes nothing.
@@ -161,6 +156,9 @@ class Camt053PaymentRecorder
 		}
 
 		$document = $candidates[0];
+		if ($document['currency'] !== $currency) {
+			return $this->outcome(self::SKIPPED, 'currency_mismatch', $document);
+		}
 		// The amount is what makes it certain: a collection of anything else is a
 		// partial payment, an overpayment or a second payment, and every one of
 		// those is a decision.
@@ -241,7 +239,13 @@ class Camt053PaymentRecorder
 
 		$payment = $isCustomer ? new Paiement($this->db) : new PaiementFourn($this->db);
 		$payment->datepaye = $this->timestamp($valueDate);
-		$payment->amounts = array((int) $document['id'] => $amount);
+		if ($document['currency'] !== $this->companyCurrency) {
+			$payment->multicurrency_amounts = array((int) $document['id'] => $amount);
+			$payment->multicurrency_code = array((int) $document['id'] => $document['currency']);
+			$payment->multicurrency_tx = array((int) $document['id'] => $document['rate']);
+		} else {
+			$payment->amounts = array((int) $document['id'] => $amount);
+		}
 		$payment->paiementid = (int) dol_getIdFromCode($this->db, 'VIR', 'c_paiement', 'code', 'id');
 		$payment->num_payment = '';
 		$payment->note_private = 'CAMT053 ' . $numReleve;
