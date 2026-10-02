@@ -61,6 +61,16 @@ class Camt053Statement
 	private $creationDate;
 
 	/**
+	 * @var string|null First day of the period the statement covers
+	 */
+	private $periodStart;
+
+	/**
+	 * @var string|null Last day of the period the statement covers
+	 */
+	private $periodEnd;
+
+	/**
 	 * Constructor
 	 *
 	 * @param string   $iban      IBAN of the bank account
@@ -252,6 +262,39 @@ class Camt053Statement
 	public function setCreationDate(?string $creationDate): void
 	{
 		$this->creationDate = $creationDate;
+	}
+
+	/**
+	 * Get the first day of the covered period
+	 *
+	 * @return string|null
+	 */
+	public function getPeriodStart(): ?string
+	{
+		return $this->periodStart;
+	}
+
+	/**
+	 * Get the last day of the covered period
+	 *
+	 * @return string|null
+	 */
+	public function getPeriodEnd(): ?string
+	{
+		return $this->periodEnd;
+	}
+
+	/**
+	 * Set the period the statement covers
+	 *
+	 * @param string|null $periodStart First day, as carried by the file
+	 * @param string|null $periodEnd   Last day, as carried by the file
+	 * @return void
+	 */
+	public function setPeriod(?string $periodStart, ?string $periodEnd): void
+	{
+		$this->periodStart = $periodStart;
+		$this->periodEnd = $periodEnd;
 	}
 
 	/**

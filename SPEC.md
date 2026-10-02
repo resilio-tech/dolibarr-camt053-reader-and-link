@@ -71,6 +71,10 @@ Must:
   lines match one CAMT entry. The user chooses in a dropdown.
 - Split a collective booking (grouped salary transfers) so each underlying
   transfer can be matched on its own.
+- Take the period from the entries the file carries, then from the period it
+  declares (`FrToDt`), and only then from the previous month of the creation
+  date, which is a guess. The period decides which Dolibarr lines are compared
+  and, through its end date, the statement number the file is filed under.
 - Stay idempotent: a file already processed leaves the database unchanged.
   The cron tracks this in `llx_camt053readerandlink_processedfile` keyed on
   `(file_hash, entity)`.
@@ -116,6 +120,11 @@ payment on its own.
   refuses a manual attachment claiming the file already exists.
 - Identify by content, not by name: banks reuse a single remote name for every
   statement, so a same named file holding different content gets its own copy.
+- Archive whatever the file reconciled, including nothing. A statement carrying
+  no entry, or one whose entries were all reconciled already, is a valid
+  statement and belongs on the bank statement page like any other. The account
+  it is filed under is the one its IBAN resolves to, never one read from the
+  lines that happened to be reconciled.
 - No bank account resolved means no archiving. The upload is kept and the user
   is warned (`StatementFileNotArchived`), the file is never silently dropped.
 - The cron records where it archived each file, which is what lets the

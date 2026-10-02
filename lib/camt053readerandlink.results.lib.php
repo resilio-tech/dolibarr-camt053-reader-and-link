@@ -25,6 +25,7 @@
 
 require_once DOL_DOCUMENT_ROOT . '/compta/bank/class/account.class.php';
 require_once __DIR__ . '/../class/Camt053Entry.class.php';
+require_once __DIR__ . '/../class/Camt053ReconciliationPeriod.class.php';
 require_once __DIR__ . '/../class/BankRelationshipLookup.class.php';
 require_once __DIR__ . '/../class/PaymentSuggestionFinder.class.php';
 require_once __DIR__ . '/../class/InternalTransferDetector.class.php';
@@ -34,51 +35,14 @@ require_once __DIR__ . '/../class/InternalTransferDetector.class.php';
  *
  * Mirrors ReconciliationService::dateRange() so the interactive and the headless
  * paths agree on the period, and therefore on the statement number computed from
- * its end date. Falls back to the previous month when the file has no usable
- * entry date.
+ * its end date.
  *
  * @param Camt053FileProcessor $fileProcessor Parsed file
  * @return array{0:string,1:string} [start, end] in d/m/Y
  */
 function camt053_entries_date_range($fileProcessor)
 {
-	$min = null;
-	$max = null;
-
-	// Resolved accounts only, exactly like ReconciliationService: an IBAN that
-	// matches no Dolibarr account contributes nothing to the reconciliation, and
-	// letting its dates widen the window drags unrelated bank lines into the
-	// results as "unlinked".
-	foreach ($fileProcessor->getStatementsByAccountId() as $statement) {
-		foreach ($statement->getEntries() as $entry) {
-			// Pin the time: createFromFormat() would otherwise stamp "now", which
-			// makes two same-day entries compare unequal.
-			$d = DateTime::createFromFormat('Y-m-d H:i:s', $entry->getValueDate() . ' 00:00:00');
-			if ($d === false) {
-				continue;
-			}
-			if ($min === null || $d < $min) {
-				$min = clone $d;
-			}
-			if ($max === null || $d > $max) {
-				$max = clone $d;
-			}
-		}
-	}
-
-	if ($min === null || $max === null) {
-		$creationDate = $fileProcessor->getCreationDate();
-		try {
-			$d = $creationDate ? new DateTime($creationDate) : new DateTime();
-		} catch (Exception $e) {
-			$d = new DateTime();
-		}
-		$d->modify('first day of previous month');
-
-		return array($d->format('01/m/Y'), $d->format('t/m/Y'));
-	}
-
-	return array($min->format('d/m/Y'), $max->format('d/m/Y'));
+	return Camt053ReconciliationPeriod::resolve($fileProcessor);
 }
 
 /**
