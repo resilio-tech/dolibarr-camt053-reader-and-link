@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.053.001.02">
+	<BkToCstmrStmt>
+		<GrpHdr>
+			<MsgId>STMT-BATCH-WHOLE</MsgId>
+			<CreDtTm>2026-02-01T02:00:00</CreDtTm>
+		</GrpHdr>
+		<Stmt>
+			<Id>STMT-BATCH-WHOLE-001</Id>
+			<Acct>
+				<Id>
+					<IBAN>CH9300762011623852957</IBAN>
+				</Id>
+				<Ccy>CHF</Ccy>
+			</Acct>
+			<Ntry>
+				<Amt Ccy="CHF">15000.00</Amt>
+				<CdtDbtInd>DBIT</CdtDbtInd>
+				<Sts>BOOK</Sts>
+				<ValDt>
+					<Dt>2026-01-15</Dt>
+				</ValDt>
+				<AcctSvcrRef>BATCH-WHOLE-01</AcctSvcrRef>
+				<AddtlNtryInf>Grouped transfer</AddtlNtryInf>
+				<NtryDtls>
+					<Btch>
+						<NbOfTxs>2</NbOfTxs>
+						<TtlAmt Ccy="CHF">15000.00</TtlAmt>
+					</Btch>
+					<TxDtls>
+						<Amt Ccy="CHF">6000.00</Amt>
+						<RmtInf>
+							<Ustrd>Transfer to savings</Ustrd>
+						</RmtInf>
+						<RltdPties>
+							<Cdtr>
+								<Nm>Own Savings Account</Nm>
+							</Cdtr>
+							<CdtrAcct>
+								<Id>
+									<IBAN>CH5604835012345678009</IBAN>
+								</Id>
+							</CdtrAcct>
+						</RltdPties>
+						<AddtlTxInf>First line of the batch</AddtlTxInf>
+					</TxDtls>
+					<TxDtls>
+						<Amt Ccy="CHF">5000.00</Amt>
+					</TxDtls>
+				</NtryDtls>
+			</Ntry>
+		</Stmt>
+	</BkToCstmrStmt>
+</Document>

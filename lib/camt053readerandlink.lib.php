@@ -116,3 +116,61 @@ function camt053SftpFetchEnabled()
 {
 	return (getDolGlobalString('CAMT053_SFTP_FETCH_ENABLED') === '1');
 }
+
+/**
+ * Archive a statement file under the bank account and the statement it belongs to.
+ *
+ * The upload is the only copy of the file, so the physical move comes first and
+ * the ecm_files index only afterwards: indexing first leaves a row pointing at a
+ * file that is not on disk, and Dolibarr then refuses a manual attachment
+ * claiming the file already exists.
+ *
+ * @param DoliDB $db         Database handler
+ * @param string $uploadFile Statement file, in the entity upload directory
+ * @param int    $accountId  Bank account the statement belongs to
+ * @param string $numref     Statement reference (num_releve)
+ * @return string One of the Camt053StatementArchive outcomes
+ */
+function camt053ArchiveStatementFile($db, $uploadFile, $accountId, $numref)
+{
+	global $conf;
+
+	require_once __DIR__ . '/../class/Camt053StatementArchive.class.php';
+	require_once DOL_DOCUMENT_ROOT . '/compta/bank/class/account.class.php';
+	include_once DOL_DOCUMENT_ROOT . '/core/lib/files.lib.php';
+
+	$accountId = (int) $accountId;
+	$numref = (string) $numref;
+
+	if (empty($uploadFile) || !file_exists($uploadFile) || $accountId <= 0 || $numref === '') {
+		return Camt053StatementArchive::FAILED;
+	}
+
+	$account = new Account($db);
+	if ($account->fetch($accountId) <= 0) {
+		dol_syslog('CAMT053: Statement file not archived, bank account ' . $accountId . ' could not be loaded', LOG_ERR);
+		return Camt053StatementArchive::FAILED;
+	}
+
+	$targetDir = $conf->bank->dir_output . '/' . $accountId . '/statement/' . dol_sanitizeFileName($numref);
+	if (!is_dir($targetDir)) {
+		dol_mkdir($targetDir);
+	}
+
+	$originalName = basename($uploadFile);
+	$archived = Camt053StatementArchive::store($uploadFile, $targetDir, dol_sanitizeFileName($originalName));
+
+	if ($archived['outcome'] === Camt053StatementArchive::STORED) {
+		dol_syslog('CAMT053: Statement file archived to ' . $archived['path'], LOG_DEBUG);
+		$resindex = addFileIntoDatabaseIndex($targetDir, basename($archived['path']), $originalName, 'uploaded', 1, $account);
+		if ($resindex < 0) {
+			dol_syslog('CAMT053: File archived but database indexing failed for ' . $archived['path'], LOG_WARNING);
+		}
+	} elseif ($archived['outcome'] === Camt053StatementArchive::ALREADY) {
+		dol_syslog('CAMT053: Statement file already present at ' . $archived['path'] . ', skipping move', LOG_DEBUG);
+	} else {
+		dol_syslog('CAMT053: Error moving statement file ' . $uploadFile . ' to ' . $targetDir, LOG_ERR);
+	}
+
+	return $archived['outcome'];
+}

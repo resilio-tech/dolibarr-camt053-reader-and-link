@@ -8,6 +8,8 @@
 # Composer managed dependencies
 /vendor
 /dev/bin
+# Files produced by the dev test tooling
+/dev/out
 # PHPdocumentor generated files
 /build/phpdoc
 /doc/code/phpdoc

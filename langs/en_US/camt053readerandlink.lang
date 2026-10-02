@@ -34,10 +34,12 @@ WillBeConciliated = Will be conciliated
 WillNotBeConciliated = Will not be conciliated
 MultipleConciliated = Multiple conciliated
 Conciliated = Conciliation
+Camt053BankLineOrAction = Bank line / action
 ConcilationsConfirmed = Conciliations confirmed
 CheckNewConciliations = Check new conciliations
 ViewBankStatement = View bank statement
 AllEntriesReconciled = All entries are already reconciled
+Camt053StatementWithoutEntry = This statement carries no entry. It has been archived under its bank account.
 NoEntriesToReconcile = No entries found to reconcile
 Camt053IbanNotInCurrentEntity = The bank account with IBAN %s does not exist in the current entity. Its entries were ignored. Switch to the entity that owns this account before importing.
 BasedOnPreviousMonthIfNotFilled = Based on the previous month of the file extraction date if not filled
@@ -50,6 +52,7 @@ Camt053AlignDateAndReconcile = Align the date and reconcile
 Camt053DateAligned = The bank line was moved to %s and reconciled
 Camt053LineAlreadyReconciled = That bank line is already reconciled with statement %s
 Camt053AlignFailed = The bank line date could not be aligned
+Camt053StatementFileArchivingFailed = The statement file could not be archived. It is still in the upload directory.
 
 #
 # SFTP accounts (PostFinance MFTPF)
