@@ -84,6 +84,7 @@ jobs:
             --exclude='.github' \
             --exclude='.gitignore' \
             --exclude='test' \
+            --exclude='dev' \
             --exclude='build_tmp' \
             --exclude='*.zip' \
             --exclude='.tx' \

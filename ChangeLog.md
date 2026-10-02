@@ -5,8 +5,18 @@
 ### Bug Fixes
 - Read the detail of an entry whatever shape the bank writes it in. `<NtryDtls>` and `<TxDtls>` both repeat in real files, and a repeated tag comes back from the XML round trip as a list: reading straight through the keys then found nothing, so an entry detailing several transactions arrived with no counterparty, no remittance info and no name, and therefore with no internal transfer and no payment suggestion. Transactions spread over several detail blocks are now split like several details of one block, and an entry kept whole because its detail does not reconstruct the group total still carries the counterparty of its first transaction
 - Put the caret in the Description field of the transfer confirmation, with its content selected. It is the only field retyped on every transfer
+- Give every row of the comparison screen as many cells as its header. Three of the four sections printed one cell short, so the table looked cut wherever an entry needed no dropdown. The header also labelled two different columns "Conciliation", and displayed the entry hash, which is a form key nobody reads
+- Archive the statement of a confirmation that reconciled nothing. The bank account was only read from the lines that had just been reconciled, so confirming with every dropdown left empty, or with every entry already reconciled, warned that no account could be determined and left the only copy of the file in the upload directory. The account is now resolved from the IBAN the file carries, as the rest of the module already does
+- Archive the statement of a file that carries no entry. A statement with nothing on it is still a statement: the upload redirected straight to the bank statement page and filed nothing, so two real files went through the module without being recorded anywhere. It is archived under its account and its period, and the message says the file carries no entry
+- Parse a statement that carries no entry. A single entry-less `<Stmt>` was taken for a list of statements, and the import aborted on a type error before reaching any of the above
+- Read the period the file declares (`FrToDt`) and date a statement with it when its entries cannot. Both the interactive and the headless path fell back to the previous month of the creation date, which files a monthly statement delivered in the first days of the next month under the wrong month, and gives an entry-less statement a window it has nothing to do with
+- Warn about an IBAN that belongs to no bank account of the current entity even when the statement carries no entry, instead of showing an empty result page with no explanation
+- Report a failed archiving as a failed archiving. Both a missing account and a failed move told the user that no bank account could be determined, which is only one of the two
 
 ### Tests
+- `ResultsTableTest.php` - every section prints the cells its header announces, each column is labelled once, and the reconciliation form keys are unchanged
+- `Camt053ReconciliationPeriodTest.php` - the period comes from the entries, then from the one the file declares, then from the creation month, and covers every block of a merged statement
+- `StatementArchivingTest.php` - both upload paths archive through the same helper, the account is resolved before the file is archived, and the file is moved before it is indexed
 - `EntryDetailsShapeTest.php` - an entry kept whole still reads its detail, transactions spread over several detail blocks are all read, and a single-transaction entry is unchanged
 
 ## 2.2.0 (2026-09-01)
