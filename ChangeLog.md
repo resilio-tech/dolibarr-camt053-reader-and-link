@@ -7,6 +7,7 @@
 - Prefill the payment mode with bank transfer on a suggestion whose document carries none. The suggestion comes from a bank statement, so the movement is a transfer, and the four payment pages opened with an empty select to be picked by hand every single time. A mode already set on the document still wins, and each page is passed the parameter it reads: the code for a customer invoice, the dictionary id for the three others
 
 ### Bug Fixes
+- Add the columns introduced in 2.2.0 on an existing installation when the module is activated again. `archived_path` was only created with the table, so an installation older than 2.2.0 could not record a processed file: every file was processed again on every run and the Zulip links to the reconciliation screen had nothing to open. `host_fingerprint` only reached an installation through a Dolibarr upgrade, which is the only time `dolibarr_allversions.sql` runs
 - Read the detail of an entry whatever shape the bank writes it in. `<NtryDtls>` and `<TxDtls>` both repeat in real files, and a repeated tag comes back from the XML round trip as a list: reading straight through the keys then found nothing, so an entry detailing several transactions arrived with no counterparty, no remittance info and no name, and therefore with no internal transfer and no payment suggestion. Transactions spread over several detail blocks are now split like several details of one block, and an entry kept whole because its detail does not reconstruct the group total still carries the counterparty of its first transaction
 - Put the caret in the Description field of the transfer confirmation, with its content selected. It is the only field retyped on every transfer
 - Give every row of the comparison screen as many cells as its header. Three of the four sections printed one cell short, so the table looked cut wherever an entry needed no dropdown. The header also labelled two different columns "Conciliation", and displayed the entry hash, which is a form key nobody reads
@@ -18,6 +19,7 @@
 - Report a failed archiving as a failed archiving. Both a missing account and a failed move told the user that no bank account could be determined, which is only one of the two
 
 ### Tests
+- `UpgradeScriptTest.php` - a column added after the first release is also added on an existing installation
 - `RecordedPaymentLookupTest.php` - every spelling of the reference is looked for, the lookup stays inside the entity and the statement account, only the documents of the right direction are read, and a line reconciled elsewhere is reported as such
 - `Camt053DocumentReferenceTest.php` - references read out of surrounding text and markup, the optional separator, several references at once, long digit runs that are not references, and the ranking rules
 - `ResultsTableTest.php` - every section prints the cells its header announces, each column is labelled once, and the reconciliation form keys are unchanged
