@@ -26,6 +26,7 @@
 require_once DOL_DOCUMENT_ROOT . '/compta/bank/class/account.class.php';
 require_once __DIR__ . '/../class/Camt053Entry.class.php';
 require_once __DIR__ . '/../class/Camt053DocumentReference.class.php';
+require_once __DIR__ . '/../class/Camt053ReconciliationPeriod.class.php';
 require_once __DIR__ . '/../class/BankRelationshipLookup.class.php';
 require_once __DIR__ . '/../class/PaymentSuggestionFinder.class.php';
 require_once __DIR__ . '/../class/InternalTransferDetector.class.php';
@@ -35,51 +36,14 @@ require_once __DIR__ . '/../class/InternalTransferDetector.class.php';
  *
  * Mirrors ReconciliationService::dateRange() so the interactive and the headless
  * paths agree on the period, and therefore on the statement number computed from
- * its end date. Falls back to the previous month when the file has no usable
- * entry date.
+ * its end date.
  *
  * @param Camt053FileProcessor $fileProcessor Parsed file
  * @return array{0:string,1:string} [start, end] in d/m/Y
  */
 function camt053_entries_date_range($fileProcessor)
 {
-	$min = null;
-	$max = null;
-
-	// Resolved accounts only, exactly like ReconciliationService: an IBAN that
-	// matches no Dolibarr account contributes nothing to the reconciliation, and
-	// letting its dates widen the window drags unrelated bank lines into the
-	// results as "unlinked".
-	foreach ($fileProcessor->getStatementsByAccountId() as $statement) {
-		foreach ($statement->getEntries() as $entry) {
-			// Pin the time: createFromFormat() would otherwise stamp "now", which
-			// makes two same-day entries compare unequal.
-			$d = DateTime::createFromFormat('Y-m-d H:i:s', $entry->getValueDate() . ' 00:00:00');
-			if ($d === false) {
-				continue;
-			}
-			if ($min === null || $d < $min) {
-				$min = clone $d;
-			}
-			if ($max === null || $d > $max) {
-				$max = clone $d;
-			}
-		}
-	}
-
-	if ($min === null || $max === null) {
-		$creationDate = $fileProcessor->getCreationDate();
-		try {
-			$d = $creationDate ? new DateTime($creationDate) : new DateTime();
-		} catch (Exception $e) {
-			$d = new DateTime();
-		}
-		$d->modify('first day of previous month');
-
-		return array($d->format('01/m/Y'), $d->format('t/m/Y'));
-	}
-
-	return array($min->format('d/m/Y'), $max->format('d/m/Y'));
+	return Camt053ReconciliationPeriod::resolve($fileProcessor);
 }
 
 /**
@@ -223,8 +187,7 @@ function camt053_render_results(array $banks, array $context)
 		print '<td>' . $langs->trans('Date') . '</td>';
 		print '<td>' . $langs->trans('Name') . '</td>';
 		print '<td>' . $langs->trans('Conciliated') . '</td>';
-		print '<td>' . $langs->trans('Conciliated') . '</td>';
-		print '<td>hash</td>';
+		print '<td>' . $langs->trans('Camt053BankLineOrAction') . '</td>';
 		print '</tr>';
 
 		// The two sections a human has to act on, and the two that only report.
@@ -366,7 +329,6 @@ function camt053_render_results_section($section, array $results, int $accountId
 			print '<td>' . dol_escape_htmltag($entry['value_date']) . '</td>';
 			print '<td>' . dol_escape_htmltag($entry['name']) . '<br /><span class="info">' . dol_escape_htmltag($entry['info']) . '</span></td>';
 			print '<td><div class="statement_link_multiple">' . $langs->trans('MultipleConciliated') . '</div></td>';
-			print '<td>' . dol_escape_htmltag($entry['hash']) . '</td>';
 			print '<td>';
 			$array = array();
 			foreach ($n_obj['db'] as $ntry_db_obj) {
