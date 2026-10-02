@@ -29,6 +29,26 @@ if (!defined('DOL_URL_ROOT')) {
 	define('DOL_URL_ROOT', '/dolibarr');
 }
 
+if (!function_exists('dol_getIdFromCode')) {
+	/**
+	 * Stand-in for Dolibarr's dictionary lookup. The shipped c_paiement
+	 * dictionary numbers the bank transfer 4, which is what the pages taking an
+	 * id expect to receive.
+	 *
+	 * @param mixed  $db           Database handler
+	 * @param string $key          Code to resolve
+	 * @param string $tablename    Dictionary table
+	 * @param string $fieldkey     Column holding the code
+	 * @param string $fieldid      Column holding the id
+	 * @param int    $entityfilter Entity filter
+	 * @return int
+	 */
+	function dol_getIdFromCode($db, $key, $tablename, $fieldkey = 'code', $fieldid = 'id', $entityfilter = 0)
+	{
+		return ($key === 'VIR' && $tablename === 'c_paiement') ? 4 : 0;
+	}
+}
+
 require_once dirname(__FILE__) . '/../../class/Camt053Entry.class.php';
 require_once dirname(__FILE__) . '/../../class/PaymentSuggestionFinder.class.php';
 
@@ -64,15 +84,16 @@ class PaymentSuggestionFinderTest extends TestCase
 	 * @param int    $id       Document id
 	 * @param float  $amount   Amount
 	 * @param string $date     Value date (Y-m-d)
-	 * @param string $currency  Payable currency
-	 * @param int    $accountId Bank account to preselect
+	 * @param string $currency    Payable currency
+	 * @param int    $accountId   Bank account to preselect
+	 * @param int    $paymentMode Payment mode carried by the document
 	 * @return string
 	 */
-	private function payUrl(string $type, int $id, float $amount, string $date, string $currency, int $accountId = 0): string
+	private function payUrl(string $type, int $id, float $amount, string $date, string $currency, int $accountId = 0, int $paymentMode = 0): string
 	{
 		$method = new ReflectionMethod(PaymentSuggestionFinder::class, 'payUrl');
 		$method->setAccessible(true);
-		return $method->invoke($this->finder, $type, $id, $amount, $date, $currency, $accountId);
+		return $method->invoke($this->finder, $type, $id, $amount, $date, $currency, $accountId, $paymentMode);
 	}
 
 	/**
@@ -272,5 +293,46 @@ class PaymentSuggestionFinderTest extends TestCase
 
 		$this->assertSame('CHF', $currency);
 		$this->assertEqualsWithDelta(60.0, $remaining, 0.001);
+	}
+
+	/**
+	 * The suggestion comes from a bank statement, so the movement is a transfer.
+	 * A document carrying no payment mode opened with an empty select, to be
+	 * picked by hand on every single payment.
+	 *
+	 * @return void
+	 */
+	public function testTheTransferModeIsPrefilledWhenTheDocumentHasNone(): void
+	{
+		// Each page reads its own parameter, and only the customer invoice takes
+		// the code rather than the dictionary id.
+		$expected = array(
+			'customer_invoice' => '&paiementcode=VIR',
+			'supplier_invoice' => '&paiementid=4',
+			'expense_report' => '&fk_typepayment=4',
+			'social_charge' => '&paiementtype=4',
+		);
+
+		foreach ($expected as $type => $parameter) {
+			$url = $this->payUrl($type, 7, 100.0, '2026-06-25', 'CHF', 3, 0);
+			$this->assertStringContainsString($parameter, $url, $type . ' opens with no payment mode');
+		}
+	}
+
+	/**
+	 * A mode already set on the document is the one that must win: the page
+	 * falls back to it on its own as long as nothing is passed.
+	 *
+	 * @return void
+	 */
+	public function testAModeCarriedByTheDocumentIsLeftAlone(): void
+	{
+		foreach (array('customer_invoice', 'supplier_invoice', 'expense_report', 'social_charge') as $type) {
+			$url = $this->payUrl($type, 7, 100.0, '2026-06-25', 'CHF', 3, 6);
+			$this->assertStringNotContainsString('paiementcode', $url, $type);
+			$this->assertStringNotContainsString('paiementid', $url, $type);
+			$this->assertStringNotContainsString('fk_typepayment', $url, $type);
+			$this->assertStringNotContainsString('paiementtype', $url, $type);
+		}
 	}
 }
