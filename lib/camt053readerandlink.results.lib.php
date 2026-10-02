@@ -25,6 +25,8 @@
 
 require_once DOL_DOCUMENT_ROOT . '/compta/bank/class/account.class.php';
 require_once __DIR__ . '/../class/Camt053Entry.class.php';
+require_once __DIR__ . '/../class/Camt053DocumentReference.class.php';
+require_once __DIR__ . '/../class/RecordedPaymentLookup.class.php';
 require_once __DIR__ . '/../class/Camt053ReconciliationPeriod.class.php';
 require_once __DIR__ . '/../class/BankRelationshipLookup.class.php';
 require_once __DIR__ . '/../class/PaymentSuggestionFinder.class.php';
@@ -111,6 +113,103 @@ function camt053_render_suggestions($entry, $entity, $accountId, $finder, $detec
 }
 
 /**
+ * Render what is known about a payment already recorded for an entry the
+ * matcher could not link.
+ *
+ * @param array      $recorded  Line and document found by RecordedPaymentLookup
+ * @param string     $valueDate Value date of the file entry (Y-m-d)
+ * @param string     $numReleve Statement reference of the current run
+ * @param int        $accountId Bank account the statement belongs to
+ * @param Translate  $langs     Language object
+ * @return string HTML
+ */
+function camt053_render_recorded_payment(array $recorded, string $valueDate, string $numReleve, int $accountId, $langs)
+{
+	$out = array();
+
+	$documentUrls = array(
+		'customer_invoice' => '/compta/facture/card.php?facid=',
+		'supplier_invoice' => '/fourn/facture/card.php?facid=',
+		'expense_report' => '/expensereport/card.php?id=',
+	);
+
+	$lineDate = dol_print_date(dol_stringtotime($recorded['line_date']), 'day');
+	$lineUrl = DOL_URL_ROOT . '/compta/bank/line.php?rowid=' . ((int) $recorded['line_id']) . '&save_lastsearch_values=1';
+
+	$out[] = '<a href="' . dol_escape_htmltag($lineUrl) . '" target="_blank" rel="noopener noreferrer">'
+		. img_picto('', 'bank_account', 'class="paddingright"')
+		. dol_escape_htmltag($langs->trans('Camt053RecordedOn', $lineDate)) . '</a>';
+
+	if (isset($documentUrls[$recorded['type']]) && $recorded['document_id'] > 0) {
+		$documentUrl = DOL_URL_ROOT . $documentUrls[$recorded['type']] . ((int) $recorded['document_id']);
+		$out[] = '<a href="' . dol_escape_htmltag($documentUrl) . '" target="_blank" rel="noopener noreferrer">'
+			. img_picto('', 'bill', 'class="paddingright"')
+			. dol_escape_htmltag($recorded['document_ref']) . '</a>';
+	}
+
+	// Offered only when the line is still free: a line reconciled with another
+	// statement is reported, never moved.
+	if (empty($recorded['reconciled']) && $numReleve !== '' && $valueDate !== '') {
+		$alignUrl = dol_buildpath('/camt053readerandlink/align_bank_line.php', 1)
+			. '?action=align&token=' . newToken()
+			. '&line_id=' . ((int) $recorded['line_id'])
+			. '&date=' . urlencode($valueDate)
+			. '&num_releve=' . urlencode($numReleve)
+			. '&account_id=' . ((int) $accountId);
+		$out[] = '<a class="button smallpaddingimp" href="' . dol_escape_htmltag($alignUrl) . '">'
+			. dol_escape_htmltag($langs->trans('Camt053AlignDateAndReconcile')) . '</a>';
+	} elseif (!empty($recorded['reconciled'])) {
+		$out[] = '<span class="opacitymedium">'
+			. dol_escape_htmltag($langs->trans('Camt053LineAlreadyReconciled', (string) $recorded['num_releve']))
+			. '</span>';
+	}
+
+	return implode('<br />', $out);
+}
+
+/**
+ * Bank line of the only candidate whose document the entry names.
+ *
+ * The amount matched several Dolibarr lines, so the module cannot choose on its
+ * own (SPEC section 3). It can when the file says which document was paid: the
+ * reference is preselected in the dropdown, which stays open on every other
+ * candidate. An entry naming two of them is still a manual choice.
+ *
+ * @param Camt053Entry $fileEntry      Entry read from the file
+ * @param array        $candidates     Matching Dolibarr entries
+ * @param object       $relationLookup Lookup of the document behind a bank line
+ * @return string Bank line id to preselect, empty string for none
+ */
+function camt053_candidate_named_by_entry($fileEntry, array $candidates, $relationLookup)
+{
+	$data = $fileEntry->getData();
+	$references = Camt053DocumentReference::extract((string) $data['name'], (string) $data['info']);
+	if (empty($references)) {
+		return '';
+	}
+
+	$candidateRefs = array();
+	foreach ($candidates as $candidate) {
+		$bankLine = $candidate->getBankLine();
+		if (!$bankLine) {
+			continue;
+		}
+		// The dropdown keys its options on rowid, so the preselection has to
+		// answer with the same id.
+		$lineId = (int) (!empty($bankLine->rowid) ? $bankLine->rowid : (isset($bankLine->id) ? $bankLine->id : 0));
+		if ($lineId <= 0) {
+			continue;
+		}
+		$relation = $relationLookup->getRelation($lineId);
+		if ($relation !== null && !empty($relation['ref'])) {
+			$candidateRefs[$lineId] = (string) $relation['ref'];
+		}
+	}
+
+	return Camt053DocumentReference::pickNamed($references, $candidateRefs);
+}
+
+/**
  * Print the comparison screen and the form that submits the reconciliation.
  *
  * @param array $banks   Comparison results, keyed by bank account id
@@ -127,8 +226,13 @@ function camt053_render_results(array $banks, array $context)
 	$relationLookup = new BankRelationshipLookup($db);
 	$suggestionFinder = new PaymentSuggestionFinder($db);
 	$transferDetector = new InternalTransferDetector($db);
+	$recordedLookup = new RecordedPaymentLookup($db);
 
 	$actionableFirst = !empty($context['actionable_first']);
+
+	// Statement reference of this run, the one the quick action reconciles with.
+	$endDate = DateTime::createFromFormat('d/m/Y', (string) $context['date_end']);
+	$numReleve = $endDate ? $endDate->format('Ym') : '';
 
 	print '<form id="form" name="form" action="' . dol_buildpath('/camt053readerandlink/confirm.php', 1) . '" method="post">';
 
@@ -160,7 +264,8 @@ function camt053_render_results(array $banks, array $context)
 				$form,
 				$relationLookup,
 				$suggestionFinder,
-				$transferDetector
+				$transferDetector,
+				array('recorded_lookup' => $recordedLookup, 'num_releve' => $numReleve)
 			);
 		}
 
@@ -246,9 +351,12 @@ function camt053_render_account_header(int $accountId, array $bank, array $conte
  * @param InternalTransferDetector $transferDetector  Internal transfer detector
  * @return void
  */
-function camt053_render_results_section($section, array $results, int $accountId, $form, $relationLookup, $suggestionFinder, $transferDetector)
+function camt053_render_results_section($section, array $results, int $accountId, $form, $relationLookup, $suggestionFinder, $transferDetector, array $extra = array())
 {
 	global $conf, $langs;
+
+	$recordedLookup = isset($extra['recorded_lookup']) ? $extra['recorded_lookup'] : null;
+	$numReleve = isset($extra['num_releve']) ? (string) $extra['num_releve'] : '';
 
 	$from_file = 'Fichier CAMT.053';
 	$from_doli = 'Dolibarr';
@@ -279,6 +387,7 @@ function camt053_render_results_section($section, array $results, int $accountId
 		foreach ($results['multiples'] as $n_obj) {
 			$entry = $n_obj['file']->getData();
 			$ntry_hash = $n_obj['file']->getHash();
+			$preselected = camt053_candidate_named_by_entry($n_obj['file'], $n_obj['db'], $relationLookup);
 			print '<tr>';
 			print '<td>' . ($n_obj['file']->isFromFile() ? $from_file : $from_doli) . '</td>';
 			print '<td style="text-align: right">' . number_format($entry['amount'], 2) . '</td>';
@@ -302,7 +411,7 @@ function camt053_render_results_section($section, array $results, int $accountId
 				}
 				$array[$id] = '(' . $id . ') ' . $doc . $n . '<br />' . $a . '<br />' . $d;
 			}
-			print $form->selectMassAction('', $array, 1, 'linked_' . dol_escape_htmltag($accountId . '-' . $ntry_hash));
+			print $form->selectMassAction($preselected, $array, 1, 'linked_' . dol_escape_htmltag($accountId . '-' . $ntry_hash));
 			print '</td>';
 			print '</tr>';
 		}
@@ -318,15 +427,35 @@ function camt053_render_results_section($section, array $results, int $accountId
 			if (!$n_obj->isFromFile() && $o) {
 				$name = $relationLookup->getRelationHtml($o->id);
 			}
+			// The payment may well be in Dolibarr already, recorded further from
+			// the booking date than the tolerance reaches. The document the file
+			// names is what finds it, and saying so is what stops someone looking
+			// for a movement that is already there.
+			$recorded = ($n_obj->isFromFile() && $recordedLookup !== null)
+				? $recordedLookup->find(
+					Camt053DocumentReference::extract((string) $entry['name'], (string) $entry['info']),
+					(float) $entry['amount'],
+					$accountId
+				)
+				: null;
+
 			print '<tr>';
 			print '<td>' . ($n_obj->isFromFile() ? $from_file : $from_doli) . '</td>';
 			print '<td style="text-align: right">' . number_format($entry['amount'], 2) . '</td>';
 			print '<td>' . dol_escape_htmltag($entry['value_date']) . '</td>';
 			print '<td>' . $name . '<br /><span class="info">' . dol_escape_htmltag($entry['info']) . '</span></td>';
-			print '<td><div class="statement_link_unlinked">' . $langs->trans('WillNotBeConciliated') . '</div></td>';
+			if ($recorded !== null) {
+				print '<td><div class="statement_link_multiple">' . $langs->trans('Camt053AlreadyRecordedOffDate') . '</div></td>';
+			} else {
+				print '<td><div class="statement_link_unlinked">' . $langs->trans('WillNotBeConciliated') . '</div></td>';
+			}
 			$suggestionHtml = $n_obj->isFromFile()
 				? camt053_render_suggestions($n_obj, (int) $conf->entity, $accountId, $suggestionFinder, $transferDetector, $langs)
 				: '';
+			if ($recorded !== null) {
+				$recordedHtml = camt053_render_recorded_payment($recorded, (string) $entry['value_date'], $numReleve, $accountId, $langs);
+				$suggestionHtml = $recordedHtml . ($suggestionHtml !== '' ? '<br />' . $suggestionHtml : '');
+			}
 			print '<td>' . $suggestionHtml . '</td>';
 			print '</tr>';
 		}
