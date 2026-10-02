@@ -1,6 +1,8 @@
 # CHANGELOG CAMT053READERANDLINK FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
 ## 2.2.1 (unreleased)
+### New Features
+- Prefill the payment mode with bank transfer on a suggestion whose document carries none. The suggestion comes from a bank statement, so the movement is a transfer, and the four payment pages opened with an empty select to be picked by hand every single time. A mode already set on the document still wins, and each page is passed the parameter it reads: the code for a customer invoice, the dictionary id for the three others
 
 ### Bug Fixes
 - Read the detail of an entry whatever shape the bank writes it in. `<NtryDtls>` and `<TxDtls>` both repeat in real files, and a repeated tag comes back from the XML round trip as a list: reading straight through the keys then found nothing, so an entry detailing several transactions arrived with no counterparty, no remittance info and no name, and therefore with no internal transfer and no payment suggestion. Transactions spread over several detail blocks are now split like several details of one block, and an entry kept whole because its detail does not reconstruct the group total still carries the counterparty of its first transaction
@@ -17,6 +19,7 @@
 - `ResultsTableTest.php` - every section prints the cells its header announces, each column is labelled once, and the reconciliation form keys are unchanged
 - `Camt053ReconciliationPeriodTest.php` - the period comes from the entries, then from the one the file declares, then from the creation month, and covers every block of a merged statement
 - `StatementArchivingTest.php` - both upload paths archive through the same helper, the account is resolved before the file is archived, and the file is moved before it is indexed
+- `PaymentSuggestionFinderTest.php` - the transfer mode is prefilled for the four document types when the document carries none, and nothing is passed when it carries one
 - `EntryDetailsShapeTest.php` - an entry kept whole still reads its detail, transactions spread over several detail blocks are all read, and a single-transaction entry is unchanged
 
 ## 2.2.0 (2026-09-01)
