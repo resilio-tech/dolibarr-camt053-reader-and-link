@@ -140,3 +140,13 @@ $(document).ready(function() {
 		}
 	});
 });
+
+/* The description is the only field of the transfer confirmation that is
+   retyped every time, so it takes the focus with its content selected. Guarded
+   on the element: this file is loaded on every page of the instance. */
+$(document).ready(function() {
+	const transferLabel = document.getElementById('camt053_transfer_label');
+	if (!transferLabel) return;
+	transferLabel.focus();
+	transferLabel.select();
+});

@@ -232,6 +232,13 @@ class ReconciliationService
 			}
 		}
 
+		// A statement with no entry is still the statement of its period. The
+		// creation date is only a last resort: a monthly file delivered in the
+		// first days of the next month would file it under the wrong month.
+		if ($max === null) {
+			$max = $this->toDate($statement->getPeriodEnd());
+		}
+
 		if ($max === null) {
 			$creation = $statement->getCreationDate();
 			$max = $this->toDate($creation) ?: new DateTime();
@@ -266,6 +273,24 @@ class ReconciliationService
 				}
 				if ($max === null || $d > $max) {
 					$max = clone $d;
+				}
+			}
+		}
+
+		// Same rule as the interactive path (Camt053ReconciliationPeriod): the
+		// period the file declares comes before any guess made from today.
+		if ($min === null || $max === null) {
+			foreach ($fileStatements as $statement) {
+				$start = $this->toDate($statement->getPeriodStart());
+				$end = $this->toDate($statement->getPeriodEnd());
+				if ($start === null || $end === null) {
+					continue;
+				}
+				if ($min === null || $start < $min) {
+					$min = $start;
+				}
+				if ($max === null || $end > $max) {
+					$max = $end;
 				}
 			}
 		}

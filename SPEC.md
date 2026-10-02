@@ -68,16 +68,33 @@ Must:
   by the bank, so it is left out, and the number left out is reported. Every
   entry of a CAMT.053 statement is kept, whatever its status.
 - Report as ambiguous, never reconcile automatically, when several Dolibarr
-  lines match one CAMT entry. The user chooses in a dropdown.
+  lines match one CAMT entry. The user chooses in a dropdown. When the text of
+  the entry names the document behind exactly one of the candidates, that one is
+  preselected: the file said which document was paid. Every other candidate
+  stays offered, and an entry naming two of them preselects nothing.
 - Split a collective booking (grouped salary transfers) so each underlying
   transfer can be matched on its own.
+- Report an entry whose payment is already recorded in Dolibarr, further from
+  the booking date than the tolerance reaches, as exactly that. The document the
+  file names leads to its payment and to the bank line behind it. The quick
+  action offered moves the two dates of the bank line, which is what the
+  matching compares, and never the date of the payment, which is an accounting
+  date. A line already reconciled with another statement is reported, never
+  moved.
+- Take the period from the entries the file carries, then from the period it
+  declares (`FrToDt`), and only then from the previous month of the creation
+  date, which is a guess. The period decides which Dolibarr lines are compared
+  and, through its end date, the statement number the file is filed under.
 - Stay idempotent: a file already processed leaves the database unchanged.
   The cron tracks this in `llx_camt053readerandlink_processedfile` keyed on
   `(file_hash, entity)`.
 
 Must not:
 
-- Reconcile an ambiguous entry by picking one candidate.
+- Reconcile an ambiguous entry by picking one candidate, beyond preselecting the
+  single one the file names, which stays visible and changeable.
+- Reconcile anything on a reference alone. The amount is what matches; a
+  reference only ranks candidates the amount already matched.
 - Reconcile a pending entry read from an intraday report.
 - Book a statement on a fallback account when its IBAN resolves to nothing.
   There is no fallback account: the bank account always comes from the IBAN the
@@ -116,6 +133,11 @@ payment on its own.
   refuses a manual attachment claiming the file already exists.
 - Identify by content, not by name: banks reuse a single remote name for every
   statement, so a same named file holding different content gets its own copy.
+- Archive whatever the file reconciled, including nothing. A statement carrying
+  no entry, or one whose entries were all reconciled already, is a valid
+  statement and belongs on the bank statement page like any other. The account
+  it is filed under is the one its IBAN resolves to, never one read from the
+  lines that happened to be reconciled.
 - No bank account resolved means no archiving. The upload is kept and the user
   is warned (`StatementFileNotArchived`), the file is never silently dropped.
 - The cron records where it archived each file, which is what lets the
