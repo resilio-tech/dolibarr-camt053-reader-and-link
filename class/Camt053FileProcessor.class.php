@@ -242,8 +242,11 @@ class Camt053FileProcessor
 			throw new Exception('Invalid CAMT structure: missing BkToCstmrStmt/Stmt (camt.053) or BkToCstmrAcctRpt/Rpt (camt.052)');
 		}
 
-		// Handle single statement (convert to array of one)
-		if (isset($stmts['Ntry'])) {
+		// Handle single statement (convert to array of one). A statement with no
+		// entry carries no Ntry key, and keying the test on it alone made a single
+		// entry-less statement look like a list of statements: the parse then
+		// walked its children and aborted on the first one that is not a block.
+		if (isset($stmts['Acct']) || isset($stmts['Ntry'])) {
 			$stmts = array($stmts);
 		}
 
@@ -324,6 +327,15 @@ class Camt053FileProcessor
 		if ($creationDate) {
 			$statement->setCreationDate($creationDate);
 		}
+
+		// The period the statement covers. It is what dates a statement carrying
+		// no entry, which has no other date to be reconciled and archived under.
+		$periodStart = $this->getArrayValue($stmt, array('FrToDt', 'FrDtTm'));
+		$periodEnd = $this->getArrayValue($stmt, array('FrToDt', 'ToDtTm'));
+		$statement->setPeriod(
+			is_scalar($periodStart) ? (string) $periodStart : null,
+			is_scalar($periodEnd) ? (string) $periodEnd : null
+		);
 
 		// Get entries
 		$entries = $this->getArrayValue($stmt, array('Ntry'));
@@ -774,8 +786,11 @@ class Camt053FileProcessor
 				$merged = new Camt053Statement($statement->getIban(), $accountId);
 				$merged->setIsFromFile(true);
 				$merged->setCreationDate($statement->getCreationDate());
+				$merged->setPeriod($statement->getPeriodStart(), $statement->getPeriodEnd());
 				$result[$accountId] = $merged;
 				$seenReferences[$accountId] = array();
+			} else {
+				$this->widenPeriod($result[$accountId], $statement);
 			}
 
 			foreach ($statement->getEntries() as $entry) {
@@ -798,6 +813,31 @@ class Camt053FileProcessor
 			}
 		}
 		return $result;
+	}
+
+	/**
+	 * Widen the period of a merged statement with the one of another block.
+	 *
+	 * @param Camt053Statement $merged    Statement the blocks are merged into
+	 * @param Camt053Statement $statement Block being merged
+	 * @return void
+	 */
+	private function widenPeriod(Camt053Statement $merged, Camt053Statement $statement): void
+	{
+		$start = $merged->getPeriodStart();
+		$end = $merged->getPeriodEnd();
+
+		$blockStart = $statement->getPeriodStart();
+		if ($blockStart !== null && ($start === null || strtotime($blockStart) < strtotime($start))) {
+			$start = $blockStart;
+		}
+
+		$blockEnd = $statement->getPeriodEnd();
+		if ($blockEnd !== null && ($end === null || strtotime($blockEnd) > strtotime($end))) {
+			$end = $blockEnd;
+		}
+
+		$merged->setPeriod($start, $end);
 	}
 
 	/**

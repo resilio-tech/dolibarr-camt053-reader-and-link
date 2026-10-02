@@ -67,6 +67,7 @@ require_once DOL_DOCUMENT_ROOT.'/compta/bank/class/account.class.php';
 // Load module classes
 require_once __DIR__ . '/lib/camt053readerandlink.lib.php';
 require_once __DIR__ . '/class/Camt053StatementArchive.class.php';
+require_once __DIR__ . '/class/Camt053FileProcessor.class.php';
 
 // Load translation files required by the page
 $langs->loadLangs(array("camt053readerandlink@camt053readerandlink"));
@@ -279,47 +280,34 @@ try {
 		}
 	}
 
+	// A confirmation that reconciled nothing still has an account to file the
+	// statement under: the one its IBAN resolves to. Without this the file stayed
+	// in the upload directory and never reached the bank statement page.
+	if (empty($bank_account_id) && is_array($file_json)) {
+		$fileProcessor = new Camt053FileProcessor($db);
+		if ($fileProcessor->parseStructure($file_json)) {
+			foreach (array_keys($fileProcessor->getStatementsByAccountId()) as $accountId) {
+				$bank_account_id = (int) $accountId;
+				break;
+			}
+		}
+	}
+
 	// Move the uploaded file to the bank statement document storage, then index it.
 	// IMPORTANT: move the physical file FIRST and index it in the database (ecm_files) ONLY afterwards.
 	// Indexing before the move (the previous behaviour) could leave an orphan ecm_files row pointing
 	// to a file that is not on disk: the statement page (which lists from the filesystem) shows nothing,
 	// yet Dolibarr reports the file "already exists" when trying to attach it manually.
 	if (!empty($upload_file) && file_exists($upload_file) && (int) $bank_account_id <= 0) {
-		// No account could be determined (e.g. no linked entries submitted): do not archive under
-		// account 0. Keep the temporary upload and warn so the statement file is not lost silently.
+		// No account could be determined (an IBAN belonging to another entity): do not archive
+		// under account 0. Keep the temporary upload and warn so the statement file is not lost
+		// silently.
 		dol_syslog('CAMT053: Statement file not archived, no bank account could be determined (upload_file=' . $upload_file . ')', LOG_ERR);
 		setEventMessages($langs->trans('StatementFileNotArchived'), null, 'warnings');
 	} elseif (!empty($upload_file) && file_exists($upload_file)) {
-		$id = (int) $bank_account_id;
-		$numref = $date_concil;
-
-		$object = new Account($db);
-		$object->fetch($id);
-
-		$file = basename($upload_file);
-		$sanitizedFilename = dol_sanitizeFileName($file);
-
-		$targetDir = $conf->bank->dir_output . '/' . $id . '/statement/' . dol_sanitizeFileName($numref);
-
-		if (!is_dir($targetDir)) {
-			dol_mkdir($targetDir);
-		}
-
-		$archived = Camt053StatementArchive::store($upload_file, $targetDir, $sanitizedFilename);
-		$targetFile = $archived['path'];
-
-		if ($archived['outcome'] === Camt053StatementArchive::ALREADY) {
-			dol_syslog('CAMT053: Statement file already present at ' . $targetFile . ', skipping move', LOG_DEBUG);
-		} elseif ($archived['outcome'] === Camt053StatementArchive::STORED) {
-			dol_syslog('CAMT053: Statement file archived to ' . $targetFile, LOG_DEBUG);
-			// Index in database only once the file physically exists, keeping ecm_files in sync
-			$resindex = addFileIntoDatabaseIndex($targetDir, basename($targetFile), $file, 'uploaded', 1, $object);
-			if ($resindex < 0) {
-				dol_syslog('CAMT053: File archived but database indexing failed for ' . $targetFile, LOG_WARNING);
-			}
-		} else {
-			dol_syslog('CAMT053: Error moving statement file ' . $upload_file . ' to ' . $targetDir, LOG_ERR);
-			setEventMessages($langs->trans('StatementFileNotArchived'), null, 'warnings');
+		$outcome = camt053ArchiveStatementFile($db, $upload_file, (int) $bank_account_id, $date_concil);
+		if ($outcome === Camt053StatementArchive::FAILED) {
+			setEventMessages($langs->trans('Camt053StatementFileArchivingFailed'), null, 'warnings');
 		}
 	}
 
