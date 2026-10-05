@@ -164,6 +164,9 @@ class RecordedPaymentLookupTest extends TestCase
 	 * SPEC section 2. The document, the account the payment left from and the
 	 * statement account all have to hold, or the lookup reaches another entity.
 	 *
+	 * @runInSeparateProcess
+	 * @preserveGlobalState disabled
+	 *
 	 * @return void
 	 */
 	public function testTheLookupStaysInsideTheEntityAndTheAccount(): void
