@@ -174,3 +174,15 @@ function camt053ArchiveStatementFile($db, $uploadFile, $accountId, $numref)
 
 	return $archived['outcome'];
 }
+
+/**
+ * Tell whether the scheduled job may record a payment on its own.
+ * Disabled unless an administrator turned it on in the module setup: it is the
+ * one thing the module does that writes money movements without being asked.
+ *
+ * @return bool
+ */
+function camt053AutoPaymentEnabled()
+{
+	return (getDolGlobalString('CAMT053_AUTO_PAYMENT_ENABLED') === '1');
+}
