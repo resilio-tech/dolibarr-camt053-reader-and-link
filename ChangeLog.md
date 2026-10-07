@@ -1,5 +1,9 @@
 # CHANGELOG CAMT053READERANDLINK FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
+## 2.3.1 (unreleased)
+### Build
+- Write the release notes once. Publishing a release from GitHub also pushes its tag, which started a second build: that one generated the notes again and appended them to the release. The tag build now creates the release only when there is none yet
+
 ## 2.3.0 (2026-10-07)
 ### New Features
 - Read the document references the transfer message carries, and preselect the candidate they name when several Dolibarr lines match one entry on amount and date. The file usually says which invoice was paid, as `FA2602-0001`, with or without the separator of the mask, several of them at a time, buried in whatever text the payer typed, and nothing read it: the dropdown asked for a manual choice the file had already answered. The amount still decides the match, the reference only ranks what it matched, and an entry naming two candidates changes nothing
