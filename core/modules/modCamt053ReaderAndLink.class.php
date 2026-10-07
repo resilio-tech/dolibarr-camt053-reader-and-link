@@ -165,7 +165,7 @@ class modCamt053ReaderAndLink extends DolibarrModules
 			'url'=>'/camt053readerandlink/index.php',
 			'langs'=>'camt053readerandlink@camt053readerandlink',
 			'position'=>1000,
-			'enabled'=>'isModEnabled("camt053readerandlink") && isModenabled("banque")',
+			'enabled'=>'isModEnabled("camt053readerandlink") && isModEnabled("banque")',
 			'perms'=>'$user->hasRight("banque", "lire")',
 			'target'=>'',
 			'user'=>0,
