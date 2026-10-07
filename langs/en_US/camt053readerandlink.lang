@@ -162,3 +162,5 @@ Camt053SftpPublicKey = SSH public key
 Camt053SftpPublicKeyHelp = Optional for an RSA key: it is derived from the private key when left empty. Required for any other key type. The private key must be in PEM format (ssh-keygen -p -m PEM -f &lt;keyfile&gt;), which is the only format the PHP ssh2 extension reads.
 Camt053TransferInvalidAmount = The transfer amount must be strictly positive.
 Camt053SftpExtensionMissing = The PHP <b>ssh2</b> extension is not installed on this server. SFTP auto-fetch cannot run without it; manual CAMT.053 upload is unaffected. Ask your system administrator to install it (Debian/Ubuntu: <b>php-ssh2</b>, otherwise <b>pecl install ssh2</b>).
+Camt053CronModuleDisabled = The download is enabled, but the <b>Scheduled jobs</b> module is disabled: nothing will fetch the statements. Enable it in Setup > Modules.
+Camt053FetchJobInactive = The download is enabled, but the scheduled job that fetches the statements is not active: nothing will run. <a href="%s">Enable it in the scheduled jobs</a>.

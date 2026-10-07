@@ -13,6 +13,7 @@
 - An entry naming no document carries, in the Zulip alert, the open invoices owing its amount and issued on or before its value date, to be checked by hand. On the reconciliation screen, an entry naming an invoice owing another amount offers to pay it with the amount received
 - Without Zulip configured, every message the job would have sent is written to the log
 - New monthly scheduled job reporting to Zulip, for the previous month, what the fetch job recorded (files, auto-reconciled, ambiguous, unmatched, in error) and, for every open reconcilable bank account, the gap between the Dolibarr balance on the value date and the PostFinance closing balance (CLBD) of the archived statements, along with the bank lines still not reconciled. An account with no closing balance received is flagged, which is how a statement missing from the SFTP server shows up. It runs on the 5th of each month, disabled by default. An existing installation gets the job by disabling and enabling the module again
+- Warn on the module setup page when the download is enabled but nothing will run it: the scheduled jobs module is off, or the fetch job is still disabled as it is created. The module looked ready and silently did nothing
 
 ### Bug Fixes
 - Show the menu entry again on Dolibarr 23 and above. Its condition called `isModenabled()` instead of `isModEnabled()`, and since the fix for advisory GHSA-x3w7-24rq-gvc5, shipped with Dolibarr 23, Dolibarr only evaluates the functions of its own whitelist, compared with the case they are written in. The condition was refused, a refused condition reads as false, and the entry disappeared from the Bank menu with nothing said anywhere. An installation that already carries the refused condition is repaired on the next Dolibarr upgrade, or by disabling and re-enabling the module (#12)
@@ -44,6 +45,7 @@
 - `PaymentSuggestionFinderTest.php` - the transfer mode is prefilled for the four document types when the document carries none, and nothing is passed when it carries one
 - `EntryDetailsShapeTest.php` - an entry kept whole still reads its detail, transactions spread over several detail blocks are all read, and a single-transaction entry is unchanged
 - `UpgradeScriptTest.php` - a column added after the first release is also added on an existing installation
+- `FetchJobWarningTest.php` - the warning appears only with the download enabled, says whether the scheduled jobs module or the job is missing, and stays quiet once the job is active
 
 ## 2.2.0 (2026-09-01)
 

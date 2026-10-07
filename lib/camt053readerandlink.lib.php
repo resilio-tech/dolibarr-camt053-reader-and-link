@@ -79,6 +79,35 @@ function camt053WarnIfSftpExtensionMissing()
 }
 
 /**
+ * Warn, on the setup page, when the download is enabled but nothing will run it:
+ * the scheduled jobs module is off, or the fetch job is not active.
+ *
+ * @param DoliDB $db Database handler
+ * @return void
+ */
+function camt053WarnIfFetchJobInactive($db)
+{
+	global $conf, $langs;
+
+	if (!camt053SftpFetchEnabled()) {
+		return;
+	}
+
+	if (!isModEnabled('cron')) {
+		print '<div class="warning">' . $langs->trans('Camt053CronModuleDisabled') . '</div>';
+		return;
+	}
+
+	$sql = "SELECT rowid FROM " . MAIN_DB_PREFIX . "cronjob";
+	$sql .= " WHERE objectname = 'Camt053CronRunner' AND status = 1";
+	$sql .= " AND entity IN (0, " . ((int) $conf->entity) . ")";
+	$resql = $db->query($sql);
+	if ($resql && !$db->fetch_object($resql)) {
+		print '<div class="warning">' . $langs->trans('Camt053FetchJobInactive', DOL_URL_ROOT . '/cron/list.php?search_module_name=camt053readerandlink') . '</div>';
+	}
+}
+
+/**
  * Whether the scheduled job has to work at this hour, Swiss time.
  *
  * @param array<int, int|string> $hours Hours the job works at, empty for every hour
