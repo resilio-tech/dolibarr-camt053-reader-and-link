@@ -114,8 +114,21 @@ jobs:
       # On a `release` event github.ref is also refs/tags/v..., so this must be
       # narrowed to the tag push, otherwise it runs alongside "Upload to Release"
       # and regenerates the notes of an already published release.
-      - name: Create Release
+      - name: Check for an existing release
+        id: existing
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create Release
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && steps.existing.outputs.found == 'false'
         uses: softprops/action-gh-release@v2
         with:
           files: module_camt053readerandlink-${{ steps.version.outputs.version }}.zip
