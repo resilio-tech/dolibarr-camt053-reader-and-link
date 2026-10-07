@@ -109,6 +109,12 @@ function camt053_render_suggestions($entry, $entity, $accountId, $finder, $detec
 		}
 	}
 
+	foreach ($finder->findNamedForEntry($entry, (int) $entity, (int) $accountId) as $link) {
+		$label = $langs->trans('Camt053SuggestPayNamedDocument', dol_escape_htmltag($link['ref']), price($link['remaining'], 0, $langs, 1, -1, -1, $link['currency']));
+		$out[] = '<a href="' . dol_escape_htmltag($link['url']) . '" target="_blank" rel="noopener noreferrer">'
+			. img_picto('', $pictos[$link['type']], 'class="paddingright"') . $label . '</a>';
+	}
+
 	return implode('<br />', $out);
 }
 
@@ -444,11 +450,10 @@ function camt053_render_results_section($section, array $results, int $accountId
 			print '<td style="text-align: right">' . number_format($entry['amount'], 2) . '</td>';
 			print '<td>' . dol_escape_htmltag($entry['value_date']) . '</td>';
 			print '<td>' . $name . '<br /><span class="info">' . dol_escape_htmltag($entry['info']) . '</span></td>';
-			if ($recorded !== null) {
-				print '<td><div class="statement_link_multiple">' . $langs->trans('Camt053AlreadyRecordedOffDate') . '</div></td>';
-			} else {
-				print '<td><div class="statement_link_unlinked">' . $langs->trans('WillNotBeConciliated') . '</div></td>';
-			}
+			$status = $recorded !== null
+				? '<div class="statement_link_multiple">' . $langs->trans('Camt053AlreadyRecordedOffDate') . '</div>'
+				: '<div class="statement_link_unlinked">' . $langs->trans('WillNotBeConciliated') . '</div>';
+			print '<td>' . $status . '</td>';
 			$suggestionHtml = $n_obj->isFromFile()
 				? camt053_render_suggestions($n_obj, (int) $conf->entity, $accountId, $suggestionFinder, $transferDetector, $langs)
 				: '';

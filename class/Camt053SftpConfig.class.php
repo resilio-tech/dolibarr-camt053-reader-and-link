@@ -89,12 +89,6 @@ class Camt053SftpConfig
 	/** @var string Remote directory to read (yellow-net-reports, or -t for test) */
 	public $remote_dir = 'yellow-net-reports';
 
-	/** @var string|null Regex matching daily CAMT.053 file names */
-	public $daily_pattern;
-
-	/** @var string|null Regex matching the monthly CAMT.053 file name (triggers Zulip report) */
-	public $monthly_pattern;
-
 	/** @var string Action after a successful download: 'delete' or 'leave' */
 	public $post_download_action = 'delete';
 
@@ -185,7 +179,7 @@ class Camt053SftpConfig
 		$sql = "INSERT INTO " . MAIN_DB_PREFIX . self::TABLE . " (";
 		$sql .= "entity, ref, label, active, host, port, username, auth_type,";
 		$sql .= " private_key, public_key, host_fingerprint, private_key_passphrase, password, remote_dir,";
-		$sql .= " daily_pattern, monthly_pattern, post_download_action,";
+		$sql .= " post_download_action,";
 		$sql .= " date_creation, fk_user_creat";
 		$sql .= ") VALUES (";
 		$sql .= ((int) $this->entity);
@@ -202,8 +196,6 @@ class Camt053SftpConfig
 		$sql .= ", " . $this->quote($this->encrypt($this->private_key_passphrase));
 		$sql .= ", " . $this->quote($this->encrypt($this->password));
 		$sql .= ", " . $this->quote($this->remote_dir);
-		$sql .= ", " . $this->quote($this->daily_pattern);
-		$sql .= ", " . $this->quote($this->monthly_pattern);
 		$sql .= ", " . $this->quote($this->post_download_action);
 		$sql .= ", '" . $this->db->idate($now) . "'";
 		$sql .= ", " . ($this->fk_user_creat ? (int) $this->fk_user_creat : 'NULL');
@@ -250,8 +242,6 @@ class Camt053SftpConfig
 		$sql .= ", private_key_passphrase = " . $this->quote($this->encrypt($this->private_key_passphrase));
 		$sql .= ", password = " . $this->quote($this->encrypt($this->password));
 		$sql .= ", remote_dir = " . $this->quote($this->remote_dir);
-		$sql .= ", daily_pattern = " . $this->quote($this->daily_pattern);
-		$sql .= ", monthly_pattern = " . $this->quote($this->monthly_pattern);
 		$sql .= ", post_download_action = " . $this->quote($this->post_download_action);
 		$sql .= ", fk_user_modif = " . ($this->fk_user_modif ? (int) $this->fk_user_modif : 'NULL');
 		$sql .= " WHERE rowid = " . ((int) $this->id);
@@ -432,7 +422,7 @@ class Camt053SftpConfig
 	{
 		return "rowid, entity, ref, label, active, host, port, username, auth_type,"
 			. " private_key, public_key, host_fingerprint, private_key_passphrase, password, remote_dir,"
-			. " daily_pattern, monthly_pattern, post_download_action,"
+			. " post_download_action,"
 			. " last_run, last_status, date_creation,"
 			. " fk_user_creat, fk_user_modif";
 	}
@@ -461,8 +451,6 @@ class Camt053SftpConfig
 		$this->private_key_passphrase = $this->decrypt($obj->private_key_passphrase);
 		$this->password = $this->decrypt($obj->password);
 		$this->remote_dir = $obj->remote_dir;
-		$this->daily_pattern = $obj->daily_pattern;
-		$this->monthly_pattern = $obj->monthly_pattern;
 		$this->post_download_action = $obj->post_download_action;
 		$this->last_run = !empty($obj->last_run) ? $this->db->jdate($obj->last_run) : null;
 		$this->last_status = $obj->last_status;

@@ -81,10 +81,6 @@ Camt053SftpPassphrase = Phrase secrète de la clé
 Camt053SftpKeepCurrentSecret = Laisser vide pour conserver la valeur actuelle
 Camt053SftpRemoteDir = Répertoire distant
 Camt053SftpRemoteDirHelp = PostFinance : yellow-net-reports (production) ou yellow-net-reports-t (test)
-Camt053SftpDailyPattern = Motif fichier journalier
-Camt053SftpPatternHelp = Expression régulière correspondant aux noms des fichiers CAMT.053 journaliers
-Camt053SftpMonthlyPattern = Motif fichier mensuel
-Camt053SftpMonthlyPatternHelp = Expression régulière correspondant au fichier CAMT.053 mensuel (déclenche le rapport Zulip)
 Camt053SftpPostAction = Après téléchargement
 Camt053SftpPostDelete = Supprimer le fichier sur le serveur
 Camt053SftpPostLeave = Laisser le fichier sur le serveur
@@ -99,6 +95,9 @@ Camt053SftpDeleteConfirm = Êtes-vous sûr de vouloir supprimer ce compte SFTP ?
 Camt053FetchSetup = Téléchargement automatique
 Camt053FetchSetupHelp = Lorsqu'il est désactivé, la tâche planifiée se connecte quand même et liste ce que contient le serveur, mais ne télécharge rien, n'enregistre rien et ne supprime rien. Le test de connexion détaille l'arborescence distante dans les deux cas.
 Camt053FetchEnabled = Télécharger et enregistrer les fichiers CAMT
+Camt053AutoPaymentSetup = Enregistrement automatique des paiements
+Camt053AutoPaymentSetupHelp = Quand le travail planifié rencontre une écriture qui ne correspond à aucune ligne bancaire, il peut solder le document que le message de virement désigne. Il ne le fait que s'il n'y a plus rien à décider : une seule référence, un seul document ouvert dans la monnaie de la société, et un montant égal à ce que ce document doit encore. Tout le reste est signalé et attend une décision humaine.
+Camt053AutoPaymentEnabled = Enregistrer les paiements désignés par le fichier
 Camt053FetchDisabledWarning = Le téléchargement automatique est désactivé : la tâche planifiée liste les fichiers distants mais les laisse sur place. Activez-le dans
 
 #
@@ -106,7 +105,7 @@ Camt053FetchDisabledWarning = Le téléchargement automatique est désactivé : 
 #
 
 Camt053ZulipSetup = Rapport Zulip
-Camt053ZulipSetupHelp = Le fichier CAMT.053 mensuel déclenche un rapport de rapprochement envoyé sur Zulip via un bot. La clé API est stockée chiffrée.
+Camt053ZulipSetupHelp = La tâche planifiée signale sur Zulip, via un bot, ce qu'elle n'a pas pu régler. La clé API est stockée chiffrée.
 Camt053ZulipSite = URL du site Zulip
 Camt053ZulipBotEmail = E-mail du bot
 Camt053ZulipApiKey = Clé API du bot
@@ -121,6 +120,7 @@ Camt053SuggestPaySupplierInvoice = Payer la facture fournisseur %s
 Camt053SuggestPayExpenseReport = Payer la note de frais %s
 Camt053SuggestPaySocialCharge = Payer la charge %s
 Camt053SuggestChoose = Choisir parmi %s documents impayés du même montant
+Camt053SuggestPayNamedDocument = Payer %s avec le montant reçu (reste dû %s)
 Camt053SuggestInternalTransfer = Virement interne vers %s
 
 #
@@ -143,14 +143,11 @@ Camt053SftpTestCronAction = Ce que la tâche planifiée en fait
 Camt053SftpTestEmptyDir = Le répertoire distant est vide.
 Camt053SftpTestCronSkipsDir = Répertoire, non téléchargé
 Camt053SftpTestCronOutOfReach = Hors de portée : la tâche ne lit que le répertoire configuré
-Camt053SftpTestCronDaily = Téléchargé (motif quotidien)
-Camt053SftpTestCronMonthly = Téléchargé (motif mensuel, déclenche le rapport Zulip)
-Camt053SftpTestCronDailyAndMonthly = Téléchargé (motifs quotidien et mensuel)
-Camt053SftpTestCronNoPattern = Téléchargé : aucun motif configuré, donc tous les fichiers sont pris
-Camt053SftpTestCronIgnored = Ignoré : ne correspond à aucun motif
+Camt053SftpTestCronStatement = Téléchargé : relevé camt.053 quotidien
+Camt053SftpTestCronPdf = Téléchargé : PDF du relevé quotidien
+Camt053SftpTestCronIgnored = Ignoré : ni un relevé camt.053, ni son PDF
 Camt053SftpTestCounts = %s fichier(s) dans le répertoire configuré, %s pris par la tâche planifiée, %s sous-répertoire(s).
 Camt053SftpTestNestedWarning = Des fichiers ont été trouvés dans des sous-répertoires. La tâche planifiée n'y descend jamais : faites pointer le répertoire distant sur le niveau qui contient les fichiers.
-Camt053SftpTestNoPatternWarning = Aucun motif de fichier n'est configuré, la tâche télécharge et analyse donc tous les fichiers de ce répertoire. Renseignez un motif quotidien et un motif mensuel pour ne prendre que les relevés voulus.
 Camt053SftpTestTruncated = Listage arrêté à %s éléments.
 Camt053SftpTestListFailed = Connecté à %s:%s, mais le listage du répertoire « %s » a échoué : %s
 Camt053SftpTestFailed = Échec de la connexion à %s:%s : %s

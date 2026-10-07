@@ -15,15 +15,19 @@ archived under the bank account so it shows on the Dolibarr statement page.
 Two entry points, same rules:
 
 - **Manual**: upload from the module page (`index.php` > `submit.php` > `confirm.php`).
-- **Automatic**: cron fetching files over SFTP every 12 hours
-  (`Camt053CronRunner`), which is what picks up the intraday report twice a day
-  and the monthly statement within 12 hours of its delivery. Downloading is off
-  until an administrator sets `CAMT053_SFTP_FETCH_ENABLED` from the module
-  setup. With the switch off the job still logs in and lists the remote
-  directory, and reports how many files the patterns target, but downloads
-  nothing, records nothing and deletes nothing. The connection test reports the
-  remote layout either way: it is what an administrator uses to validate the
-  patterns before letting the job take anything.
+- **Automatic**: cron fetching files over SFTP (`Camt053CronRunner`). The job
+  runs every hour and works only at the hours given as its parameters, in Swiss
+  time whatever the season: 11:00. Started without parameters, it
+  works at once. It takes, out of the PostFinance directory, only the daily
+  camt.053 statements (`camt.053_*.xml`) and their PDF (`REP_*.pdf`), every
+  one not processed yet, oldest first, so a missed day is caught up on the next
+  run. Everything else, camt.054 notifications included, is left alone.
+  Downloading is off until an administrator sets `CAMT053_SFTP_FETCH_ENABLED`
+  from the module setup. With the switch off the job still logs in and lists
+  the remote directory, and reports how many statements and PDFs it would take,
+  but downloads nothing, records nothing and deletes nothing. The connection
+  test reports the remote layout either way, with what the job does with each
+  file.
 
 ---
 
@@ -120,7 +124,37 @@ partial payments work. A foreign currency invoice is prefilled through the
 `multicurrency_amount_<id>` field, not the company currency one.
 
 These are suggestions. The module opens a prefilled page, it never records a
-payment on its own.
+payment on its own, with the single exception below.
+
+### Automatic recording
+
+Off until an administrator sets `CAMT053_AUTO_PAYMENT_ENABLED`. It is the only
+thing the module does that writes a money movement nobody asked for, so it is
+opt-in, and it only runs in the scheduled job.
+
+A payment is recorded only when nothing is left to decide:
+
+- the text of the entry names exactly one document reference
+- it resolves to exactly one open document of the entity, in the direction of
+  the movement: a credit settles a customer invoice, a debit a supplier one
+- the entry is in the currency of that document, which may be a foreign one
+- the amount of the entry is exactly what the document still owes
+
+The payment is recorded as a bank transfer on the value date of the entry, in
+the currency of the document, and the bank line it creates is reconciled with
+the statement of the run.
+
+**Never**, whatever the setting: split one entry across several documents,
+record a partial payment, record on an amount that is not the remaining due,
+record a payment in another currency than the document, or record anything for
+a reference resolving to more than one document. Each of those writes nothing
+and is reported with its reason.
+
+An entry naming no document is never recorded. The open documents owing its
+amount, issued on or before its value date, are proposed in the alert and on the
+reconciliation screen, for a human to check. An entry naming a document owing
+another amount offers, on the screen, to pay that document with the amount
+received.
 
 ---
 
@@ -128,6 +162,9 @@ payment on its own.
 
 - Target: `<bank dir_output>/<account id>/statement/<num_releve>/`, the exact
   directory the Dolibarr statement page reads.
+- The PDF of a daily statement goes beside it, in the same directory, once the
+  statement is archived: same account, same delivery day in the file name.
+  Until then it stays on the server.
 - Move the physical file **first**, index it in `ecm_files` afterwards. Indexing
   first leaves an orphan row pointing at a missing file, and Dolibarr then
   refuses a manual attachment claiming the file already exists.
@@ -151,16 +188,28 @@ A file nobody can act on must reach a human, not just the log:
 
 - A statement whose IBAN resolves to no bank account raises a Zulip alert on
   **every** run, not only for the monthly file.
-- The monthly report links to `statement.php` per bank account, so whoever reads
-  it opens the entries still needing a decision instead of re-uploading the file.
+- Every alert about entries links to `statement.php` per bank account, so
+  whoever reads it opens the entries still needing a decision instead of
+  re-uploading the file.
 - A failed SFTP login raises its own alert, because three of them lock the
   PostFinance account.
+- Every run, whatever the file, alerts on the entries it could not settle,
+  grouped by what has to be decided: a document already paid, an amount that is
+  not what the document still owes, a reference matching several documents or
+  none, several references in one movement, a foreign currency, and an entry
+  matching no bank line at all. One message per SFTP config per run, each group
+  capped, each account linking to its reconciliation screen. A file that failed
+  to parse says nothing to Zulip: it is retried on the next run, and announcing
+  a retry twice is noise.
+- Without Zulip configured, every message is written to the log instead, so a
+  run can be followed on an instance that has no Zulip.
 - A monthly job (`Camt053MonthlyCheck`) reports the previous month to Zulip,
   whether a monthly file arrived or not: what the fetch job recorded, and for
   every open reconcilable account of the entity the bank lines still not
   reconciled and the gap between the Dolibarr balance on the value date and the
   PostFinance closing balance (CLBD) read from the archived statements. An
   account with no closing balance for the month is reported as such.
+- An alert reports. It never reconciles and never pays.
 
 ---
 
@@ -201,9 +250,12 @@ A file nobody can act on must reach a human, not just the log:
 The module does not:
 
 - create or modify bank accounts
-- record payments, invoices or transfers by itself
+- record payments, invoices or transfers by itself, beyond the one certain case
+  of section 4, which an administrator has to turn on
 - move data between entities
 - handle formats other than CAMT.053 and CAMT.052
+- take, from the SFTP directory, anything but the daily camt.053 statements and
+  their PDF
 
 ---
 
@@ -215,3 +267,9 @@ The module does not:
 - English in the code, the tests and everything published on GitHub.
 - Every fix comes with a PHPUnit test under `test/phpunit/`, runnable without a
   Dolibarr database (the Dolibarr functions used are stubbed).
+- A condition string Dolibarr evaluates for us (menu `enabled` and `perms`, the
+  `test` of the scheduled job) calls only the functions of its `dol_eval`
+  whitelist, spelled exactly as that list spells them. Since the fix for
+  advisory GHSA-x3w7-24rq-gvc5, shipped with Dolibarr 23, anything else is
+  refused, and a refused condition reads as false: the entry disappears with
+  nothing said anywhere.

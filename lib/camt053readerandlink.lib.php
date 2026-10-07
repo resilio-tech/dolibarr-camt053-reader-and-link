@@ -79,31 +79,22 @@ function camt053WarnIfSftpExtensionMissing()
 }
 
 /**
- * Whether a file name matches a configured PCRE pattern.
+ * Whether the scheduled job has to work at this hour, Swiss time.
  *
- * Shared by the cron, which uses it to decide what to download, and by the
- * connection test, which uses it to show what the cron would pick up.
- *
- * @param string|null $pattern Pattern (with delimiters) or null
- * @param string      $name    File name
+ * @param array<int, int|string> $hours Hours the job works at, empty for every hour
+ * @param int|null               $now   Timestamp, current time when null
  * @return bool
  */
-function camt053MatchesFilePattern($pattern, $name)
+function camt053IsCheckHour(array $hours, $now = null)
 {
-	if (empty($pattern)) {
-		return false;
+	if (empty($hours)) {
+		return true;
 	}
 
-	$result = @preg_match($pattern, $name);
-	if ($result === false) {
-		// An invalid admin-supplied regex would otherwise silently make the
-		// cron skip every file, with nothing in the log to explain why.
-		// preg_last_error_msg() is PHP 8.0+, the module supports 7.4.
-		dol_syslog('CAMT053: invalid file pattern ' . $pattern . ' (preg error ' . preg_last_error() . ')', LOG_ERR);
-		return false;
-	}
+	$date = new DateTime('@' . ($now === null ? time() : (int) $now));
+	$date->setTimezone(new DateTimeZone('Europe/Zurich'));
 
-	return (bool) $result;
+	return in_array((int) $date->format('G'), array_map('intval', $hours), true);
 }
 
 /**
@@ -173,4 +164,16 @@ function camt053ArchiveStatementFile($db, $uploadFile, $accountId, $numref)
 	}
 
 	return $archived['outcome'];
+}
+
+/**
+ * Tell whether the scheduled job may record a payment on its own.
+ * Disabled unless an administrator turned it on in the module setup: it is the
+ * one thing the module does that writes money movements without being asked.
+ *
+ * @return bool
+ */
+function camt053AutoPaymentEnabled()
+{
+	return (getDolGlobalString('CAMT053_AUTO_PAYMENT_ENABLED') === '1');
 }
