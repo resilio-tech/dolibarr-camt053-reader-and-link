@@ -118,9 +118,6 @@ if (($action == 'add' || $action == 'update') && $user->admin) {
 	$object->password = ($postedPwd !== '') ? $postedPwd : $keepPwd;
 
 	$object->remote_dir = GETPOST('remote_dir', 'alphanohtml') ? GETPOST('remote_dir', 'alphanohtml') : 'yellow-net-reports';
-	// Patterns are PCRE: keep regex metacharacters (alphanohtml would strip them).
-	$object->daily_pattern = GETPOST('daily_pattern', 'restricthtml');
-	$object->monthly_pattern = GETPOST('monthly_pattern', 'restricthtml');
 	$object->post_download_action = (GETPOST('post_download_action', 'alpha') == 'leave') ? 'leave' : 'delete';
 
 	if ($action == 'add') {
@@ -224,14 +221,6 @@ print '<td><input type="password" name="password" autocomplete="new-password" cl
 print '<tr><td class="fieldrequired">'.$langs->trans("Camt053SftpRemoteDir").'</td>';
 $dirval = $object->remote_dir ? $object->remote_dir : 'yellow-net-reports';
 print '<td><input type="text" name="remote_dir" class="minwidth300" value="'.dol_escape_htmltag($dirval).'"> <span class="opacitymedium">'.$langs->trans("Camt053SftpRemoteDirHelp").'</span></td></tr>';
-
-// Daily pattern
-print '<tr><td>'.$langs->trans("Camt053SftpDailyPattern").'</td>';
-print '<td><input type="text" name="daily_pattern" class="minwidth300" value="'.dol_escape_htmltag($object->daily_pattern).'"> <span class="opacitymedium">'.$langs->trans("Camt053SftpPatternHelp").'</span></td></tr>';
-
-// Monthly pattern
-print '<tr><td>'.$langs->trans("Camt053SftpMonthlyPattern").'</td>';
-print '<td><input type="text" name="monthly_pattern" class="minwidth300" value="'.dol_escape_htmltag($object->monthly_pattern).'"> <span class="opacitymedium">'.$langs->trans("Camt053SftpMonthlyPatternHelp").'</span></td></tr>';
 
 // Post download action
 print '<tr><td>'.$langs->trans("Camt053SftpPostAction").'</td>';

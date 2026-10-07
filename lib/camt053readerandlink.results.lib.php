@@ -109,6 +109,12 @@ function camt053_render_suggestions($entry, $entity, $accountId, $finder, $detec
 		}
 	}
 
+	foreach ($finder->findNamedForEntry($entry, (int) $entity, (int) $accountId) as $link) {
+		$label = $langs->trans('Camt053SuggestPayNamedDocument', dol_escape_htmltag($link['ref']), price($link['remaining'], 0, $langs, 1, -1, -1, $link['currency']));
+		$out[] = '<a href="' . dol_escape_htmltag($link['url']) . '" target="_blank" rel="noopener noreferrer">'
+			. img_picto('', $pictos[$link['type']], 'class="paddingright"') . $label . '</a>';
+	}
+
 	return implode('<br />', $out);
 }
 

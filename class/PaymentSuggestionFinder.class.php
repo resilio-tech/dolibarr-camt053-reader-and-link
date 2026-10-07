@@ -88,15 +88,17 @@ class PaymentSuggestionFinder
 			return array('currency' => $currency, 'links' => array());
 		}
 
+		$issuedBefore = preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) ? " AND f.datef <= '" . $this->db->escape($date) . "'" : '';
+
 		$candidatesByType = array();
 		if ($amount < 0) {
 			// Debit: things we pay out.
-			$candidatesByType['supplier_invoice'] = $this->supplierInvoices($absAmount, $currency, $entity);
+			$candidatesByType['supplier_invoice'] = $this->supplierInvoices($absAmount, $currency, $entity, $issuedBefore);
 			$candidatesByType['expense_report'] = $this->expenseReports($absAmount, $currency, $entity);
 			$candidatesByType['social_charge'] = $this->socialCharges($absAmount, $currency, $entity);
 		} else {
 			// Credit: money received from a customer.
-			$candidatesByType['customer_invoice'] = $this->customerInvoices($absAmount, $currency, $entity);
+			$candidatesByType['customer_invoice'] = $this->customerInvoices($absAmount, $currency, $entity, $issuedBefore);
 		}
 
 		$links = array();
@@ -142,6 +144,43 @@ class PaymentSuggestionFinder
 	}
 
 	/**
+	 * Documents the text of an entry names but owing another amount, offered to
+	 * be paid with what was received.
+	 *
+	 * @param Camt053Entry $entry     Entry from the CAMT.053 file (not in Dolibarr)
+	 * @param int          $entity    Entity of the bank account
+	 * @param int          $accountId Bank account to preselect on the payment page
+	 * @return array<int, array> Links, each with type, id, ref, remaining, currency and url
+	 */
+	public function findNamedForEntry(Camt053Entry $entry, int $entity, int $accountId = 0): array
+	{
+		$amount = $entry->getAmount();
+		$references = Camt053DocumentReference::extract($entry->getName(), $entry->getInfo());
+		if (empty($references) || abs($amount) <= 0) {
+			return array();
+		}
+
+		$currency = strtoupper($entry->getCurrency() ?: $this->companyCurrency);
+
+		$links = array();
+		foreach ($this->findByReference($references, $amount > 0, $currency, $entity) as $candidate) {
+			if ($this->amountMatches($candidate['remaining'], abs($amount))) {
+				continue;
+			}
+			$links[] = array(
+				'type' => $candidate['type'],
+				'id' => $candidate['id'],
+				'ref' => $candidate['ref'],
+				'remaining' => $candidate['remaining'],
+				'currency' => $currency,
+				'url' => $this->payUrl($candidate['type'], $candidate['id'], abs($amount), $entry->getValueDate(), $currency, $accountId),
+			);
+		}
+
+		return $links;
+	}
+
+	/**
 	 * Documents an entry names, whatever they still owe.
 	 *
 	 * The amount is deliberately not filtered here: a reference that resolves to
@@ -151,9 +190,9 @@ class PaymentSuggestionFinder
 	 * @param array<int, string> $references Compact references carried by the entry
 	 * @param bool               $incoming   True for money in (customer invoice),
 	 *                                       false for money out (supplier invoice)
-	 * @param string             $currency   Entry currency
+	 * @param string             $currency   Entry currency, empty for any currency
 	 * @param int                $entity     Entity
-	 * @return array<int, array> Candidates, each with type, id, ref, label and remaining
+	 * @return array<int, array> Candidates, each with type, id, ref, label, remaining, currency and rate
 	 */
 	public function findByReference(array $references, bool $incoming, string $currency, int $entity): array
 	{
@@ -225,6 +264,7 @@ class PaymentSuggestionFinder
 		$sql .= " f.fk_mode_reglement AS payment_mode,";
 		$sql .= " COALESCE((SELECT SUM(pf.amount) FROM " . MAIN_DB_PREFIX . "paiement_facture pf WHERE pf.fk_facture = f.rowid), 0) AS paid,";
 		$sql .= " COALESCE((SELECT SUM(pf.multicurrency_amount) FROM " . MAIN_DB_PREFIX . "paiement_facture pf WHERE pf.fk_facture = f.rowid), 0) AS paid_mc";
+		$sql .= ", f.multicurrency_tx";
 		$sql .= " FROM " . MAIN_DB_PREFIX . "facture f";
 		$sql .= " LEFT JOIN " . MAIN_DB_PREFIX . "societe s ON s.rowid = f.fk_soc";
 		$sql .= " WHERE f.entity = " . ((int) $entity) . " AND f.paye = 0 AND f.fk_statut = 1";
@@ -248,6 +288,7 @@ class PaymentSuggestionFinder
 		$sql .= " f.fk_mode_reglement AS payment_mode,";
 		$sql .= " COALESCE((SELECT SUM(pf.amount) FROM " . MAIN_DB_PREFIX . "paiementfourn_facturefourn pf WHERE pf.fk_facturefourn = f.rowid), 0) AS paid,";
 		$sql .= " COALESCE((SELECT SUM(pf.multicurrency_amount) FROM " . MAIN_DB_PREFIX . "paiementfourn_facturefourn pf WHERE pf.fk_facturefourn = f.rowid), 0) AS paid_mc";
+		$sql .= ", f.multicurrency_tx";
 		$sql .= " FROM " . MAIN_DB_PREFIX . "facture_fourn f";
 		$sql .= " LEFT JOIN " . MAIN_DB_PREFIX . "societe s ON s.rowid = f.fk_soc";
 		$sql .= " WHERE f.entity = " . ((int) $entity) . " AND f.paye = 0 AND f.fk_statut = 1";
@@ -313,7 +354,7 @@ class PaymentSuggestionFinder
 	 * @param string     $sql       Query returning the expected columns
 	 * @param float|null $absAmount Target amount, null to keep every row whatever
 	 *                              it still owes
-	 * @param string     $currency  Target currency
+	 * @param string     $currency  Target currency, empty for any currency
 	 * @return array<int,array> Matched candidates
 	 */
 	private function collect(string $sql, ?float $absAmount, string $currency): array
@@ -326,13 +367,15 @@ class PaymentSuggestionFinder
 		}
 		while ($row = $this->db->fetch_object($resql)) {
 			list($docCurrency, $remaining) = $this->payable($row);
-			if ($docCurrency !== $currency) {
+			if ($currency !== '' && $docCurrency !== $currency) {
 				continue;
 			}
 			if ($absAmount !== null && !$this->amountMatches($remaining, $absAmount)) {
 				continue;
 			}
 			$out[] = array(
+				'currency' => $docCurrency,
+				'rate' => !empty($row->multicurrency_tx) ? (float) $row->multicurrency_tx : 1.0,
 				'id' => (int) $row->rowid,
 				'ref' => (string) $row->ref,
 				'label' => trim((string) $row->label),
