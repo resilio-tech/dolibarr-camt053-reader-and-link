@@ -242,6 +242,38 @@ class Camt053ProcessedFile
 	}
 
 	/**
+	 * Totals of the files recorded for one statement period of the current entity.
+	 *
+	 * @param string $numReleve Statement number, YYYYMM
+	 * @return array{files:int,auto:int,ambiguous:int,unmatched:int,errors:int}|null Null on error
+	 */
+	public function fetchPeriodTotals(string $numReleve): ?array
+	{
+		$sql = "SELECT COUNT(rowid) as files, SUM(nb_auto) as auto,";
+		$sql .= " SUM(nb_ambiguous) as ambiguous, SUM(nb_unmatched) as unmatched,";
+		$sql .= " SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) as errors";
+		$sql .= " FROM " . MAIN_DB_PREFIX . self::TABLE;
+		$sql .= " WHERE num_releve = '" . $this->db->escape($numReleve) . "'";
+		$sql .= " AND entity = " . ((int) $this->entity);
+
+		$resql = $this->db->query($sql);
+		if (!$resql) {
+			$this->error = 'Database error: ' . $this->db->lasterror();
+			return null;
+		}
+
+		$obj = $this->db->fetch_object($resql);
+
+		return array(
+			'files' => $obj ? (int) $obj->files : 0,
+			'auto' => $obj ? (int) $obj->auto : 0,
+			'ambiguous' => $obj ? (int) $obj->ambiguous : 0,
+			'unmatched' => $obj ? (int) $obj->unmatched : 0,
+			'errors' => $obj ? (int) $obj->errors : 0,
+		);
+	}
+
+	/**
 	 * Get last error message.
 	 *
 	 * @return string|null

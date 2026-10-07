@@ -12,6 +12,7 @@
 - A payment in a foreign currency is recorded like any other when it is in the currency of the invoice it names and settles exactly what it owes. A payment in another currency than the invoice is reported instead
 - An entry naming no document carries, in the Zulip alert, the open invoices owing its amount and issued on or before its value date, to be checked by hand. On the reconciliation screen, an entry naming an invoice owing another amount offers to pay it with the amount received
 - Without Zulip configured, every message the job would have sent is written to the log
+- New monthly scheduled job reporting to Zulip, for the previous month, what the fetch job recorded (files, auto-reconciled, ambiguous, unmatched, in error) and, for every open reconcilable bank account, the gap between the Dolibarr balance on the value date and the PostFinance closing balance (CLBD) of the archived statements, along with the bank lines still not reconciled. An account with no closing balance received is flagged, which is how a statement missing from the SFTP server shows up. It runs on the 5th of each month, disabled by default. An existing installation gets the job by disabling and enabling the module again
 
 ### Bug Fixes
 - Show the menu entry again on Dolibarr 23 and above. Its condition called `isModenabled()` instead of `isModEnabled()`, and since the fix for advisory GHSA-x3w7-24rq-gvc5, shipped with Dolibarr 23, Dolibarr only evaluates the functions of its own whitelist, compared with the case they are written in. The condition was refused, a refused condition reads as false, and the entry disappeared from the Bank menu with nothing said anywhere. An installation that already carries the refused condition is repaired on the next Dolibarr upgrade, or by disabling and re-enabling the module (#12)
@@ -34,6 +35,8 @@
 - `PaymentSuggestionLookupTest.php` - an invoice issued after the payment is not proposed, and an invoice the entry names owing another amount is offered with the amount received
 - `Camt053ReviewAlertTest.php` - a run with nothing to decide says nothing, an entry carries what it takes to decide without opening the file, entries are grouped by reason and long lists are capped
 - `Camt053PaymentRecorderTest.php` - every case that must write nothing, and the remaining due as the amount that counts
+- `Camt053FileProcessorTest.php` - the closing balance (CLBD) read from a statement
+- `EntityScopeSqlTest.php` - entity scoping of the monthly check totals
 - `Camt053DocumentReferenceTest.php` - references read out of surrounding text and markup, the optional separator, several references at once, long digit runs that are not references, and the ranking rules
 - `ResultsTableTest.php` - every section prints the cells its header announces, each column is labelled once, and the reconciliation form keys are unchanged
 - `Camt053ReconciliationPeriodTest.php` - the period comes from the entries, then from the one the file declares, then from the creation month, and covers every block of a merged statement
