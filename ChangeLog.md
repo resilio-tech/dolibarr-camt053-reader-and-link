@@ -17,6 +17,7 @@
 - Read the period the file declares (`FrToDt`) and date a statement with it when its entries cannot. Both the interactive and the headless path fell back to the previous month of the creation date, which files a monthly statement delivered in the first days of the next month under the wrong month, and gives an entry-less statement a window it has nothing to do with
 - Warn about an IBAN that belongs to no bank account of the current entity even when the statement carries no entry, instead of showing an empty result page with no explanation
 - Report a failed archiving as a failed archiving. Both a missing account and a failed move told the user that no bank account could be determined, which is only one of the two
+- Add the columns introduced in 2.2.0 on an existing installation when the module is activated again. `archived_path` was only created with the table, so an installation older than 2.2.0 could not record a processed file: every file was processed again on every run and the Zulip links to the reconciliation screen had nothing to open. `host_fingerprint` only reached an installation through a Dolibarr upgrade, which is the only time `dolibarr_allversions.sql` runs
 
 ### Tests
 - `MenuConditionTest.php` - every condition of the descriptor calls only functions Dolibarr accepts, read exactly as Dolibarr reads them, and existing installations are repaired
@@ -27,6 +28,7 @@
 - `StatementArchivingTest.php` - both upload paths archive through the same helper, the account is resolved before the file is archived, and the file is moved before it is indexed
 - `PaymentSuggestionFinderTest.php` - the transfer mode is prefilled for the four document types when the document carries none, and nothing is passed when it carries one
 - `EntryDetailsShapeTest.php` - an entry kept whole still reads its detail, transactions spread over several detail blocks are all read, and a single-transaction entry is unchanged
+- `UpgradeScriptTest.php` - a column added after the first release is also added on an existing installation
 
 ## 2.2.0 (2026-09-01)
 
