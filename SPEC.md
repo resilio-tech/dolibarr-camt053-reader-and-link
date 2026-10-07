@@ -27,7 +27,9 @@ Two entry points, same rules:
   the remote directory, and reports how many statements and PDFs it would take,
   but downloads nothing, records nothing and deletes nothing. The connection
   test reports the remote layout either way, with what the job does with each
-  file.
+  file. The job is created disabled. While the switch is on and the job is not
+  active, or the scheduled jobs module is off, the module setup says so, since
+  nothing would ever run.
 
 ---
 

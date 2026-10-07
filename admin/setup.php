@@ -127,6 +127,8 @@ print dol_get_fiche_head($head, 'settings', $langs->trans($page_name), -1, "camt
 // Setup page info
 echo '<span class="opacitymedium">'.$langs->trans("Camt053ReaderAndLinkSetupPage").'</span><br><br>';
 
+camt053WarnIfFetchJobInactive($db);
+
 // Automatic SFTP fetch
 print '<form method="POST" action="'.$_SERVER["PHP_SELF"].'">';
 print '<input type="hidden" name="token" value="'.newToken().'">';
