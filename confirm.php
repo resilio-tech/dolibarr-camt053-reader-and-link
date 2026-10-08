@@ -83,6 +83,11 @@ if (!$user->hasRight('banque', 'consolidate')) {
 	accessforbidden();
 }
 
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' || GETPOST('action', 'aZ09') !== 'confirm') {
+	header('Location: ' . dol_buildpath('/camt053readerandlink/index.php', 1));
+	exit;
+}
+
 llxHeader("", $langs->trans("Camt053ReaderAndLinkArea"), '', '', 0, 0, '', '', '', 'mod-camt053readerandlink page-index');
 
 print '<div class="fichecenter camt053readerandlink">';
@@ -104,14 +109,14 @@ foreach ($_POST as $key => $value) {
 		$linked[$hash] = (string) $value;
 	}
 }
-foreach (GETPOST('linked', 'array') as $hash => $value) {
+foreach (GETPOST('linked', 'array', 2) as $hash => $value) {
 	if (!is_scalar($value) || isset($linked[$hash])) {
 		continue;
 	}
 	$linked[$hash] = (string) $value;
 }
-$date_start = GETPOST('date_start', 'alphanohtml');
-$date_end = GETPOST('date_end', 'alphanohtml');
+$date_start = GETPOST('date_start', 'alphanohtml', 2);
+$date_end = GETPOST('date_end', 'alphanohtml', 2);
 $bank_account_id = GETPOSTINT('bank_account_id');
 $file_json = json_decode(urldecode(GETPOST('file_json', 'alpha')), true);
 $upload_file = GETPOST('upload_file', 'alpha');
@@ -203,6 +208,12 @@ try {
 		// statement file is still archived under the correct account (never under account 0)
 		if (!empty($obj->fk_account)) {
 			$linkedAccountIds[(int) $obj->fk_account] = (int) $obj->fk_account;
+		}
+
+		if (!empty($obj->rappro)) {
+			dol_syslog('CAMT053: Bank line rowid=' . $bankLineId . ' already reconciled, skipped', LOG_WARNING);
+			$reconcileErrors[] = $langs->trans('AlreadyBeConciliated') . ' #' . $bankLineId;
+			continue;
 		}
 
 		// Reconcile the entry
