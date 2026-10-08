@@ -146,14 +146,10 @@ class Camt053FileProcessor
 		$previousUseErrors = libxml_use_internal_errors(true);
 
 		try {
-			// Parse XML with security flags
-			$xml = simplexml_load_string(
-				$xmlContent,
-				'SimpleXMLElement',
-				LIBXML_NOENT | LIBXML_NOCDATA | LIBXML_NONET
-			);
+			$dom = new DOMDocument();
+			$loaded = $dom->loadXML($xmlContent, LIBXML_NOCDATA | LIBXML_NONET);
 
-			if ($xml === false) {
+			if (!$loaded) {
 				$errors = libxml_get_errors();
 				$errorMsg = 'XML parsing error';
 				if (!empty($errors)) {
@@ -163,6 +159,13 @@ class Camt053FileProcessor
 				$this->error = $errorMsg;
 				return false;
 			}
+
+			if ($dom->doctype !== null) {
+				$this->error = 'XML with external entities not allowed for security reasons';
+				return false;
+			}
+
+			$xml = simplexml_import_dom($dom);
 
 			// Convert to array structure
 			$this->structure = json_decode(json_encode($xml), true);

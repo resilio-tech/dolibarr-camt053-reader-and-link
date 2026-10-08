@@ -204,6 +204,34 @@ class Camt053FileProcessorTest extends TestCase
 	}
 
 	/**
+	 * Test XXE protection with a UTF-16 encoded document
+	 *
+	 * @return void
+	 */
+	public function testXxeProtectionUtf16(): void
+	{
+		$maliciousXml = '<?xml version="1.0" encoding="UTF-16"?>
+<!DOCTYPE foo [
+  <!ENTITY xxe SYSTEM "file:///etc/passwd">
+]>
+<Document>
+	<BkToCstmrStmt>
+		<GrpHdr>
+			<MsgId>&xxe;</MsgId>
+		</GrpHdr>
+	</BkToCstmrStmt>
+</Document>';
+		$utf16Xml = "\xFF\xFE" . mb_convert_encoding($maliciousXml, 'UTF-16LE', 'UTF-8');
+
+		$processor = new Camt053FileProcessor($this->mockDb);
+		$result = $processor->parseContent($utf16Xml);
+
+		$this->assertFalse($result);
+		$this->assertStringContainsString('external entities not allowed', $processor->getError());
+		$this->assertNull($processor->getStructure());
+	}
+
+	/**
 	 * Test parsing non-existent file
 	 *
 	 * @return void
