@@ -1,6 +1,13 @@
 # CHANGELOG CAMT053READERANDLINK FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
-## 2.3.1 (unreleased)
+## 2.3.1 (2026-10-10)
+### Security
+- Refuse a statement file that declares a document type. The parser substituted entities, and the check on the raw content missed a file encoded in UTF-16, so a crafted file could pull the content of a server file into the parsed statement
+- Reconcile only from the submitted confirmation form. The confirmation page also ran on a plain link, without the form token, so a link sent to someone allowed to reconcile could reconcile lines with a statement number of its choice. A bank line already reconciled is no longer moved to another statement either
+
+### Bug Fixes
+- Write the italic notes of the Zulip alerts with asterisks. Zulip does not read underscores as italics, so the notes showed up with their underscores
+
 ### Build
 - Write the release notes once. Publishing a release from GitHub also pushes its tag, which started a second build: that one generated the notes again and appended them to the release. The tag build now creates the release only when there is none yet
 
