@@ -624,7 +624,7 @@ class Camt053CronRunner
 		if ($hostKeyMismatch) {
 			$content = ":rotating_light: **CAMT.053 SFTP host key changed** for `" . $config->ref . "` (" . $config->host . ")\n";
 			$content .= '> ' . ($detail ?: 'unknown error') . "\n";
-			$content .= "_No credential was sent. Confirm the new key with the bank before clearing the fingerprint on the account._";
+			$content .= "*No credential was sent. Confirm the new key with the bank before clearing the fingerprint on the account.*";
 			$this->notify($config, $content);
 
 			return;
@@ -632,7 +632,7 @@ class Camt053CronRunner
 
 		$content = ":warning: **CAMT.053 SFTP connection failed** for `" . $config->ref . "` (" . $config->host . ")\n";
 		$content .= '> ' . ($detail ?: 'unknown error') . "\n";
-		$content .= "_Careful: PostFinance locks the account after 3 failed logins._";
+		$content .= "*Careful: PostFinance locks the account after 3 failed logins.*";
 
 		$this->notify($config, $content);
 	}

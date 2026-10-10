@@ -133,7 +133,7 @@ class Camt053ReviewAlert
 			':warning: **CAMT entries needing a decision** for `' . $configRef . '`'
 		);
 		$lines[] = '';
-		$lines[] = '_Nothing was recorded for these._';
+		$lines[] = '*Nothing was recorded for these.*';
 
 		return implode("\n", $lines);
 	}
