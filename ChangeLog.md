@@ -1,5 +1,13 @@
 # CHANGELOG CAMT053READERANDLINK FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
+## 2.4.0 (2026-10-20)
+### New Features
+- Link each document proposed in the Zulip alert to its payment page, prefilled with the date, the amount, the bank account and the transfer mode. Only the reference was given, so paying it meant searching the document and typing everything by hand. An entry in a foreign currency fills the amount in the currency of the document
+- Write each entry of the Zulip alert as a list, one line per detail, and keep its whole message. The text was cut at 120 characters, which dropped the references a payer types at the end
+
+### Tests
+- `Camt053ReviewAlertTest.php` - the proposals link to their payment page and the message of an entry is not truncated
+
 ## 2.3.2 (2026-10-20)
 ### Bug Fixes
 - Work on the first run from the check hour instead of only within it. The scheduler does not fire at regular times, so a run at 10:58 followed by one at 12:03 skipped the whole day and only said "Not a check hour". Each SFTP account now works once from 11:00 on, Swiss time, on the first run that comes, failed logins included, so there is still a single login attempt per day. Running the job from the execute button of the scheduled jobs page always works, so it can be tested at any time of the day

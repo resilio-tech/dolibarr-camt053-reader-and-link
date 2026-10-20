@@ -112,7 +112,8 @@ class Camt053ReviewAlertTest extends TestCase
 		$this->assertStringContainsString('CH9300762011623852957', $message);
 		$this->assertStringContainsString('statement 202602', $message);
 		$this->assertStringContainsString('https://dolibarr.example/statement.php?id=9', $message);
-		$this->assertStringContainsString('debit 275.00 CHF on 2026-02-10', $message);
+		$this->assertStringContainsString('1. Debit', $message);
+		$this->assertStringContainsString('275.00 CHF on 2026-02-10', $message);
 		$this->assertStringContainsString('CH5604835012345678009', $message);
 		$this->assertStringContainsString('Paiement SI2602-0042', $message);
 		$this->assertStringContainsString('No document reference in the message', $message);
@@ -136,7 +137,7 @@ class Camt053ReviewAlertTest extends TestCase
 
 		$this->assertStringContainsString('Not what the document still owes', $message);
 		$this->assertStringContainsString('SI2602-0042 owes 300.00', $message);
-		$this->assertStringContainsString('debit 275.00', $message);
+		$this->assertStringContainsString('275.00 CHF', $message);
 	}
 
 	/**
@@ -178,19 +179,43 @@ class Camt053ReviewAlertTest extends TestCase
 	}
 
 	/**
-	 * An entry naming no document carries the documents owing its amount, to be
-	 * checked by hand before anything is paid.
+	 * An entry naming no document carries the documents owing its amount, each
+	 * linked to its prefilled payment page, to be checked before it is paid.
 	 *
 	 * @return void
 	 */
-	public function testAnEntryWithoutReferenceCarriesTheProposalsToCheck(): void
+	public function testAnEntryWithoutReferenceLinksTheProposalsToTheirPaymentPage(): void
 	{
-		$entry = $this->entry('no_reference', array('proposals' => array('SI2602-0042', 'SI2602-0043')));
+		$entry = $this->entry('no_reference', array('proposals' => array(
+			array('ref' => 'SI2602-0042', 'url' => 'https://dolibarr.example/fourn/facture/paiement.php?facid=42'),
+			array('ref' => 'SI2602-0043', 'url' => 'https://dolibarr.example/fourn/facture/paiement.php?facid=43'),
+		)));
 		$files = array('camt.xml' => array('summary' => $this->summary(array($entry)), 'url' => ''));
 
 		$message = Camt053ReviewAlert::format('POSTE', $files);
 
-		$this->assertStringContainsString('proposed SI2602-0042 or SI2602-0043 (to check)', $message);
+		$this->assertStringContainsString(
+			'Proposed: [SI2602-0042](https://dolibarr.example/fourn/facture/paiement.php?facid=42)'
+			. ' or [SI2602-0043](https://dolibarr.example/fourn/facture/paiement.php?facid=43) (to check)',
+			$message
+		);
+	}
+
+	/**
+	 * The references a payer types sit at the end of the message, so the whole
+	 * text is kept.
+	 *
+	 * @return void
+	 */
+	public function testTheMessageOfAnEntryIsNotTruncated(): void
+	{
+		$info = 'REFERENCES: ' . str_repeat('2026101121170000', 12);
+		$entry = $this->entry('no_reference', array('info' => $info));
+		$files = array('camt.xml' => array('summary' => $this->summary(array($entry)), 'url' => ''));
+
+		$message = Camt053ReviewAlert::format('POSTE', $files);
+
+		$this->assertStringContainsString('Message: Paiement SI2602-0042 ' . $info, $message);
 	}
 
 	/**
@@ -209,7 +234,7 @@ class Camt053ReviewAlertTest extends TestCase
 		$message = Camt053ReviewAlert::format('POSTE', $files);
 
 		$this->assertStringContainsString('and 5 more', $message);
-		$this->assertSame(Camt053ReviewAlert::MAX_PER_GROUP, substr_count($message, 'debit 275.00'));
+		$this->assertSame(Camt053ReviewAlert::MAX_PER_GROUP, substr_count($message, '275.00 CHF'));
 	}
 
 	/**

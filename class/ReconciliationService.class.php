@@ -210,24 +210,28 @@ class ReconciliationService
 	}
 
 	/**
-	 * References of the open documents owing the amount of an entry, for a human to check.
+	 * Open documents owing the amount of an entry, for a human to check, each with
+	 * the absolute link to its prefilled payment page.
 	 *
 	 * @param PaymentSuggestionFinder $finder    Payment suggestion finder
 	 * @param Camt053Entry            $entry     Entry nothing could settle
 	 * @param int                     $entity    Entity of the bank account
 	 * @param int                     $accountId Bank account
-	 * @return array<int, string>
+	 * @return array<int, array{ref: string, url: string}>
 	 */
 	private function proposals(PaymentSuggestionFinder $finder, Camt053Entry $entry, int $entity, int $accountId): array
 	{
-		$refs = array();
+		$proposals = array();
 		foreach ($finder->findForEntry($entry, $entity, $accountId)['links'] as $link) {
 			foreach (($link['kind'] === 'pay' ? array($link) : $link['options']) as $document) {
-				$refs[] = (string) $document['ref'];
+				$proposals[] = array(
+					'ref' => (string) $document['ref'],
+					'url' => DOL_MAIN_URL_ROOT . substr((string) $document['url'], strlen(DOL_URL_ROOT)),
+				);
 			}
 		}
 
-		return $refs;
+		return $proposals;
 	}
 
 	/**
