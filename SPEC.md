@@ -16,9 +16,11 @@ Two entry points, same rules:
 
 - **Manual**: upload from the module page (`index.php` > `submit.php` > `confirm.php`).
 - **Automatic**: cron fetching files over SFTP (`Camt053CronRunner`). The job
-  runs every hour and works only at the hours given as its parameters, in Swiss
-  time whatever the season: 11:00. Started without parameters, it
-  works at once. It takes, out of the PostFinance directory, only the daily
+  runs every hour and works once from each hour given as its parameters, in
+  Swiss time whatever the season: 11:00. Each SFTP account works on the first
+  run from that hour on, so a run that misses the hour itself does not lose the
+  day, and is left alone until the next hour comes. Started without parameters,
+  or with the execute button of the scheduled jobs page, it works at once. It takes, out of the PostFinance directory, only the daily
   camt.053 statements (`camt.053_*.xml`) and their PDF (`REP_*.pdf`), every
   one not processed yet, oldest first, so a missed day is caught up on the next
   run. Everything else, camt.054 notifications included, is left alone.

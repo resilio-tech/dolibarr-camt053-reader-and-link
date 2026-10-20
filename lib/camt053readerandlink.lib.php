@@ -108,22 +108,33 @@ function camt053WarnIfFetchJobInactive($db)
 }
 
 /**
- * Whether the scheduled job has to work at this hour, Swiss time.
+ * Latest check hour already reached, Swiss time.
  *
- * @param array<int, int|string> $hours Hours the job works at, empty for every hour
+ * @param array<int, int|string> $hours Hours the job works at
  * @param int|null               $now   Timestamp, current time when null
- * @return bool
+ * @return int|null Timestamp of that hour, null when no hour is given
  */
-function camt053IsCheckHour(array $hours, $now = null)
+function camt053LastCheckSlot(array $hours, $now = null)
 {
 	if (empty($hours)) {
-		return true;
+		return null;
 	}
 
-	$date = new DateTime('@' . ($now === null ? time() : (int) $now));
-	$date->setTimezone(new DateTimeZone('Europe/Zurich'));
+	$now = ($now === null ? time() : (int) $now);
+	$today = new DateTime('@' . $now);
+	$today->setTimezone(new DateTimeZone('Europe/Zurich'));
 
-	return in_array((int) $date->format('G'), array_map('intval', $hours), true);
+	$latest = null;
+	foreach (array('yesterday', 'today') as $day) {
+		foreach ($hours as $hour) {
+			$slot = (clone $today)->modify($day)->setTime((int) $hour, 0);
+			if ($slot->getTimestamp() <= $now && ($latest === null || $slot->getTimestamp() > $latest)) {
+				$latest = $slot->getTimestamp();
+			}
+		}
+	}
+
+	return $latest;
 }
 
 /**
