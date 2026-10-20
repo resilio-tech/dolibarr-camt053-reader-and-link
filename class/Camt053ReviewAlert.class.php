@@ -139,7 +139,7 @@ class Camt053ReviewAlert
 	}
 
 	/**
-	 * One line per entry, with what it takes to decide without opening the file.
+	 * One numbered item per entry, with what it takes to decide without opening the file.
 	 *
 	 * @param array<int, array> $entries Entries of one group
 	 * @return array<int, string>
@@ -154,57 +154,46 @@ class Camt053ReviewAlert
 				$lines[] = '  - … and ' . (count($entries) - self::MAX_PER_GROUP) . ' more';
 				break;
 			}
+			$shown++;
 
 			$amount = (float) ($entry['amount'] ?? 0);
-			$direction = $amount < 0 ? 'debit' : 'credit';
 			$currency = (string) ($entry['currency'] ?? '');
 
-			$line = '  - ' . $direction . ' ' . number_format(abs($amount), 2)
+			$lines[] = '  ' . $shown . '. ' . ($amount < 0 ? 'Debit' : 'Credit');
+			$lines[] = '     - ' . number_format(abs($amount), 2)
 				. ($currency !== '' ? ' ' . $currency : '')
 				. ' on ' . (string) ($entry['date'] ?? '');
 
 			$documentRef = (string) ($entry['document_ref'] ?? '');
 			if ($documentRef !== '') {
-				$line .= ', ' . $documentRef;
+				$document = '     - Document: ' . $documentRef;
 				$remaining = (float) ($entry['document_remaining'] ?? 0);
 				if ($remaining > 0) {
-					$line .= ' owes ' . number_format($remaining, 2);
+					$document .= ' owes ' . number_format($remaining, 2);
 				}
+				$lines[] = $document;
 			}
 
 			$proposals = (array) ($entry['proposals'] ?? array());
 			if (!empty($proposals)) {
-				$line .= ', proposed ' . implode(' or ', $proposals) . ' (to check)';
+				$links = array();
+				foreach ($proposals as $proposal) {
+					$links[] = '[' . $proposal['ref'] . '](' . $proposal['url'] . ')';
+				}
+				$lines[] = '     - Proposed: ' . implode(' or ', $links) . ' (to check)';
 			}
 
 			$counterparty = trim((string) ($entry['counterparty_iban'] ?? ''));
 			if ($counterparty !== '') {
-				$line .= ', from `' . $counterparty . '`';
+				$lines[] = '     - From: `' . $counterparty . '`';
 			}
 
 			$text = trim((string) ($entry['name'] ?? '') . ' ' . (string) ($entry['info'] ?? ''));
 			if ($text !== '') {
-				$line .= ': ' . self::truncate($text, 120);
+				$lines[] = '     - Message: ' . preg_replace('/\s+/', ' ', $text);
 			}
-
-			$lines[] = $line;
-			$shown++;
 		}
 
 		return $lines;
-	}
-
-	/**
-	 * Shorten a text without cutting the message in half.
-	 *
-	 * @param string $text   Text
-	 * @param int    $length Maximum length
-	 * @return string
-	 */
-	private static function truncate(string $text, int $length): string
-	{
-		$text = preg_replace('/\s+/', ' ', $text);
-
-		return (strlen($text) <= $length) ? $text : (substr($text, 0, $length - 1) . '…');
 	}
 }
