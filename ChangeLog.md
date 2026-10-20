@@ -1,5 +1,12 @@
 # CHANGELOG CAMT053READERANDLINK FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
+## 2.3.2 (2026-10-20)
+### Bug Fixes
+- Work on the first run from the check hour instead of only within it. The scheduler does not fire at regular times, so a run at 10:58 followed by one at 12:03 skipped the whole day and only said "Not a check hour". Each SFTP account now works once from 11:00 on, Swiss time, on the first run that comes, failed logins included, so there is still a single login attempt per day. Running the job from the execute button of the scheduled jobs page always works, so it can be tested at any time of the day
+
+### Tests
+- `CheckHourTest.php` - the job works from the latest check hour reached, the one of the day before until the first hour of the day, in Swiss time whatever the season
+
 ## 2.3.1 (2026-10-10)
 ### Security
 - Refuse a statement file that declares a document type. The parser substituted entities, and the check on the raw content missed a file encoded in UTF-16, so a crafted file could pull the content of a server file into the parsed statement
