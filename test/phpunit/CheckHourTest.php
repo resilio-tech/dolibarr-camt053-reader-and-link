@@ -42,16 +42,27 @@ class CheckHourTest extends TestCase
 	}
 
 	/**
-	 * The job works at the configured hours only.
+	 * The slot is the latest check hour already reached, so a run that misses
+	 * the hour itself still works later in the day.
 	 *
 	 * @return void
 	 */
-	public function testTheJobWorksAtItsHoursOnly(): void
+	public function testTheSlotIsTheLatestHourReached(): void
 	{
-		$this->assertTrue(camt053IsCheckHour(array('11', '16'), $this->zurich('2026-09-18 11:04')));
-		$this->assertTrue(camt053IsCheckHour(array('11', '16'), $this->zurich('2026-09-18 16:59')));
-		$this->assertFalse(camt053IsCheckHour(array('11', '16'), $this->zurich('2026-09-18 12:00')));
-		$this->assertFalse(camt053IsCheckHour(array('11', '16'), $this->zurich('2026-09-18 10:59')));
+		$this->assertSame($this->zurich('2026-09-18 11:00'), camt053LastCheckSlot(array('11', '16'), $this->zurich('2026-09-18 11:00')));
+		$this->assertSame($this->zurich('2026-09-18 11:00'), camt053LastCheckSlot(array('11', '16'), $this->zurich('2026-09-18 13:27')));
+		$this->assertSame($this->zurich('2026-09-18 16:00'), camt053LastCheckSlot(array('11', '16'), $this->zurich('2026-09-18 23:59')));
+	}
+
+	/**
+	 * Before the first hour of the day, the slot is the last one of the day before.
+	 *
+	 * @return void
+	 */
+	public function testBeforeTheFirstHourTheSlotIsYesterdays(): void
+	{
+		$this->assertSame($this->zurich('2026-09-17 16:00'), camt053LastCheckSlot(array('11', '16'), $this->zurich('2026-09-18 10:59')));
+		$this->assertSame($this->zurich('2026-09-17 11:00'), camt053LastCheckSlot(array('11'), $this->zurich('2026-09-18 03:00')));
 	}
 
 	/**
@@ -61,8 +72,8 @@ class CheckHourTest extends TestCase
 	 */
 	public function testTheHoursFollowTheSwissTimeChange(): void
 	{
-		$this->assertTrue(camt053IsCheckHour(array('11'), $this->zurich('2026-12-15 11:10')));
-		$this->assertFalse(camt053IsCheckHour(array('11'), $this->zurich('2026-12-15 10:10')));
+		$this->assertSame($this->zurich('2026-12-15 11:00'), camt053LastCheckSlot(array('11'), $this->zurich('2026-12-15 11:10')));
+		$this->assertSame($this->zurich('2026-10-24 11:00'), camt053LastCheckSlot(array('11'), $this->zurich('2026-10-25 09:00')));
 	}
 
 	/**
@@ -70,8 +81,8 @@ class CheckHourTest extends TestCase
 	 *
 	 * @return void
 	 */
-	public function testNoHourMeansEveryHour(): void
+	public function testNoHourMeansNoSlot(): void
 	{
-		$this->assertTrue(camt053IsCheckHour(array(), $this->zurich('2026-09-18 03:00')));
+		$this->assertNull(camt053LastCheckSlot(array(), $this->zurich('2026-09-18 03:00')));
 	}
 }

@@ -68,6 +68,9 @@ class Camt053CronRunner
 	/**
 	 * Cron entry point: process every active SFTP config.
 	 *
+	 * Each config works once per check hour, on the first run from that hour on.
+	 * A run started from the scheduled jobs page always works.
+	 *
 	 * @param string ...$hours Hours the job works at, Swiss time, none to work now
 	 * @return int 0 on success, negative on error
 	 */
@@ -78,11 +81,6 @@ class Camt053CronRunner
 		$this->output = '';
 		$this->error = '';
 
-		if (!camt053IsCheckHour($hours)) {
-			$this->output = 'Not a check hour (' . implode(', ', $hours) . ')';
-			return 0;
-		}
-
 		$configLoader = new Camt053SftpConfig($this->db);
 		$configs = $configLoader->fetchAll(true);
 
@@ -91,10 +89,16 @@ class Camt053CronRunner
 			return 0;
 		}
 
+		$startedFromScheduledJobsPage = (GETPOST('action', 'aZ09') === 'confirm_execute');
+		$slot = $startedFromScheduledJobsPage ? null : camt053LastCheckSlot($hours);
+
 		$lines = array();
 		foreach ($configs as $config) {
-			$line = $this->processConfig($config, $user, $langs);
-			$lines[] = $line;
+			if ($slot !== null && $config->last_run >= $slot) {
+				$lines[] = $config->ref . ': already checked since ' . dol_print_date($slot, 'dayhour', 'tzserver');
+				continue;
+			}
+			$lines[] = $this->processConfig($config, $user, $langs);
 		}
 
 		$this->output = implode("\n", $lines);

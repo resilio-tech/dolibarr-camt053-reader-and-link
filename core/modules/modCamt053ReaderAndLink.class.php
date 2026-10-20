@@ -142,7 +142,7 @@ class modCamt053ReaderAndLink extends DolibarrModules
 				'objectname' => 'Camt053CronRunner',
 				'method' => 'run',
 				'parameters' => '11',
-				'comment' => 'Every hour, works at the hours given as parameters (Swiss time): fetches the daily CAMT.053 statements and their PDF from PostFinance, reconciles unique matches and tells Zulip what it could not settle',
+				'comment' => 'Every hour, works once from each hour given as parameters (Swiss time): fetches the daily CAMT.053 statements and their PDF from PostFinance, reconciles unique matches and tells Zulip what it could not settle',
 				'frequency' => 1,
 				'unitfrequency' => 3600,
 				'status' => 0,
