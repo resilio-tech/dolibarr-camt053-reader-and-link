@@ -1,6 +1,6 @@
 # CHANGELOG CAMT053READERANDLINK FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
-## 2.4.1 (unreleased)
+## 2.4.1 (2026-10-21)
 ### Documentation
 - Ask for a Zulip bot of type incoming webhook in the setup instead of a generic bot
 
