@@ -105,10 +105,10 @@ Camt053FetchDisabledWarning = Le téléchargement automatique est désactivé : 
 #
 
 Camt053ZulipSetup = Rapport Zulip
-Camt053ZulipSetupHelp = La tâche planifiée signale sur Zulip, via un bot, ce qu'elle n'a pas pu régler. La clé API est stockée chiffrée.
+Camt053ZulipSetupHelp = La tâche planifiée signale sur Zulip, via un bot de type webhook entrant, ce qu'elle n'a pas pu régler. La clé API est stockée chiffrée.
 Camt053ZulipSite = URL du site Zulip
-Camt053ZulipBotEmail = E-mail du bot
-Camt053ZulipApiKey = Clé API du bot
+Camt053ZulipBotEmail = E-mail du bot webhook entrant
+Camt053ZulipApiKey = Clé API du bot webhook entrant
 Camt053ZulipStream = Flux (stream)
 Camt053ZulipTopic = Sujet (topic)
 

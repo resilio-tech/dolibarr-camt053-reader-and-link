@@ -1,5 +1,9 @@
 # CHANGELOG CAMT053READERANDLINK FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
+## 2.4.1 (unreleased)
+### Documentation
+- Ask for a Zulip bot of type incoming webhook in the setup instead of a generic bot
+
 ## 2.4.0 (2026-10-20)
 ### New Features
 - Link each document proposed in the Zulip alert to its payment page, prefilled with the date, the amount, the bank account and the transfer mode. Only the reference was given, so paying it meant searching the document and typing everything by hand. An entry in a foreign currency fills the amount in the currency of the document
