@@ -103,10 +103,10 @@ Camt053FetchDisabledWarning = Automatic download is disabled: the scheduled job 
 #
 
 Camt053ZulipSetup = Zulip report
-Camt053ZulipSetupHelp = The scheduled job tells Zulip, through a bot, what it could not settle. The API key is stored encrypted.
+Camt053ZulipSetupHelp = The scheduled job tells Zulip, through a bot of type incoming webhook, what it could not settle. The API key is stored encrypted.
 Camt053ZulipSite = Zulip site URL
-Camt053ZulipBotEmail = Bot email
-Camt053ZulipApiKey = Bot API key
+Camt053ZulipBotEmail = Email of the incoming webhook bot
+Camt053ZulipApiKey = API key of the incoming webhook bot
 Camt053ZulipStream = Stream
 Camt053ZulipTopic = Topic
 
