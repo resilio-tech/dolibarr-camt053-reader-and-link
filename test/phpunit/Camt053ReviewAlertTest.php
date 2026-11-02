@@ -114,9 +114,24 @@ class Camt053ReviewAlertTest extends TestCase
 		$this->assertStringContainsString('https://dolibarr.example/statement.php?id=9', $message);
 		$this->assertStringContainsString('1. Debit', $message);
 		$this->assertStringContainsString('275.00 CHF on 2026-02-10', $message);
-		$this->assertStringContainsString('CH5604835012345678009', $message);
+		$this->assertStringContainsString('To: `CH5604835012345678009`', $message);
 		$this->assertStringContainsString('Paiement SI2602-0042', $message);
 		$this->assertStringContainsString('No document reference in the message', $message);
+	}
+
+	/**
+	 * A credit comes from its counterparty.
+	 *
+	 * @return void
+	 */
+	public function testACreditNamesWhereItComesFrom(): void
+	{
+		$entry = $this->entry('no_reference', array('amount' => 275.0));
+		$files = array('camt.xml' => array('summary' => $this->summary(array($entry)), 'url' => ''));
+
+		$message = Camt053ReviewAlert::format('POSTE', $files);
+
+		$this->assertStringContainsString('From: `CH5604835012345678009`', $message);
 	}
 
 	/**

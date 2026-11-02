@@ -1,5 +1,12 @@
 # CHANGELOG CAMT053READERANDLINK FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
+## 2.4.2 (unreleased)
+### Bug Fixes
+- Write "To" instead of "From" before the counterparty IBAN of an outgoing entry in the Zulip alert
+
+### Tests
+- `Camt053ReviewAlertTest.php` - an outgoing entry names the account it goes to, an incoming one the account it comes from
+
 ## 2.4.1 (2026-10-21)
 ### Documentation
 - Ask for a Zulip bot of type incoming webhook in the setup instead of a generic bot
