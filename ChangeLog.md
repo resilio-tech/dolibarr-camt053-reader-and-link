@@ -1,6 +1,6 @@
 # CHANGELOG CAMT053READERANDLINK FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
-## 2.4.2 (unreleased)
+## 2.4.2 (2026-11-02)
 ### Bug Fixes
 - Write "To" instead of "From" before the counterparty IBAN of an outgoing entry in the Zulip alert
 
