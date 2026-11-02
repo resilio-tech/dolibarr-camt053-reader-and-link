@@ -185,7 +185,7 @@ class Camt053ReviewAlert
 
 			$counterparty = trim((string) ($entry['counterparty_iban'] ?? ''));
 			if ($counterparty !== '') {
-				$lines[] = '     - From: `' . $counterparty . '`';
+				$lines[] = '     - ' . ($amount < 0 ? 'To' : 'From') . ': `' . $counterparty . '`';
 			}
 
 			$text = trim((string) ($entry['name'] ?? '') . ' ' . (string) ($entry['info'] ?? ''));
