@@ -1,5 +1,12 @@
 # CHANGELOG CAMT053READERANDLINK FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
+## 2.5.0 (unreleased)
+### New Features
+- The monthly report links each account with unreconciled lines to a reconciliation screen of the whole month, built from every statement archived for it, with the same proposals and confirmation as the screen of a single statement. It linked to the plain list of bank lines, which only showed what was left without a way to settle it
+
+### Tests
+- `Camt053ArchivedMonthTest.php` - the month screen gathers the entries of every file of the account once, and the monthly report links to it
+
 ## 2.4.2 (2026-11-02)
 ### Bug Fixes
 - Write "To" instead of "From" before the counterparty IBAN of an outgoing entry in the Zulip alert
