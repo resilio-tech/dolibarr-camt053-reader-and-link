@@ -23,10 +23,8 @@
  *             between the Dolibarr and PostFinance balances.
  */
 
-require_once DOL_DOCUMENT_ROOT . '/core/lib/files.lib.php';
-require_once __DIR__ . '/Camt053FileProcessor.class.php';
+require_once __DIR__ . '/Camt053ArchivedMonth.class.php';
 require_once __DIR__ . '/Camt053ProcessedFile.class.php';
-require_once __DIR__ . '/SftpFileTransport.class.php';
 require_once __DIR__ . '/ZulipNotifier.class.php';
 
 /**
@@ -173,9 +171,7 @@ class Camt053MonthlyCheck
 		if ($unreconciled['nb'] === 0) {
 			$lines[] = ':white_check_mark: Every bank line of the month is reconciled';
 		} else {
-			$url = dol_buildpath('/compta/bank/bankentries_list.php', 2) . '?id=' . $id . '&search_conciliated=0'
-				. '&search_start_dvday=1&search_start_dvmonth=' . (int) substr($firstDay, 5, 2) . '&search_start_dvyear=' . (int) substr($firstDay, 0, 4)
-				. '&search_end_dvday=' . (int) substr($lastDay, 8, 2) . '&search_end_dvmonth=' . (int) substr($lastDay, 5, 2) . '&search_end_dvyear=' . (int) substr($lastDay, 0, 4);
+			$url = dol_buildpath('/camt053readerandlink/month.php', 2) . '?account=' . $id . '&month=' . date('Ym', strtotime($firstDay));
 			$lines[] = ':warning: [' . $unreconciled['nb'] . ' bank line(s) of the month not reconciled, total ' . number_format($unreconciled['total'], 2) . '](' . $url . ')';
 		}
 
@@ -193,33 +189,17 @@ class Camt053MonthlyCheck
 	 */
 	private function closingBalance(int $accountId, string $firstDay, string $lastDay): ?array
 	{
-		global $conf;
-
 		$found = null;
 		foreach (array(date('Ym', strtotime($firstDay)), date('Ym', strtotime($firstDay . ' +1 month'))) as $numReleve) {
-			$dir = $conf->bank->dir_output . '/' . $accountId . '/statement/' . $numReleve;
-
-			foreach (dol_dir_list($dir, 'files') as $file) {
-				$content = @file_get_contents($file['fullname']);
-				if ($content === false) {
-					continue;
-				}
-
-				foreach (SftpFileTransport::extractXmlPayloads($file['name'], $content) as $xml) {
-					$processor = new Camt053FileProcessor($this->db);
-					if (!$processor->parseContent($xml)) {
+			foreach (Camt053ArchivedMonth::load($this->db, $accountId, $numReleve) as $processor) {
+				foreach ($processor->getStatements() as $statement) {
+					$balance = $statement->getClosingBalance();
+					if ((int) $statement->getAccountId() !== $accountId || $balance === null
+						|| $balance['date'] < $firstDay || $balance['date'] > $lastDay) {
 						continue;
 					}
-
-					foreach ($processor->getStatements() as $statement) {
-						$balance = $statement->getClosingBalance();
-						if ((int) $statement->getAccountId() !== $accountId || $balance === null
-							|| $balance['date'] < $firstDay || $balance['date'] > $lastDay) {
-							continue;
-						}
-						if ($found === null || $balance['date'] > $found['date']) {
-							$found = $balance;
-						}
+					if ($found === null || $balance['date'] > $found['date']) {
+						$found = $balance;
 					}
 				}
 			}

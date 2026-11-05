@@ -212,7 +212,9 @@ A file nobody can act on must reach a human, not just the log:
   every open reconcilable account of the entity the bank lines still not
   reconciled and the gap between the Dolibarr balance on the value date and the
   PostFinance closing balance (CLBD) read from the archived statements. An
-  account with no closing balance for the month is reported as such.
+  account with no closing balance for the month is reported as such. The
+  unreconciled lines link to `month.php`, the reconciliation screen of the
+  account over the month, built from every statement archived for it.
 - An alert reports. It never reconciles and never pays.
 
 ---
