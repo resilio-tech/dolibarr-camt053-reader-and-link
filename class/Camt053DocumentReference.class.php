@@ -38,9 +38,11 @@ class Camt053DocumentReference
 {
 	/**
 	 * Reference shape: two to four letters, the numbering year and month, then
-	 * the counter, with or without the separator the mask prints.
+	 * the counter, with or without the separator the mask prints. The bank may
+	 * glue it to other text, so it only has to start after a non-letter and end
+	 * before a non-digit.
 	 */
-	const PATTERN = '/\b([A-Z]{2,4}\d{4}[-\/.]?\d{3,6})\b/';
+	const PATTERN = '/(?<![A-Z])([A-Z]{2,4}\d{4}[-\/.]?\d{3,6})(?!\d)/';
 
 	/**
 	 * References carried by the text of an entry.

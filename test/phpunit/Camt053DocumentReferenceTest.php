@@ -100,6 +100,18 @@ class Camt053DocumentReferenceTest extends TestCase
 	}
 
 	/**
+	 * The bank may glue the reference to the text around it.
+	 *
+	 * @return void
+	 */
+	public function testAReferenceGluedToOtherTextIsRead(): void
+	{
+		$this->assertSame(array('FA26020001'), Camt053DocumentReference::extract('123456FA26020001'));
+		$this->assertSame(array('FA26020001'), Camt053DocumentReference::extract('FA2602-0001ACME'));
+		$this->assertSame(array('FA26020001', 'SI26020042'), Camt053DocumentReference::extract('REF:FA26020001SI2602-0042'));
+	}
+
+	/**
 	 * A long digit run is not a reference: an ESR or a structured creditor
 	 * reference would otherwise be read as one and rank the wrong candidate.
 	 *
